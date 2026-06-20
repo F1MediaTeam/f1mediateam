@@ -132,3 +132,58 @@ export const semrushConnector: Connector = {
 };
 
 export { normalizeDomain };
+
+// ---------------------------------------------------------------------------
+// Organic keyword list (domain_organic report). Unlike the metric snapshots,
+// this is the actual ranked keyword phrases — fetched live (not stored) since
+// it's large and only needed on demand. Default sort is by traffic share desc.
+// ---------------------------------------------------------------------------
+
+export interface OrganicKeyword {
+  phrase: string;
+  position: number;
+  volume: number;
+  cpc: number;
+  trafficPct: number;
+  url: string;
+}
+
+export async function fetchOrganicKeywords(apikey: string, domain: string, limit = 250): Promise<OrganicKeyword[]> {
+  const params = new URLSearchParams({
+    type: "domain_organic",
+    key: apikey,
+    domain: normalizeDomain(domain),
+    database: "us",
+    display_limit: String(Math.max(1, Math.min(limit, 1000))),
+    export_columns: "Ph,Po,Nq,Cp,Tr,Ur",
+  });
+  const res = await fetch(`${BASE}?${params.toString()}`);
+  const text = await res.text();
+  if (!res.ok || text.startsWith("ERROR")) {
+    throw new Error(`Semrush domain_organic failed: ${text.trim().slice(0, 140)}`);
+  }
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  // Columns come back in the order we requested (header uses display names).
+  return lines.slice(1).map((line) => {
+    const c = line.split(";");
+    return {
+      phrase: c[0] ?? "",
+      position: Number(c[1] ?? 0),
+      volume: Number(c[2] ?? 0),
+      cpc: Number(c[3] ?? 0),
+      trafficPct: Number(c[4] ?? 0),
+      url: c[5] ?? "",
+    };
+  });
+}
+
+/** Resolve a client's stored SEMrush key + domain and fetch their keywords. */
+export async function fetchClientOrganicKeywords(clientId: string, limit = 250): Promise<OrganicKeyword[]> {
+  const connectors = await data.listConnectors(clientId);
+  const token = connectors.find((c) => c.provider === "semrush");
+  if (!token) return [];
+  const creds = await data.getConnectorWithCredentials(token.id);
+  if (!creds?.access_token || !creds.account_label) return [];
+  return fetchOrganicKeywords(creds.access_token, creds.account_label, limit);
+}

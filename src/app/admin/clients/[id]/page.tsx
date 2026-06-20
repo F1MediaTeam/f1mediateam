@@ -6,6 +6,7 @@ import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import MetricCompare from "@/components/shared/MetricCompare";
 import SemrushGauges from "@/components/shared/SemrushGauges";
+import OrganicKeywordsPanel from "@/components/shared/OrganicKeywordsPanel";
 import { formatBytes, formatLocation } from "@/lib/utils";
 import Time from "@/components/shared/Time";
 import { setWidgetAction, disconnectConnectorAction, refreshConnectorAction, advanceContentAction, createContentAction } from "@/app/admin/actions";
@@ -192,6 +193,7 @@ export default async function ClientProfile({
           <MetricCompare clientId={id} metric="bing_impressions"              label="Bing impressions"    hint="From Bing Webmaster Tools" />
           <MetricCompare clientId={id} metric="bing_avg_click_position"       label="Bing avg. click position" hint="From Bing Webmaster Tools · lower is better" invert />
           <SemrushGauges clientId={id} />
+          <OrganicKeywordsPanel clientId={id} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">

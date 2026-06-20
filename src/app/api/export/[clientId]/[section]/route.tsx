@@ -24,6 +24,7 @@ import {
 } from "@/lib/pdf-report";
 import { DashboardCard, LineChart, BarChart, DonutChart, GaugeGrid, PALETTE } from "@/lib/chart-pdf";
 import { todayIso } from "@/lib/utils";
+import { fetchClientOrganicKeywords, type OrganicKeyword } from "@/lib/connectors/semrush";
 import type {
   Task,
   CalendarEvent,
@@ -41,7 +42,7 @@ export const maxDuration = 60;
 
 const ALLOWED = [
   "tasks", "calendar", "content", "content_events",
-  "metrics", "audit", "files", "onboarding", "admin_access",
+  "metrics", "keywords", "audit", "files", "onboarding", "admin_access",
 ] as const;
 type Section = (typeof ALLOWED)[number];
 
@@ -395,6 +396,47 @@ export async function GET(
         landscape: true,
       });
       return pdfResponse(`${slug}-performance-report-${effectiveFrom}_to_${effectiveTo}.pdf`, buf);
+    }
+
+    case "keywords": {
+      let keywords: OrganicKeyword[] = [];
+      try {
+        keywords = await fetchClientOrganicKeywords(clientId, 250);
+      } catch {
+        // Leave empty — the PDF renders a "nothing to report" table.
+      }
+
+      const top3 = keywords.filter((k) => k.position <= 3).length;
+      const top10 = keywords.filter((k) => k.position <= 10).length;
+      const totalVolume = keywords.reduce((sum, k) => sum + k.volume, 0);
+
+      const kpis: SectionKpi[] = [
+        { label: "Keywords", value: keywords.length, format: "int" },
+        { label: "Top 3", value: top3, format: "int", tone: "ok" },
+        { label: "Top 10", value: top10, format: "int", tone: "ok" },
+        { label: "Total Volume", value: totalVolume, format: "int" },
+      ];
+
+      const cols: ColumnDef<OrganicKeyword>[] = [
+        { header: "Keyword", kind: "text", get: (k) => k.phrase, flex: 3 },
+        { header: "Position", kind: "int", get: (k) => k.position, flex: 0.9 },
+        { header: "Volume", kind: "int", get: (k) => k.volume, flex: 1 },
+        { header: "Traffic %", kind: "text", get: (k) => `${k.trafficPct.toFixed(2)}%`, flex: 1 },
+        { header: "URL", kind: "text", get: (k) => k.url.replace(/^https?:\/\//, ""), flex: 3.5 },
+      ];
+
+      buf = await buildSectionPdf<OrganicKeyword>({
+        companyName: client.company_name,
+        generatedAt,
+        tz,
+        sectionTitle: "Organic Keywords",
+        sectionLede: "Top 250 organic keywords by traffic share, live from SEMrush.",
+        kpis,
+        columns: cols,
+        rows: keywords,
+        landscape: true,
+      });
+      return pdfResponse(`${slug}-organic-keywords.pdf`, buf);
     }
 
     case "tasks": {

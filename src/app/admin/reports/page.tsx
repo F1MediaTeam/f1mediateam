@@ -105,6 +105,7 @@ export default async function AdminReports({
                 range={range}
                 sections={[
                   ["metrics", "Rankings & traffic"],
+                  ["keywords", "Organic keywords"],
                   ["content", "Content cards"],
                   ["content_events", "Approvals & posts (log)"],
                   ["tasks", "Tasks"],

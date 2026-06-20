@@ -285,7 +285,7 @@ export async function listCalendar(filter?: {
 }
 
 export async function createCalendarEvent(input: {
-  client_id: UUID;
+  client_id: UUID | null;
   type: CalendarEvent["type"];
   title: string;
   notes?: string | null;

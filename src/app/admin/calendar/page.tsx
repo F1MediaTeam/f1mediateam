@@ -38,9 +38,11 @@ export default async function AdminCalendar() {
   ]);
   const { days, monthLabel } = buildMonth(new Date());
 
-  const colorForClient = (id: string) => {
+  const INTERNAL_COLOR = { ring: "ring-slate-400/50", text: "text-slate-300", bg: "bg-slate-500/10" };
+  const colorForClient = (id: string | null) => {
+    if (!id) return INTERNAL_COLOR;
     const idx = clients.findIndex((c) => c.id === id);
-    return PALETTE[idx % PALETTE.length];
+    return PALETTE[(idx < 0 ? 0 : idx) % PALETTE.length];
   };
 
   const eventsByDay = new Map<string, typeof events>();
@@ -80,6 +82,10 @@ export default async function AdminCalendar() {
                 </span>
               );
             })}
+            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs bg-slate-500/10 text-slate-300 border-current/30">
+              <span className="inline-block w-2 h-2 rounded-full bg-current opacity-90" />
+              F1 Media
+            </span>
           </div>
         </div>
 
@@ -142,7 +148,9 @@ export default async function AdminCalendar() {
               ) : (
                 upcoming.map((e) => {
                   const p = colorForClient(e.client_id);
-                  const clientLabel = clients.find((c) => c.id === e.client_id)?.company_name ?? "—";
+                  const clientLabel = e.client_id
+                    ? (clients.find((c) => c.id === e.client_id)?.company_name ?? "—")
+                    : "F1 Media (internal)";
                   return (
                     <div
                       key={e.id}
@@ -183,9 +191,10 @@ export default async function AdminCalendar() {
                 <select
                   name="client_id"
                   required
-                  defaultValue={clients[0]?.id ?? ""}
+                  defaultValue="internal"
                   className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
                 >
+                  <option value="internal">F1 Media (internal)</option>
                   {clients.map((c) => (
                     <option key={c.id} value={c.id}>{c.company_name}</option>
                   ))}

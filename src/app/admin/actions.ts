@@ -52,14 +52,16 @@ export async function deleteTaskAction(formData: FormData) {
 
 export async function createCalendarAction(formData: FormData) {
   const session = await requireAdmin();
-  const client_id = String(formData.get("client_id") ?? "");
+  const raw = String(formData.get("client_id") ?? "");
+  // "internal" → an F1 Media event not tied to any client (client_id = null).
+  const client_id = raw === "internal" ? null : raw;
   const title = String(formData.get("title") ?? "").trim();
   const type = (formData.get("type") === "deadline" ? "deadline" : "meeting") as
     | "meeting"
     | "deadline";
   const starts_at = String(formData.get("starts_at") ?? "");
   const notes = String(formData.get("notes") ?? "").trim() || null;
-  if (!client_id || !title || !starts_at) return;
+  if (!raw || !title || !starts_at) return;
   await data.createCalendarEvent({
     client_id,
     title,

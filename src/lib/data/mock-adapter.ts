@@ -193,7 +193,7 @@ export function listCalendar(filter?: { clientId?: UUID; from?: string; to?: str
 }
 
 export function createCalendarEvent(input: {
-  client_id: UUID;
+  client_id: UUID | null;
   type: CalendarEvent["type"];
   title: string;
   notes?: string | null;

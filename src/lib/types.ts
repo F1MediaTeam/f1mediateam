@@ -60,7 +60,8 @@ export type CalendarEventType = "meeting" | "deadline";
 
 export interface CalendarEvent {
   id: UUID;
-  client_id: UUID;
+  /** null = an F1 Media internal event (not tied to a client). */
+  client_id: UUID | null;
   type: CalendarEventType;
   title: string;
   notes: string | null;

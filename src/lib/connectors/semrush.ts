@@ -9,6 +9,11 @@ import { data } from "@/lib/data";
 
 const BASE = "https://api.semrush.com/";
 
+// Columns we request, in order. Semrush honors this order in its response but
+// labels the header with display names ("Date", "Organic Keywords", …) rather
+// than these short codes — so we parse by POSITION, not by header name.
+const EXPORT_COLUMNS = ["Dt", "Or", "Ot", "Oc", "Ad", "At", "Ac"] as const;
+
 interface DomainHistRow {
   Dt: string; // YYYYMMDD15  (Semrush stamps each monthly snapshot)
   Or: number; // Organic keywords
@@ -36,7 +41,10 @@ function parseSemrushDate(raw: string): string {
 }
 
 /**
- * Semrush returns CSV with `;` delimiters. First row is the header (column codes).
+ * Semrush returns `;`-delimited CSV. The first row is a header, but it uses
+ * human-readable labels ("Date", "Organic Keywords", …) instead of the short
+ * codes we requested — so we ignore the header and map each data row by
+ * POSITION against EXPORT_COLUMNS (Semrush returns columns in request order).
  * Empty bodies and "ERROR ..." strings are also possible.
  */
 function parseSemrushCsv(text: string): DomainHistRow[] {
@@ -44,19 +52,18 @@ function parseSemrushCsv(text: string): DomainHistRow[] {
   if (!trimmed || trimmed.startsWith("ERROR")) return [];
   const lines = trimmed.split(/\r?\n/);
   if (lines.length < 2) return [];
-  const headers = lines[0].split(";");
   return lines.slice(1).map((line) => {
     const cols = line.split(";");
-    const row: Record<string, string> = {};
-    headers.forEach((h, i) => (row[h] = cols[i] ?? ""));
+    const cell: Record<string, string> = {};
+    EXPORT_COLUMNS.forEach((code, i) => (cell[code] = cols[i] ?? ""));
     return {
-      Dt: row.Dt ?? "",
-      Or: Number(row.Or ?? 0),
-      Ot: Number(row.Ot ?? 0),
-      Oc: Number(row.Oc ?? 0),
-      Ad: Number(row.Ad ?? 0),
-      At: Number(row.At ?? 0),
-      Ac: Number(row.Ac ?? 0),
+      Dt: cell.Dt,
+      Or: Number(cell.Or || 0),
+      Ot: Number(cell.Ot || 0),
+      Oc: Number(cell.Oc || 0),
+      Ad: Number(cell.Ad || 0),
+      At: Number(cell.At || 0),
+      Ac: Number(cell.Ac || 0),
     };
   });
 }
@@ -93,7 +100,7 @@ export const semrushConnector: Connector = {
       type: "domain_rank_history",
       domain,
       database: "us",
-      export_columns: "Dt,Or,Ot,Oc,Ad,At,Ac",
+      export_columns: EXPORT_COLUMNS.join(","),
       key: apikey,
     });
     const res = await fetch(`${BASE}?${params.toString()}`);

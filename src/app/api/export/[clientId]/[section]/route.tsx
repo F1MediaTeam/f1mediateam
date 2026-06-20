@@ -558,20 +558,6 @@ export async function GET(
         { header: "Body", kind: "long", get: (c) => c.body },
       ];
 
-      const stageChartNode = (
-        <DonutChart
-          title="Stage breakdown"
-          subtitle="Where every card currently sits"
-          data={[
-            { label: "Proposed", value: proposed, color: PALETTE.warn },
-            { label: "Pending",  value: pending,  color: "#6366F1" },
-            { label: "Posted",   value: posted,   color: PALETTE.ok },
-          ].filter((d) => d.value > 0)}
-          centerValue={String(cards.length)}
-          centerLabel="CARDS"
-        />
-      );
-
       buf = await buildSectionPdf<ContentCard>({
         companyName: client.company_name,
         fromIso: from,
@@ -583,7 +569,6 @@ export async function GET(
         kpis,
         columns: cols,
         rows: cards,
-        charts: [{ title: "Stage breakdown", node: stageChartNode }],
       });
       break;
     }
@@ -751,44 +736,6 @@ export async function GET(
         { header: "IP", kind: "id", get: (r) => r.ip },
       ];
 
-      const perDay = new Map<string, number>();
-      for (const r of rowsIn) {
-        const k = new Date(r.logged_in_at).toISOString().slice(0, 10);
-        perDay.set(k, (perDay.get(k) ?? 0) + 1);
-      }
-      const daily = [...perDay.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-      const cityCounts = new Map<string, number>();
-      for (const r of rowsIn) {
-        if (!r.city) continue;
-        cityCounts.set(r.city, (cityCounts.get(r.city) ?? 0) + 1);
-      }
-      const topCities = [...cityCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
-
-      const charts: ChartNode[] = [];
-      if (daily.length > 0) {
-        charts.push({
-          title: "Logins per day",
-          node: (
-            <LineChart
-              title="Logins per day"
-              subtitle="Every successful sign-in"
-              series={[{ label: "Logins", points: daily.map(([date, value]) => ({ date, value })) }]}
-            />
-          ),
-        });
-      }
-      if (topCities.length > 0) {
-        charts.push({
-          title: "Top cities",
-          node: (
-            <BarChart
-              title="Top cities"
-              data={topCities.map(([label, value], i) => ({ label, value, color: PALETTE.series[i % PALETTE.series.length] }))}
-            />
-          ),
-        });
-      }
-
       buf = await buildSectionPdf<LoginAudit>({
         companyName: client.company_name,
         fromIso: from,
@@ -800,7 +747,6 @@ export async function GET(
         kpis,
         columns: cols,
         rows: rowsIn,
-        charts,
       });
       break;
     }

@@ -5,6 +5,7 @@ import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import MetricCompare from "@/components/shared/MetricCompare";
+import SemrushGauges from "@/components/shared/SemrushGauges";
 import { formatBytes, formatLocation } from "@/lib/utils";
 import Time from "@/components/shared/Time";
 import { setWidgetAction, disconnectConnectorAction, refreshConnectorAction, advanceContentAction, createContentAction } from "@/app/admin/actions";
@@ -190,11 +191,7 @@ export default async function ClientProfile({
           <MetricCompare clientId={id} metric="bing_clicks"                   label="Bing organic clicks" hint="From Bing Webmaster Tools" />
           <MetricCompare clientId={id} metric="bing_impressions"              label="Bing impressions"    hint="From Bing Webmaster Tools" />
           <MetricCompare clientId={id} metric="bing_avg_click_position"       label="Bing avg. click position" hint="From Bing Webmaster Tools · lower is better" invert />
-          <MetricCompare clientId={id} metric="semrush_organic_keywords"      label="SEMrush organic keywords" hint="From SEMrush" />
-          <MetricCompare clientId={id} metric="semrush_organic_traffic"       label="SEMrush estimated organic traffic" hint="From SEMrush" />
-          <MetricCompare clientId={id} metric="semrush_organic_cost"          label="SEMrush estimated organic value" hint="From SEMrush · USD" />
-          <MetricCompare clientId={id} metric="semrush_paid_keywords"         label="SEMrush paid keywords" hint="From SEMrush" />
-          <MetricCompare clientId={id} metric="semrush_paid_traffic"          label="SEMrush estimated paid traffic" hint="From SEMrush" />
+          <SemrushGauges clientId={id} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">

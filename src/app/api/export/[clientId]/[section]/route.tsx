@@ -22,7 +22,7 @@ import {
   type SectionKpi,
   type ChartNode,
 } from "@/lib/pdf-report";
-import { DashboardCard, LineChart, BarChart, DonutChart, PALETTE } from "@/lib/chart-pdf";
+import { DashboardCard, LineChart, BarChart, DonutChart, GaugeGrid, PALETTE } from "@/lib/chart-pdf";
 import { todayIso } from "@/lib/utils";
 import type {
   Task,
@@ -188,6 +188,7 @@ export async function GET(
             : data.listSnapshots({ clientId, metric: d.metric, from, to }),
         ),
       )).map((series) => series.filter((s) => s.captured_at <= todayStr));
+      const semrushDefs = defs.filter((d) => d.metric.startsWith("semrush_"));
       const snapshots = all.flat();
       const sortedDates = snapshots.map((s) => s.captured_at).sort();
       const effectiveFrom = from ?? sortedDates[0] ?? generatedAt.toISOString().slice(0, 10);
@@ -232,10 +233,12 @@ export async function GET(
         };
       });
 
-      // Dashboard-style card per metric that has data in the window.
+      // Dashboard-style trend card per Google/Bing metric with data. SEMrush is
+      // monthly (sparse), so it's rendered as a grid of gauges below instead.
       const trendCharts: ChartNode[] = [];
       for (let i = 0; i < defs.length; i++) {
         const def = defs[i];
+        if (def.metric.startsWith("semrush_")) continue;
         const series = all[i];
         if (series.length === 0) continue;
         const values = series.map((s) => Number(s.value));
@@ -263,6 +266,40 @@ export async function GET(
               lowerBetter={def.lowerBetter}
             />
           ),
+        });
+      }
+
+      // SEMrush → a grid of radial gauges (monthly data reads better as dials).
+      // Each dial shows the latest value in the window against a "nice" scale
+      // (rounded up from the window's max) so the arc is never pinned full.
+      const gaugeNiceCeil = (max: number) => {
+        if (max <= 0) return 1;
+        const rough = max / 4;
+        const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+        const norm = rough / mag;
+        const step = (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * mag;
+        return Math.ceil(max / step) * step;
+      };
+      const fmtGauge = (v: number, money: boolean) => {
+        const n = v >= 10_000
+          ? v.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 })
+          : v.toLocaleString("en-US", { maximumFractionDigits: 0 });
+        return money ? `$${n}` : n;
+      };
+      const semrushGauges = semrushDefs.map((d) => {
+        const series = all[defs.indexOf(d)];
+        const money = d.kind === "money";
+        if (series.length === 0) return { label: d.cardTitle, valueText: "—", scaleText: "", frac: 0 };
+        const current = Number(series[series.length - 1].value);
+        const windowMax = Math.max(...series.map((s) => Number(s.value)), 0);
+        const scaleMax = gaugeNiceCeil(windowMax);
+        const frac = scaleMax > 0 ? Math.max(0, Math.min(1, current / scaleMax)) : 0;
+        return { label: d.cardTitle, valueText: fmtGauge(current, money), scaleText: `OF ${fmtGauge(scaleMax, money)}`, frac };
+      });
+      if (semrushGauges.length) {
+        trendCharts.push({
+          title: "SEMrush",
+          node: <GaugeGrid title="SEMrush" source="From SEMrush · latest value in the selected window" gauges={semrushGauges} />,
         });
       }
 
@@ -303,7 +340,6 @@ export async function GET(
       // SEMrush reports monthly, so it gets its own table on a dedicated page
       // rather than scattering sparse cells across the daily grid above. One
       // column per SEMrush metric, one row per month it has data.
-      const semrushDefs = defs.filter((d) => d.metric.startsWith("semrush_"));
       const semrushSeries = semrushDefs.map((d) => all[defs.indexOf(d)]);
       const semrushDateSet = new Set<string>();
       for (const series of semrushSeries) for (const s of series) semrushDateSet.add(s.captured_at);

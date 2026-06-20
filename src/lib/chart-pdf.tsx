@@ -552,6 +552,90 @@ export function DonutChart(props: DonutChartProps) {
 }
 
 // =========================================================================
+// Radial gauge grid (SEMrush) — monthly data reads better as dials than as a
+// sparse trend line.
+// =========================================================================
+
+// 270° gauge geometry: 0° = top, clockwise. Track runs -135° → +135°.
+const GAUGE_START = -135;
+const GAUGE_SWEEP = 270;
+function gaugePolar(cx: number, cy: number, r: number, deg: number): [number, number] {
+  const rad = (deg * Math.PI) / 180;
+  return [cx + r * Math.sin(rad), cy - r * Math.cos(rad)];
+}
+function gaugeArc(cx: number, cy: number, r: number, startDeg: number, endDeg: number): string {
+  const [sx, sy] = gaugePolar(cx, cy, r, startDeg);
+  const [ex, ey] = gaugePolar(cx, cy, r, endDeg);
+  const large = endDeg - startDeg > 180 ? 1 : 0;
+  return `M ${sx.toFixed(2)} ${sy.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${ex.toFixed(2)} ${ey.toFixed(2)}`;
+}
+
+export interface GaugeDatum {
+  label: string;
+  valueText: string;
+  scaleText: string;
+  /** 0–1 fill fraction. */
+  frac: number;
+}
+export interface GaugeGridProps {
+  title: string;
+  source?: string;
+  gauges: GaugeDatum[];
+  width?: number;
+  height?: number;
+}
+
+export function GaugeGrid(props: GaugeGridProps) {
+  const cols = 3;
+  const rows = Math.max(1, Math.ceil(props.gauges.length / cols));
+  const width = props.width ?? 1100;
+  const height = props.height ?? 120 + rows * 220;
+
+  const cardBg = "#0F1620";
+  const cardBorder = "#1F2937";
+  const trackColor = "#1F2937";
+  const accent = "#22C55E";
+  const textMain = "#F8FAFC";
+  const textMuted = "#94A3B8";
+  const textLabel = "#64748B";
+
+  const padX = 40;
+  const gridTop = 104;
+  const cellW = (width - 2 * padX) / cols;
+  const cellH = (height - gridTop - 24) / rows;
+  const r = 66;
+  const sw = 14;
+
+  return (
+    <Svg width={DISPLAY_WIDTH} height={Math.round((DISPLAY_WIDTH * height) / width)} viewBox={`0 0 ${width} ${height}`}>
+      <Rect x={0.5} y={0.5} width={width - 1} height={height - 1} rx={16} ry={16} fill={cardBg} stroke={cardBorder} />
+      <SvgText x={padX} y={46} fontSize={22} fill={textMain}>{props.title}</SvgText>
+      {props.source ? <SvgText x={padX} y={66} fontSize={12} fill={textMuted}>{props.source}</SvgText> : null}
+
+      {props.gauges.map((g, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const cx = padX + cellW * col + cellW / 2;
+        const top = gridTop + cellH * row;
+        const cy = top + 92;
+        const frac = Math.max(0, Math.min(1, g.frac));
+        return (
+          <G key={i}>
+            <Path d={gaugeArc(cx, cy, r, GAUGE_START, GAUGE_START + GAUGE_SWEEP)} fill="none" stroke={trackColor} strokeWidth={sw} strokeLinecap="round" />
+            {frac > 0 ? (
+              <Path d={gaugeArc(cx, cy, r, GAUGE_START, GAUGE_START + GAUGE_SWEEP * frac)} fill="none" stroke={accent} strokeWidth={sw} strokeLinecap="round" />
+            ) : null}
+            <SvgText x={cx} y={cy + 6} fontSize={30} fontWeight={700} fill={textMain} textAnchor="middle">{g.valueText}</SvgText>
+            {g.scaleText ? <SvgText x={cx} y={cy + 28} fontSize={11} fill={textLabel} textAnchor="middle">{g.scaleText}</SvgText> : null}
+            <SvgText x={cx} y={top + 196} fontSize={15} fill={textMuted} textAnchor="middle">{g.label}</SvgText>
+          </G>
+        );
+      })}
+    </Svg>
+  );
+}
+
+// =========================================================================
 // Empty placeholder
 // =========================================================================
 

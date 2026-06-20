@@ -380,30 +380,6 @@ export async function GET(
           }]
         : undefined;
 
-      // Diagnostic breakdown so the user can see which connectors actually
-      // contributed data — answers "why is X missing?" without leaving the PDF.
-      const connectorTokens = await data.listConnectors(clientId);
-      const PROVIDER_LABEL: Record<string, string> = {
-        gsc: "Google Search Console",
-        ga4: "Google Analytics 4",
-        bing: "Bing Webmaster Tools",
-        semrush: "SEMrush",
-      };
-      const PROVIDER_PRIMARY_METRIC: Record<string, string> = {
-        gsc: "clicks",
-        ga4: "sessions",
-        bing: "bing_clicks",
-        semrush: "semrush_organic_keywords",
-      };
-      const sourcePairs = ["gsc", "ga4", "bing", "semrush"].map((prov) => {
-        const token = connectorTokens.find((t) => t.provider === prov);
-        if (!token) return { label: PROVIDER_LABEL[prov], value: "Not connected" };
-        const primary = PROVIDER_PRIMARY_METRIC[prov];
-        const series = all[defs.findIndex((d) => d.metric === primary)] ?? [];
-        if (series.length === 0) return { label: PROVIDER_LABEL[prov], value: "Connected · no data in window" };
-        return { label: PROVIDER_LABEL[prov], value: `${series.length} pts · last ${fmtDateShort(series[series.length - 1].captured_at)}` };
-      });
-
       buf = await buildSectionPdf<DailyRow>({
         companyName: client.company_name,
         fromIso: effectiveFrom,
@@ -411,12 +387,9 @@ export async function GET(
         generatedAt,
         tz,
         sectionTitle: "Performance Report",
-        sectionLede:
-          "Rankings, traffic, and visibility across Google Search Console, Google Analytics 4, Bing Webmaster Tools, and SEMrush. Trend % on each KPI compares the second half of the window to the first half — lower is better for position metrics. The daily detail table covers Google and Bing; SEMrush reports monthly, so its history appears in its own table.",
         kpis,
         columns: cols,
         rows: dailyRows,
-        breakdowns: [{ title: "Data sources", pairs: sourcePairs }],
         charts: trendCharts,
         extraTables,
         landscape: true,

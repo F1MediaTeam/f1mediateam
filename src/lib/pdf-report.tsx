@@ -36,7 +36,7 @@ const style = StyleSheet.create({
   topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   logo: { width: 180, height: 72, objectFit: "contain" },
   topDate: { fontSize: 11, fontFamily: "Helvetica-Bold", color: BRAND.ink },
-  hero: { fontSize: 48, fontFamily: "Helvetica-Bold", color: BRAND.ink, textAlign: "center", marginTop: 18, marginBottom: 22 },
+  hero: { fontSize: 38, fontFamily: "Helvetica-Bold", color: BRAND.ink, textAlign: "center", marginTop: 4, marginBottom: 20 },
 
   // ---------- KPI grid (mock-style: 5 columns × 2 rows, sparse) ----------
   kpiGrid: { flexDirection: "column", borderTopWidth: 1, borderLeftWidth: 1, borderColor: BRAND.ink, marginBottom: 28 },
@@ -56,6 +56,7 @@ const style = StyleSheet.create({
 
   // ---------- "Graphs" section heading ----------
   graphsHeading: { fontSize: 28, fontFamily: "Helvetica-Bold", color: BRAND.ink, marginBottom: 12 },
+  graphsHeadingCentered: { fontSize: 28, fontFamily: "Helvetica-Bold", color: BRAND.ink, textAlign: "center", marginTop: 4, marginBottom: 18 },
   chart: { width: "100%", marginBottom: 16 },
 
   // ---------- Lede + breakdowns (cover extras) ----------
@@ -340,30 +341,18 @@ function fmtTopDate(fromIso?: string, toIso?: string): string {
 }
 
 function KpiGrid({ kpis }: { kpis: SectionKpi[] }) {
-  // 5-col × 2-row grid, sparse — extra cells render as empty boxes to match
-  // the mockup look.
-  const COLS = 5;
-  const ROWS = 2;
-  const total = COLS * ROWS;
-  const padded: (SectionKpi | null)[] = [...kpis];
-  while (padded.length < total) padded.push(null);
-
+  // Single full-width row — one box per KPI, no empty filler cells.
+  if (kpis.length === 0) return null;
   return (
     <View style={style.kpiGrid}>
-      {[0, 1].map((rowIdx) => (
-        <View key={rowIdx} style={style.kpiGridRow}>
-          {padded.slice(rowIdx * COLS, rowIdx * COLS + COLS).map((k, colIdx) =>
-            k ? (
-              <View key={colIdx} style={style.kpiCell}>
-                <Text style={style.kpiCellLabel}>{k.label}</Text>
-                <Text style={[style.kpiCellValue, { color: kpiTone(k) }]}>{fmtKpi(k)}</Text>
-              </View>
-            ) : (
-              <View key={colIdx} style={style.kpiCellEmpty} />
-            ),
-          )}
-        </View>
-      ))}
+      <View style={style.kpiGridRow}>
+        {kpis.map((k, i) => (
+          <View key={i} style={style.kpiCell}>
+            <Text style={style.kpiCellLabel}>{k.label}</Text>
+            <Text style={[style.kpiCellValue, { color: kpiTone(k) }]}>{fmtKpi(k)}</Text>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -482,15 +471,21 @@ function ReportDocument<T>({
           </View>
         ))}
 
-        {hasCharts ? <Text style={style.graphsHeading}>Graphs</Text> : null}
-        {(input.charts ?? []).map((c, i) => (
-          <View key={i} wrap={false} style={style.chart}>
-            {c.node}
-          </View>
-        ))}
-
         {Footer}
       </Page>
+
+      {/* Graphs — their own page(s), heading centered at the top. */}
+      {hasCharts ? (
+        <Page size="LETTER" style={style.page}>
+          <Text style={style.graphsHeadingCentered}>Graphs</Text>
+          {(input.charts ?? []).map((c, i) => (
+            <View key={i} wrap={false} style={style.chart}>
+              {c.node}
+            </View>
+          ))}
+          {Footer}
+        </Page>
+      ) : null}
 
       {/* Detail page(s) — primary table first, then any extra tables. */}
       <TablePage

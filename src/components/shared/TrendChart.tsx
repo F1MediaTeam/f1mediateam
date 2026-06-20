@@ -280,28 +280,15 @@ export default function TrendChart({
 
       {/* Baseline */}
       {baseline !== undefined ? (
-        <g>
-          <line
-            x1={padL}
-            x2={padL + W}
-            y1={yCoord(baseline)}
-            y2={yCoord(baseline)}
-            stroke="var(--color-border-strong)"
-            strokeDasharray="4 4"
-            strokeWidth={1.25}
-          />
-          <text
-            x={padL + W - 4}
-            y={yCoord(baseline) - 4}
-            textAnchor="end"
-            fontSize={9}
-            fill="var(--color-text-muted)"
-            fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-            letterSpacing="0.05em"
-          >
-            BASELINE
-          </text>
-        </g>
+        <line
+          x1={padL}
+          x2={padL + W}
+          y1={yCoord(baseline)}
+          y2={yCoord(baseline)}
+          stroke="var(--color-border-strong)"
+          strokeDasharray="4 4"
+          strokeWidth={1.25}
+        />
       ) : null}
 
       <path d={areaPath} fill={`url(#${gradId})`} />

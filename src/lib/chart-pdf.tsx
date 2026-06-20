@@ -279,10 +279,7 @@ export function DashboardCard(props: DashboardCardProps) {
 
       {/* Baseline rule */}
       {showBaseline ? (
-        <G>
-          <Line x1={chartLeft} x2={chartRight} y1={yCoord(baselineV)} y2={yCoord(baselineV)} stroke={textMuted} strokeOpacity={0.45} strokeDasharray="4 4" />
-          <SvgText x={chartRight - 4} y={yCoord(baselineV) - 6} fontSize={9} fill={textMuted} textAnchor="end">BASELINE</SvgText>
-        </G>
+        <Line x1={chartLeft} x2={chartRight} y1={yCoord(baselineV)} y2={yCoord(baselineV)} stroke={textMuted} strokeOpacity={0.45} strokeDasharray="4 4" />
       ) : null}
 
       {/* Area + line */}

@@ -8,7 +8,6 @@ import type { Client } from "@/lib/types";
 const NAV = [
   { href: "/client",         label: "Overview" },
   { href: "/client/content", label: "Content" },
-  { href: "/client/files",   label: "Files" },
   { href: "/client/settings",label: "Settings" },
 ];
 

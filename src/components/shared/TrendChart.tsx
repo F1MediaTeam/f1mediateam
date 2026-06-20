@@ -49,9 +49,14 @@ function formatInterpolatedDate(d1: string, d2: string, t: number): string {
   return `${month} ${day} · ${hour12}:00 ${ampm}`;
 }
 
-function smoothPath(pts: { x: number; y: number }[]): string {
+// Catmull-Rom → cubic Bézier. Control-point Y is clamped to [yLo, yHi] (the
+// plot area) so the spline can't overshoot past the data — e.g. dip below the
+// 0 axis when the line drops sharply to zero. A cubic Bézier stays within the
+// convex hull of its control points, so clamping them bounds the whole curve.
+function smoothPath(pts: { x: number; y: number }[], yLo: number, yHi: number): string {
   if (pts.length === 0) return "";
   if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
+  const clampY = (y: number) => Math.max(yLo, Math.min(yHi, y));
   let d = `M ${pts[0].x} ${pts[0].y}`;
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[i - 1] ?? pts[i];
@@ -59,9 +64,9 @@ function smoothPath(pts: { x: number; y: number }[]): string {
     const p2 = pts[i + 1];
     const p3 = pts[i + 2] ?? p2;
     const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp1y = clampY(p1.y + (p2.y - p0.y) / 6);
     const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    const cp2y = clampY(p2.y - (p3.y - p1.y) / 6);
     d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
   }
   return d;
@@ -126,7 +131,7 @@ export default function TrendChart({
   const yCoord = (v: number) => padT + H - ((v - yMin) / (yMax - yMin || 1)) * H;
 
   const pts = points.map((p, i) => ({ x: xCoord(i), y: yCoord(p.value) }));
-  const linePath = smoothPath(pts);
+  const linePath = smoothPath(pts, padT, padT + H);
   const areaPath = `${linePath} L ${pts[pts.length - 1].x} ${padT + H} L ${pts[0].x} ${padT + H} Z`;
 
   const lineColor = "var(--color-up)";
@@ -201,8 +206,11 @@ export default function TrendChart({
     const p1 = pts[lo];
     const p2 = pts[hi];
     const p3 = pts[Math.min(points.length - 1, hi + 1)];
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    // Match the clamped control points used to draw the curve so the scrubber
+    // dot sits exactly on the rendered line (no float below the axis).
+    const clampY = (y: number) => Math.max(padT, Math.min(padT + H, y));
+    const cp1y = clampY(p1.y + (p2.y - p0.y) / 6);
+    const cp2y = clampY(p2.y - (p3.y - p1.y) / 6);
     const u = 1 - t;
     const yA = u * u * u * p1.y + 3 * u * u * t * cp1y + 3 * u * t * t * cp2y + t * t * t * p2.y;
     const xA = p1.x + t * (p2.x - p1.x);

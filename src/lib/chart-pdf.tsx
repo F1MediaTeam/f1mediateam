@@ -83,9 +83,14 @@ function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
-function smoothPath(pts: { x: number; y: number }[]): string {
+// Catmull-Rom → cubic Bézier. Control-point Y is clamped to the plot area
+// [yLo, yHi] so the spline can't overshoot past the data (e.g. dip below the
+// 0 axis on a sharp drop to zero); a cubic Bézier stays within the convex hull
+// of its control points, so clamping them bounds the whole curve.
+function smoothPath(pts: { x: number; y: number }[], yLo: number, yHi: number): string {
   if (pts.length === 0) return "";
   if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
+  const clampY = (y: number) => Math.max(yLo, Math.min(yHi, y));
   let d = `M ${pts[0].x} ${pts[0].y}`;
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[i - 1] ?? pts[i];
@@ -93,9 +98,9 @@ function smoothPath(pts: { x: number; y: number }[]): string {
     const p2 = pts[i + 1];
     const p3 = pts[i + 2] ?? p2;
     const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp1y = clampY(p1.y + (p2.y - p0.y) / 6);
     const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    const cp2y = clampY(p2.y - (p3.y - p1.y) / 6);
     d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
   }
   return d;
@@ -181,7 +186,7 @@ export function DashboardCard(props: DashboardCardProps) {
   const yCoord = (v: number) => chartTop + chartH - ((v - yMin) / (yMax - yMin || 1)) * chartH;
 
   const pts = props.series.map((p, i) => ({ x: xCoord(i), y: yCoord(p.value) }));
-  const linePath = smoothPath(pts);
+  const linePath = smoothPath(pts, chartTop, chartBottom);
   const areaPath = `${linePath} L ${pts[pts.length - 1].x} ${chartBottom} L ${pts[0].x} ${chartBottom} Z`;
 
   const yTicks = niceTicks(yMin, yMax, 4).filter((t) => t >= yMin && t <= yMax);

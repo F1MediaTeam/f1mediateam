@@ -24,10 +24,11 @@ interface SiteEntry {
 
 /**
  * Bing has shipped several date formats over the years. Accept any of:
- *   - `/Date(1700000000000)/`   (legacy ASP.NET wrapper)
- *   - `1700000000000`           (raw epoch ms)
- *   - `2026-06-19`              (ISO date)
- *   - `2026-06-19T00:00:00Z`    (ISO datetime)
+ *   - `/Date(1700000000000)/`        (legacy ASP.NET wrapper)
+ *   - `/Date(1700000000000-0700)/`   (ASP.NET wrapper with a timezone offset)
+ *   - `1700000000000`                (raw epoch ms)
+ *   - `2026-06-19`                   (ISO date)
+ *   - `2026-06-19T00:00:00Z`         (ISO datetime)
  * Throw if none parse — silently falling back to today would make every row
  * share a captured_at and the dedupe in writeSnapshots collapses the series
  * to a single point.
@@ -35,7 +36,11 @@ interface SiteEntry {
 function parseBingDate(d: string | number): string {
   if (typeof d === "number") return new Date(d).toISOString().slice(0, 10);
   const asString = String(d);
-  const aspnet = /\/Date\((-?\d+)\)\//.exec(asString);
+  // ASP.NET `/Date(ms)/` — Bing often appends a timezone offset, e.g.
+  // `/Date(1741762080000-0700)/`. The captured group is the UTC epoch in ms;
+  // the trailing offset is annotation only, so we ignore it and read the UTC
+  // date (matching how the offset-less form has always been parsed).
+  const aspnet = /\/Date\((-?\d+)(?:[+-]\d{4})?\)\//.exec(asString);
   if (aspnet) return new Date(parseInt(aspnet[1], 10)).toISOString().slice(0, 10);
   // ISO date / datetime
   const parsed = new Date(asString);

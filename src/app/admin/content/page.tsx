@@ -57,12 +57,24 @@ export default async function AdminContent({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {STAGES.map(({ stage, label, tone }) => {
             const col = cards.filter((c) => c.stage === stage);
+            const changeReqCount =
+              stage === "proposed"
+                ? col.filter((c) => {
+                    const ev = (eventsByCard.get(c.id) ?? [])[0];
+                    return ev && (ev.note ?? "").startsWith("CHANGES REQUESTED");
+                  }).length
+                : 0;
             return (
               <Card key={stage}>
                 <CardHeader
                   title={
                     <span className="flex items-center gap-2">
                       <Pill tone={tone}>{label}</Pill>
+                      {changeReqCount > 0 ? (
+                        <span className="rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/40 px-2 py-0.5 text-[10px] font-semibold">
+                          {changeReqCount} change{changeReqCount > 1 ? "s" : ""} requested
+                        </span>
+                      ) : null}
                     </span>
                   }
                   right={<span className="font-mono text-xs text-[var(--color-text-muted)]">{col.length}</span>}
@@ -75,15 +87,33 @@ export default async function AdminContent({
                   ) : (
                     col.map((card) => {
                       const events = eventsByCard.get(card.id) ?? [];
+                      // An open change request = the latest event on a still-proposed
+                      // card is a client "CHANGES REQUESTED" note.
+                      const latest = events[0];
+                      const changeRequest =
+                        card.stage === "proposed" && latest && (latest.note ?? "").startsWith("CHANGES REQUESTED")
+                          ? (latest.note ?? "").replace(/^CHANGES REQUESTED:\s*/, "")
+                          : null;
                       return (
                         <div
                           key={card.id}
-                          className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3"
+                          className={
+                            "rounded-lg border bg-[var(--color-bg-elev)] p-3 " +
+                            (changeRequest ? "border-amber-500/50" : "border-[var(--color-border)]")
+                          }
                         >
                           <div className="text-sm font-medium leading-snug">{card.title}</div>
                           <div className="mt-1 text-[11px] text-[var(--color-text-muted)] font-mono">
                             {clientNameOf(card.client_id)} · updated <Time iso={card.updated_at} />
                           </div>
+                          {changeRequest ? (
+                            <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+                              <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-400">
+                                ⚠ Changes requested by client
+                              </div>
+                              <div className="mt-0.5 text-xs text-amber-200 leading-snug">{changeRequest}</div>
+                            </div>
+                          ) : null}
                           {card.body ? (
                             <div className="mt-2 text-xs text-[var(--color-text-muted)] line-clamp-3">
                               {card.body}

@@ -34,16 +34,32 @@ export default async function AdminReports({
   const { fromIso, toIso } = rangeBounds(range, sp.from, sp.to);
   const client = clientId ? await data.getClient(clientId) : null;
 
-  const metrics = ["clicks", "impressions", "sessions", "avg_position", "visibility"] as const;
+  // Every connector's headline metrics — Google, Bing, and SEMrush. `invert`
+  // marks metrics where a lower number is better (search-result positions).
+  const metricDefs: { metric: string; label: string; invert?: boolean }[] = [
+    { metric: "clicks",                   label: "Organic clicks (GSC)" },
+    { metric: "impressions",              label: "Impressions (GSC)" },
+    { metric: "avg_position",             label: "Avg. position (GSC)", invert: true },
+    { metric: "sessions",                 label: "Sessions (GA4)" },
+    { metric: "visibility",               label: "Visibility" },
+    { metric: "bing_clicks",              label: "Bing clicks" },
+    { metric: "bing_impressions",         label: "Bing impressions" },
+    { metric: "bing_avg_click_position",  label: "Bing avg. click position", invert: true },
+    { metric: "semrush_organic_keywords", label: "SEMrush organic keywords" },
+    { metric: "semrush_organic_traffic",  label: "SEMrush organic traffic" },
+    { metric: "semrush_organic_cost",     label: "SEMrush organic value ($)" },
+    { metric: "semrush_paid_keywords",    label: "SEMrush paid keywords" },
+    { metric: "semrush_paid_traffic",     label: "SEMrush paid traffic" },
+  ];
   const seriesAll = await Promise.all(
-    metrics.map((m) => data.listSnapshots({ clientId, metric: m, from: fromIso, to: toIso })),
+    metricDefs.map((d) => data.listSnapshots({ clientId, metric: d.metric, from: fromIso, to: toIso })),
   );
-  const rows = metrics.map((m, i) => {
+  const rows = metricDefs.map((d, i) => {
     const series = seriesAll[i];
     const first = series[0] ?? null;
     const last = series[series.length - 1] ?? null;
     const change = first && last ? formatPercentChange(first.value, last.value) : null;
-    return { metric: m, first, last, change };
+    return { metric: d.metric, label: d.label, invert: d.invert ?? false, first, last, change };
   });
 
   return (
@@ -121,14 +137,14 @@ export default async function AdminReports({
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
                 {rows.map((r) => {
-                  const invert = r.metric === "avg_position";
+                  const invert = r.invert;
                   const dir = !r.change ? "flat"
                     : invert
                       ? (r.change.direction === "up" ? "down" : r.change.direction === "down" ? "up" : "flat")
                       : r.change.direction;
                   return (
                     <tr key={r.metric}>
-                      <td className="py-3 pr-4 capitalize">{r.metric.replace("_", " ")}</td>
+                      <td className="py-3 pr-4">{r.label}</td>
                       <td className="py-3 pr-4 font-mono">{r.first ? formatNumber(r.first.value, { maximumFractionDigits: 1 }) : "—"}</td>
                       <td className="py-3 pr-4 font-mono">{r.last  ? formatNumber(r.last.value,  { maximumFractionDigits: 1 }) : "—"}</td>
                       <td className="py-3 pr-4">

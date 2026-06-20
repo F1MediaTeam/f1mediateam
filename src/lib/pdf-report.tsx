@@ -144,6 +144,15 @@ export interface ChartNode {
   node: React.ReactElement;
 }
 
+// An additional, self-contained data table rendered on its own page after the
+// primary detail table. Used when a section mixes data cadences (e.g. daily
+// GSC/Bing vs. monthly SEMrush) that don't belong in the same grid.
+export interface ExtraTable {
+  title: string;
+  columns: ColumnDef<Record<string, unknown>>[];
+  rows: Record<string, unknown>[];
+}
+
 export interface SectionInput<T> {
   companyName: string;
   fromIso?: string;
@@ -157,6 +166,8 @@ export interface SectionInput<T> {
   rows: T[];
   breakdowns?: { title: string; pairs: Array<{ label: string; value: string | number }> }[];
   charts?: ChartNode[];
+  /** Extra tables, each on its own page after the primary detail table. */
+  extraTables?: ExtraTable[];
 }
 
 // =========================================================================
@@ -349,6 +360,65 @@ function KpiGrid({ kpis }: { kpis: SectionKpi[] }) {
   );
 }
 
+function TablePage<T>({
+  title,
+  columns,
+  rows,
+  tz,
+  fromIso,
+  toIso,
+  logoBase64,
+  footer,
+}: {
+  title: string;
+  columns: ColumnDef<T>[];
+  rows: T[];
+  tz: string;
+  fromIso?: string;
+  toIso?: string;
+  logoBase64: string;
+  footer: React.ReactElement;
+}) {
+  return (
+    <Page size="LETTER" style={style.page}>
+      <View style={style.detailHeader}>
+        <Image src={logoBase64} style={style.detailLogo} />
+        <Text style={style.detailTitle}>{title}</Text>
+        <Text style={style.detailMeta}>{fmtTopDate(fromIso, toIso)}</Text>
+      </View>
+      <View style={style.divider} />
+
+      {/* Header row (repeats on every overflow page) */}
+      <View style={style.tableHeader} fixed>
+        {columns.map((c, i) => {
+          const flex = flexFor(c.kind, c.flex);
+          const align = alignFor(c.kind);
+          return (
+            <Text key={i} style={[style.tableHeaderCell, { flex, textAlign: align }]}>
+              {c.header}
+            </Text>
+          );
+        })}
+      </View>
+
+      {/* Body */}
+      {rows.length === 0 ? (
+        <Text style={style.empty}>Nothing to report in this window.</Text>
+      ) : (
+        rows.map((row, i) => (
+          <View key={i} style={[style.tableRow, i % 2 === 1 ? style.tableRowAlt : {}]} wrap={false}>
+            {columns.map((c, j) => (
+              <Cell key={j} col={c} row={row} tz={tz} />
+            ))}
+          </View>
+        ))
+      )}
+
+      {footer}
+    </Page>
+  );
+}
+
 function ReportDocument<T>({
   input,
   logoBase64,
@@ -408,53 +478,30 @@ function ReportDocument<T>({
         {Footer}
       </Page>
 
-      {/* Detail page(s) */}
-      <Page size="LETTER" style={style.page}>
-        <View style={style.detailHeader}>
-          <Image src={logoBase64} style={style.detailLogo} />
-          <Text style={style.detailTitle}>{input.sectionTitle} — Detail</Text>
-          <Text style={style.detailMeta}>{fmtTopDate(input.fromIso, input.toIso)}</Text>
-        </View>
-        <View style={style.divider} />
-
-        {/* Header row */}
-        <View style={style.tableHeader} fixed>
-          {input.columns.map((c, i) => {
-            const flex = flexFor(c.kind, c.flex);
-            const align = alignFor(c.kind);
-            return (
-              <Text
-                key={i}
-                style={[
-                  style.tableHeaderCell,
-                  { flex, textAlign: align },
-                ]}
-              >
-                {c.header}
-              </Text>
-            );
-          })}
-        </View>
-
-        {/* Body */}
-        {input.rows.length === 0 ? (
-          <Text style={style.empty}>Nothing to report in this window.</Text>
-        ) : (
-          input.rows.map((row, i) => (
-            <View
-              key={i}
-              style={[style.tableRow, i % 2 === 1 ? style.tableRowAlt : {}]}
-              wrap={false}
-            >
-              {input.columns.map((c, j) => (
-                <Cell key={j} col={c} row={row} tz={input.tz} />
-              ))}
-            </View>
-          ))
-        )}
-
-        {Footer}
-      </Page>
+      {/* Detail page(s) — primary table first, then any extra tables. */}
+      <TablePage
+        title={`${input.sectionTitle} — Detail`}
+        columns={input.columns}
+        rows={input.rows}
+        tz={input.tz}
+        fromIso={input.fromIso}
+        toIso={input.toIso}
+        logoBase64={logoBase64}
+        footer={Footer}
+      />
+      {(input.extraTables ?? []).map((t, i) => (
+        <TablePage
+          key={i}
+          title={t.title}
+          columns={t.columns}
+          rows={t.rows}
+          tz={input.tz}
+          fromIso={input.fromIso}
+          toIso={input.toIso}
+          logoBase64={logoBase64}
+          footer={Footer}
+        />
+      ))}
     </Document>
   );
 }

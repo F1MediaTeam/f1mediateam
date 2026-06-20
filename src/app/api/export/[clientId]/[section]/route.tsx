@@ -286,6 +286,40 @@ export async function GET(
         })),
       ];
 
+      // SEMrush reports monthly, so it gets its own table on a dedicated page
+      // rather than scattering sparse cells across the daily grid above. One
+      // column per SEMrush metric, one row per month it has data.
+      const semrushDefs = defs.filter((d) => d.metric.startsWith("semrush_"));
+      const semrushSeries = semrushDefs.map((d) => all[defs.indexOf(d)]);
+      const semrushDateSet = new Set<string>();
+      for (const series of semrushSeries) for (const s of series) semrushDateSet.add(s.captured_at);
+      const semrushDates = [...semrushDateSet].sort();
+      const semrushByMetricDate = semrushSeries.map((series) => {
+        const m = new Map<string, number>();
+        for (const r of series) m.set(r.captured_at, Number(r.value));
+        return m;
+      });
+      const semrushCols: ColumnDef<Record<string, unknown>>[] = [
+        { header: "Month", kind: "date", get: (r) => r.date as string, flex: 1.4 },
+        ...semrushDefs.map((d) => ({
+          header: d.label,
+          kind: (d.kind === "money" ? "money" : "int") as ColumnDef<Record<string, unknown>>["kind"],
+          get: (r: Record<string, unknown>) => r[d.metric] ?? "",
+          flex: 1.3,
+        })),
+      ];
+      const semrushRows: Record<string, unknown>[] = semrushDates.map((date) => {
+        const row: Record<string, unknown> = { date };
+        semrushDefs.forEach((d, i) => {
+          const v = semrushByMetricDate[i].get(date);
+          row[d.metric] = v === undefined ? "" : v;
+        });
+        return row;
+      });
+      const extraTables = semrushRows.length
+        ? [{ title: "SEMrush — Monthly detail", columns: semrushCols, rows: semrushRows }]
+        : undefined;
+
       // Diagnostic breakdown so the user can see which connectors actually
       // contributed data — answers "why is X missing?" without leaving the PDF.
       const connectorTokens = await data.listConnectors(clientId);
@@ -318,12 +352,13 @@ export async function GET(
         tz,
         sectionTitle: "Performance Report",
         sectionLede:
-          "Rankings, traffic, and visibility across Google Search Console, Google Analytics 4, Bing Webmaster Tools, and SEMrush. Trend % on each KPI compares the second half of the window to the first half — lower is better for position metrics.",
+          "Rankings, traffic, and visibility across Google Search Console, Google Analytics 4, Bing Webmaster Tools, and SEMrush. Trend % on each KPI compares the second half of the window to the first half — lower is better for position metrics. The daily detail table covers Google and Bing; SEMrush reports monthly, so its history appears in its own table.",
         kpis,
         columns: cols,
         rows: dailyRows,
         breakdowns: [{ title: "Data sources", pairs: sourcePairs }],
         charts: trendCharts,
+        extraTables,
       });
       return pdfResponse(`${slug}-performance-report-${effectiveFrom}_to_${effectiveTo}.pdf`, buf);
     }

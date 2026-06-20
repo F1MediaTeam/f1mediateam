@@ -8,7 +8,10 @@ import { formatDate, formatNumber, formatPercentChange, isoDate } from "@/lib/ut
 
 type Range = ReportRange;
 
-function rangeBounds(range: Range, from?: string, to?: string) {
+function rangeBounds(range: Range, from?: string, to?: string): { fromIso?: string; toIso?: string } {
+  // "All time" → no bounds, so every query pulls the full history and the
+  // header reads "All time".
+  if (range === "all") return {};
   const today = new Date();
   const end = to ? new Date(to) : today;
   const start = from ? new Date(from) : new Date(today);
@@ -115,7 +118,7 @@ export default async function AdminReports({
         <Card>
           <CardHeader
             title={client ? `${client.company_name} — ${range}` : "—"}
-            subtitle={`${formatDate(fromIso)} → ${formatDate(toIso)}`}
+            subtitle={fromIso && toIso ? `${formatDate(fromIso)} → ${formatDate(toIso)}` : "All time"}
             right={
               <a
                 href="javascript:window.print()"

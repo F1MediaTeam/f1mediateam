@@ -5,13 +5,14 @@ import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import DateInput from "@/components/admin/DateInput";
 
-export type ReportRange = "daily" | "weekly" | "monthly" | "yearly" | "custom";
+export type ReportRange = "daily" | "weekly" | "monthly" | "yearly" | "all" | "custom";
 
 const RANGES: { value: ReportRange; label: string }[] = [
-  { value: "daily",   label: "Daily" },
-  { value: "weekly",  label: "Weekly" },
-  { value: "monthly", label: "Monthly" },
-  { value: "yearly",  label: "Yearly" },
+  { value: "daily",   label: "Today" },
+  { value: "weekly",  label: "7 days" },
+  { value: "monthly", label: "30 days" },
+  { value: "yearly",  label: "1 year" },
+  { value: "all",     label: "All time" },
   { value: "custom",  label: "Custom" },
 ];
 

@@ -171,16 +171,11 @@ export async function GET(
         { metric: "semrush_paid_cost",            label: "SEMrush Paid Spend",  cardTitle: "Estimated paid spend",      source: "From SEMrush · USD",          agg: "avg", kind: "money" },
       ];
 
-      // SEMrush reports monthly, so fetch its full history regardless of the
-      // report's (often daily/short) window — otherwise a 30-day window that
-      // falls between monthly snapshots shows no SEMrush data at all. Daily
-      // connectors (GSC/GA4/Bing) stay scoped to the selected window.
+      // Every metric — Google, Bing, and SEMrush alike — is scoped to the
+      // report's selected time frame so the data and the date label in the
+      // header always agree. (Pick "All time" in the UI to pull full history.)
       const all = await Promise.all(
-        defs.map((d) =>
-          d.metric.startsWith("semrush_")
-            ? data.listSnapshots({ clientId, metric: d.metric })
-            : data.listSnapshots({ clientId, metric: d.metric, from, to }),
-        ),
+        defs.map((d) => data.listSnapshots({ clientId, metric: d.metric, from, to })),
       );
       const snapshots = all.flat();
       const sortedDates = snapshots.map((s) => s.captured_at).sort();
@@ -324,16 +319,11 @@ export async function GET(
         });
         return row;
       });
+      // SEMrush is monthly, so it gets its own table (one row per month in the
+      // selected window) rather than scattering across the daily grid. It
+      // inherits the report's date window, same as every other source.
       const extraTables = semrushRows.length
-        ? [{
-            title: "SEMrush — Monthly history",
-            columns: semrushCols,
-            rows: semrushRows,
-            // SEMrush covers its full history, not the report's daily window —
-            // so label this page with the actual span of the SEMrush data.
-            fromIso: semrushDates[0],
-            toIso: semrushDates[semrushDates.length - 1],
-          }]
+        ? [{ title: "SEMrush — Monthly detail", columns: semrushCols, rows: semrushRows }]
         : undefined;
 
       // Diagnostic breakdown so the user can see which connectors actually

@@ -79,7 +79,7 @@ export default async function AdminContent({
                   }
                   right={<span className="font-mono text-xs text-[var(--color-text-muted)]">{col.length}</span>}
                 />
-                <CardBody className="space-y-2">
+                <CardBody className="space-y-2 max-h-[65vh] overflow-y-auto">
                   {col.length === 0 ? (
                     <div className="text-xs text-[var(--color-text-subtle)] py-4 text-center">
                       Empty.

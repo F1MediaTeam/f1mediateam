@@ -30,7 +30,7 @@ export default async function ClientContent() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-[calc(100vh-260px)]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {STAGES.map(({ stage, label, tone }) => {
           const col = cards.filter((c) => c.stage === stage);
           return (
@@ -39,7 +39,7 @@ export default async function ClientContent() {
                 title={<Pill tone={tone}>{label}</Pill>}
                 right={<span className="font-mono text-xs text-[var(--color-text-muted)]">{col.length}</span>}
               />
-              <CardBody className="space-y-2 flex-1">
+              <CardBody className="space-y-2 max-h-[65vh] overflow-y-auto">
                 {col.length === 0 ? (
                   <div className="text-xs text-[var(--color-text-subtle)] text-center py-6">Empty.</div>
                 ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import DateInput from "@/components/admin/DateInput";
@@ -32,9 +32,21 @@ export default function ReportFilters({
   defaultTo,
 }: Props) {
   const [range, setRange] = useState<ReportRange>(defaultRange);
+  // The viewer's IANA timezone, sent to the server so "today" (and the report
+  // window) is computed in their local time, not UTC — otherwise an evening
+  // visit west of UTC shows tomorrow's date.
+  const [tz, setTz] = useState("");
+  useEffect(() => {
+    try {
+      setTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    } catch {
+      /* leave blank — server falls back to a default tz */
+    }
+  }, []);
 
   return (
     <form className="flex flex-col gap-5" method="GET">
+      <input type="hidden" name="tz" value={tz} />
       <div className="grid grid-cols-1 md:grid-cols-[minmax(220px,1fr)_auto] gap-5 items-end">
         <div className="space-y-1.5">
           <label className="block text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">

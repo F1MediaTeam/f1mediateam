@@ -4,37 +4,41 @@ import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill } from "@/components/ui";
 import ReportFilters, { type ReportRange } from "@/components/admin/ReportFilters";
 import ExportLinks from "@/components/admin/ExportLinks";
-import { formatDate, formatNumber, formatPercentChange, isoDate } from "@/lib/utils";
+import { formatDate, formatNumber, formatPercentChange, todayIso } from "@/lib/utils";
 
 type Range = ReportRange;
 
-function rangeBounds(range: Range, from?: string, to?: string): { fromIso?: string; toIso?: string } {
+function rangeBounds(range: Range, tz: string, from?: string, to?: string): { fromIso?: string; toIso?: string } {
   // "All time" → no bounds, so every query pulls the full history and the
   // header reads "All time".
   if (range === "all") return {};
-  const today = new Date();
-  const end = to ? new Date(to) : today;
-  const start = from ? new Date(from) : new Date(today);
+  // Anchor on "today" in the viewer's timezone (as UTC midnight of that local
+  // date) and do all arithmetic in UTC so we never roll into a future day.
+  const today = new Date(todayIso(tz) + "T00:00:00Z");
+  const end = to ? new Date(to + "T00:00:00Z") : today;
+  const start = from ? new Date(from + "T00:00:00Z") : new Date(today);
   if (!from) {
-    if (range === "daily")   start.setDate(today.getDate());
-    if (range === "weekly")  start.setDate(today.getDate() - 7);
-    if (range === "monthly") start.setMonth(today.getMonth() - 1);
-    if (range === "yearly")  start.setFullYear(today.getFullYear() - 1);
+    if (range === "weekly")  start.setUTCDate(start.getUTCDate() - 7);
+    if (range === "monthly") start.setUTCMonth(start.getUTCMonth() - 1);
+    if (range === "yearly")  start.setUTCFullYear(start.getUTCFullYear() - 1);
+    // daily: start stays at today
   }
-  return { fromIso: isoDate(start), toIso: isoDate(end) };
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  return { fromIso: iso(start), toIso: iso(end) };
 }
 
 export default async function AdminReports({
   searchParams,
 }: {
-  searchParams: Promise<{ client?: string; range?: Range; from?: string; to?: string }>;
+  searchParams: Promise<{ client?: string; range?: Range; from?: string; to?: string; tz?: string }>;
 }) {
   const session = await requireAdmin();
   const sp = await searchParams;
   const clients = await data.listClients();
   const clientId = sp.client ?? clients[0]?.id ?? "";
   const range = (sp.range ?? "monthly") as Range;
-  const { fromIso, toIso } = rangeBounds(range, sp.from, sp.to);
+  const tz = sp.tz || "America/Los_Angeles";
+  const { fromIso, toIso } = rangeBounds(range, tz, sp.from, sp.to);
   const client = clientId ? await data.getClient(clientId) : null;
 
   // Every connector's headline metrics — Google, Bing, and SEMrush. `invert`

@@ -18,6 +18,15 @@ export interface SyncResult {
   snapshots: Array<Omit<MetricSnapshot, "id" | "created_at" | "client_id">>;
   /** Provider's reported "last data available" date. Used for the UI's "last synced" stamp. */
   effectiveAsOf: string;
+  /**
+   * When set, the connector returns its FULL authoritative history every sync,
+   * so the caller should delete the client's existing snapshots for this source
+   * before writing the fresh set. This self-heals stale/bogus rows (e.g. a row
+   * a past parsing bug stamped with the wrong date) instead of leaving them
+   * orphaned forever. Only set this for providers that always return everything
+   * (SEMrush). Skipped automatically when the sync returns zero rows.
+   */
+  replaceSource?: string;
 }
 
 export interface Connector {

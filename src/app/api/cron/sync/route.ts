@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
       const c = getConnector(token.provider);
       if (!c) continue;
       try {
-        const { snapshots, effectiveAsOf } = await c.sync({ clientId: client.id, token });
+        const { snapshots, effectiveAsOf, replaceSource } = await c.sync({ clientId: client.id, token });
+        if (replaceSource && snapshots.length) await data.deleteSnapshotsBySource(client.id, replaceSource);
         await data.writeSnapshots(snapshots.map((s) => ({ ...s, client_id: client.id })));
         await data.touchConnectorSync(token.id, `ok @ ${effectiveAsOf} (${snapshots.length} rows)`);
         results.push({ client: client.company_name, provider: token.provider, status: "ok" });

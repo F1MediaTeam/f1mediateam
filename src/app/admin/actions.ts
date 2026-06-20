@@ -308,7 +308,8 @@ export async function refreshConnectorAction(formData: FormData) {
     const connector = getConnector(token.provider);
     if (!connector) continue;
     try {
-      const { snapshots, effectiveAsOf } = await connector.sync({ clientId: client_id, token });
+      const { snapshots, effectiveAsOf, replaceSource } = await connector.sync({ clientId: client_id, token });
+      if (replaceSource && snapshots.length) await data.deleteSnapshotsBySource(client_id, replaceSource);
       await data.writeSnapshots(snapshots.map((s) => ({ ...s, client_id })));
       await data.touchConnectorSync(token.id, `ok @ ${effectiveAsOf} (${snapshots.length} rows)`);
     } catch (err) {

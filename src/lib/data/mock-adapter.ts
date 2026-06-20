@@ -268,6 +268,14 @@ export function writeSnapshot(input: Omit<MetricSnapshot, "id" | "created_at">):
   });
 }
 
+export function deleteSnapshotsBySource(clientId: UUID, source: string): number {
+  return mutate((s) => {
+    const before = s.snapshots.length;
+    s.snapshots = s.snapshots.filter((m) => !(m.client_id === clientId && m.source === source));
+    return before - s.snapshots.length;
+  });
+}
+
 // ---------------- content cards ----------------
 
 export function listContent(filter?: { clientId?: UUID; stage?: ContentStage }): ContentCard[] {

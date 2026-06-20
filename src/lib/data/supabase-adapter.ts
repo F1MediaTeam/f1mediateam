@@ -402,6 +402,22 @@ export async function writeSnapshots(
   return unique.length;
 }
 
+/**
+ * Delete every snapshot for one client + source. Used by connectors that return
+ * their full history each sync (SEMrush) so we can replace rather than
+ * accumulate — clears out stale/bogus rows from past bugs.
+ */
+export async function deleteSnapshotsBySource(clientId: UUID, source: string): Promise<number> {
+  const supabase = await createServiceClient();
+  const { error, count } = await supabase
+    .from("metric_snapshots")
+    .delete({ count: "exact" })
+    .eq("client_id", clientId)
+    .eq("source", source);
+  if (error) throw new Error(`deleteSnapshotsBySource failed: ${error.message}`);
+  return count ?? 0;
+}
+
 // ---------- content ----------
 
 export async function listContent(filter?: {

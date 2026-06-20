@@ -124,7 +124,10 @@ export const semrushConnector: Connector = {
     const effectiveAsOf = snapshots.length
       ? snapshots[snapshots.length - 1].captured_at
       : new Date().toISOString().slice(0, 10);
-    return { snapshots, effectiveAsOf };
+    // SEMrush returns the full monthly history on every call, so replace the
+    // client's existing SEMrush rows rather than accumulating — this purges any
+    // stale rows a past parsing bug may have written.
+    return { snapshots, effectiveAsOf, replaceSource: "semrush" };
   },
 };
 

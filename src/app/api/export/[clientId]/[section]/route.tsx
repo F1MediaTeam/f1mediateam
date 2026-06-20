@@ -23,6 +23,7 @@ import {
   type ChartNode,
 } from "@/lib/pdf-report";
 import { DashboardCard, LineChart, BarChart, DonutChart, PALETTE } from "@/lib/chart-pdf";
+import { todayIso } from "@/lib/utils";
 import type {
   Task,
   CalendarEvent,
@@ -128,7 +129,8 @@ export async function GET(
           const connector = getConnector(token.provider);
           if (!connector) continue;
           try {
-            const { snapshots, effectiveAsOf } = await connector.sync({ clientId, token });
+            const { snapshots, effectiveAsOf, replaceSource } = await connector.sync({ clientId, token });
+            if (replaceSource && snapshots.length) await data.deleteSnapshotsBySource(clientId, replaceSource);
             await data.writeSnapshots(snapshots.map((s) => ({ ...s, client_id: clientId })));
             await data.touchConnectorSync(token.id, `ok @ ${effectiveAsOf} (${snapshots.length} rows)`);
           } catch (err) {
@@ -174,9 +176,12 @@ export async function GET(
       // Every metric — Google, Bing, and SEMrush alike — is scoped to the
       // report's selected time frame so the data and the date label in the
       // header always agree. (Pick "All time" in the UI to pull full history.)
-      const all = await Promise.all(
+      // Also drop anything dated after today (in the viewer's tz) — a future
+      // date is never real data and only confuses the report.
+      const todayStr = todayIso(tz);
+      const all = (await Promise.all(
         defs.map((d) => data.listSnapshots({ clientId, metric: d.metric, from, to })),
-      );
+      )).map((series) => series.filter((s) => s.captured_at <= todayStr));
       const snapshots = all.flat();
       const sortedDates = snapshots.map((s) => s.captured_at).sort();
       const effectiveFrom = from ?? sortedDates[0] ?? generatedAt.toISOString().slice(0, 10);

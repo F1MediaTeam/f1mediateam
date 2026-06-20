@@ -68,6 +68,27 @@ export function isoDate(d: Date = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Today's date (YYYY-MM-DD) in the given IANA timezone. Without a tz this falls
+ * back to UTC — which, for a viewer west of UTC in the evening, reads as
+ * "tomorrow". Always pass the viewer's tz when labelling reports/windows so we
+ * never show or pull a future date.
+ */
+export function todayIso(tz?: string): string {
+  if (!tz) return isoDate();
+  try {
+    // en-CA formats as YYYY-MM-DD.
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+  } catch {
+    return isoDate();
+  }
+}
+
 export function formatLocation(
   a: { city?: string | null; region?: string | null; country?: string | null } | null | undefined,
 ): string {

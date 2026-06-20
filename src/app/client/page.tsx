@@ -4,10 +4,11 @@
 import { requireClient } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import ClientShell from "@/components/client/Shell";
-import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
+import { Card, CardBody, CardHeader, Pill } from "@/components/ui";
 import { createClientCalendarEventAction } from "./actions";
 import { isoDate, formatDateTime } from "@/lib/utils";
 import MetricCompare from "@/components/shared/MetricCompare";
+import CalendarAddModal from "@/components/client/CalendarAddModal";
 import Time from "@/components/shared/Time";
 
 export default async function ClientHome() {
@@ -57,46 +58,7 @@ export default async function ClientHome() {
         <Card className="mb-10">
           <CardHeader
             title={`Calendar · ${monthLabel}`}
-            right={
-              <details className="relative">
-                <summary className="list-none cursor-pointer">
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-[var(--color-accent)] text-black px-3 h-8 text-xs font-medium">
-                    + Add
-                  </span>
-                </summary>
-                <div className="absolute right-0 mt-2 w-72 z-10 rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg-card)] p-3 shadow-xl">
-                  <form action={createClientCalendarEventAction} className="space-y-2">
-                    <input
-                      name="title"
-                      required
-                      placeholder="Title"
-                      className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-2 text-xs"
-                    />
-                    <select
-                      name="type"
-                      defaultValue="meeting"
-                      className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-2 text-xs"
-                    >
-                      <option value="meeting">Meeting</option>
-                      <option value="deadline">Deadline</option>
-                    </select>
-                    <input
-                      name="starts_at"
-                      type="datetime-local"
-                      required
-                      className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-2 text-xs"
-                    />
-                    <textarea
-                      name="notes"
-                      rows={2}
-                      placeholder="Notes (optional)"
-                      className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-2 text-xs"
-                    />
-                    <Button size="sm" type="submit" className="w-full">Add to calendar</Button>
-                  </form>
-                </div>
-              </details>
-            }
+            right={<CalendarAddModal action={createClientCalendarEventAction} />}
           />
           <CardBody>
             <div className="grid grid-cols-7 text-xs uppercase tracking-wider text-[var(--color-text-muted)] mb-2">

@@ -151,6 +151,11 @@ export interface ExtraTable {
   title: string;
   columns: ColumnDef<Record<string, unknown>>[];
   rows: Record<string, unknown>[];
+  /** Date span shown top-right of this table's page. Falls back to the
+   *  section's window when omitted — set it when the table covers a different
+   *  span (e.g. SEMrush's full monthly history vs. a 30-day report window). */
+  fromIso?: string;
+  toIso?: string;
 }
 
 export interface SectionInput<T> {
@@ -506,8 +511,8 @@ function ReportDocument<T>({
           columns={t.columns}
           rows={t.rows}
           tz={input.tz}
-          fromIso={input.fromIso}
-          toIso={input.toIso}
+          fromIso={t.fromIso ?? input.fromIso}
+          toIso={t.toIso ?? input.toIso}
           logoBase64={logoBase64}
           footer={Footer}
           orientation={input.landscape ? "landscape" : "portrait"}

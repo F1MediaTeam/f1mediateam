@@ -325,7 +325,15 @@ export async function GET(
         return row;
       });
       const extraTables = semrushRows.length
-        ? [{ title: "SEMrush — Monthly history", columns: semrushCols, rows: semrushRows }]
+        ? [{
+            title: "SEMrush — Monthly history",
+            columns: semrushCols,
+            rows: semrushRows,
+            // SEMrush covers its full history, not the report's daily window —
+            // so label this page with the actual span of the SEMrush data.
+            fromIso: semrushDates[0],
+            toIso: semrushDates[semrushDates.length - 1],
+          }]
         : undefined;
 
       // Diagnostic breakdown so the user can see which connectors actually

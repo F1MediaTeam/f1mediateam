@@ -625,8 +625,8 @@ export function GaugeGrid(props: GaugeGridProps) {
             {frac > 0 ? (
               <Path d={gaugeArc(cx, cy, r, GAUGE_START, GAUGE_START + GAUGE_SWEEP * frac)} fill="none" stroke={accent} strokeWidth={sw} strokeLinecap="round" />
             ) : null}
-            <SvgText x={cx} y={cy + 6} fontSize={30} fontWeight={700} fill={textMain} textAnchor="middle">{g.valueText}</SvgText>
-            {g.scaleText ? <SvgText x={cx} y={cy + 28} fontSize={11} fill={textLabel} textAnchor="middle">{g.scaleText}</SvgText> : null}
+            <SvgText x={cx} y={cy + 11} fontSize={30} fontWeight={700} fill={textMain} textAnchor="middle">{g.valueText}</SvgText>
+            {g.scaleText ? <SvgText x={cx} y={cy + 30} fontSize={11} fill={textLabel} textAnchor="middle">{g.scaleText}</SvgText> : null}
             <SvgText x={cx} y={top + 196} fontSize={15} fill={textMuted} textAnchor="middle">{g.label}</SvgText>
           </G>
         );

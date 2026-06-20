@@ -294,7 +294,7 @@ export async function GET(
         const windowMax = Math.max(...series.map((s) => Number(s.value)), 0);
         const scaleMax = gaugeNiceCeil(windowMax);
         const frac = scaleMax > 0 ? Math.max(0, Math.min(1, current / scaleMax)) : 0;
-        return { label: d.cardTitle, valueText: fmtGauge(current, money), scaleText: `OF ${fmtGauge(scaleMax, money)}`, frac };
+        return { label: d.cardTitle, valueText: fmtGauge(current, money), scaleText: "", frac };
       });
       if (semrushGauges.length) {
         trendCharts.push({

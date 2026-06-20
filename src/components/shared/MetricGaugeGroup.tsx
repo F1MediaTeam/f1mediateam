@@ -123,11 +123,8 @@ function Gauge({ metric, series, range }: { metric: GaugeMetric; series: Snapsho
         {frac > 0 ? (
           <path d={fill} fill="none" stroke="var(--color-accent)" strokeWidth={11} strokeLinecap="round" />
         ) : null}
-        <text x={cx} y={cy + 4} textAnchor="middle" fontSize={26} fill="var(--color-text)" fontWeight={700} className="tabular-nums">
+        <text x={cx} y={cy + 9} textAnchor="middle" fontSize={26} fill="var(--color-text)" fontWeight={700} className="tabular-nums">
           {fmt(current)}
-        </text>
-        <text x={cx} y={cy + 22} textAnchor="middle" fontSize={9} fill="var(--color-text-subtle)" letterSpacing="0.06em">
-          OF {fmt(scaleMax)}
         </text>
       </svg>
       <div className="text-xs font-medium text-center mt-1 leading-tight">{metric.label}</div>

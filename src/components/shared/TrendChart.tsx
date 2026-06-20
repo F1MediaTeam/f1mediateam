@@ -72,18 +72,14 @@ function smoothPath(pts: { x: number; y: number }[], yLo: number, yHi: number): 
   return d;
 }
 
-function niceTicks(min: number, max: number, count = 4): number[] {
-  if (min === max) return [min];
-  const span = max - min;
-  const rough = span / count;
+/** A "nice" gridline step (1/2/5 × 10ⁿ) for the given value range. */
+function tickStep(min: number, max: number, count = 4): number {
+  if (max <= min) return 1;
+  const rough = (max - min) / count;
   const mag = Math.pow(10, Math.floor(Math.log10(rough)));
   const norm = rough / mag;
   const nice = norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10;
-  const step = nice * mag;
-  const start = Math.floor(min / step) * step;
-  const ticks: number[] = [];
-  for (let v = start; v <= max + step / 2; v += step) ticks.push(v);
-  return ticks;
+  return nice * mag;
 }
 
 export default function TrendChart({
@@ -119,12 +115,16 @@ export default function TrendChart({
   const values = points.map((p) => p.value);
   const dataMin = Math.min(...values, baseline ?? Infinity);
   const dataMax = Math.max(...values, baseline ?? -Infinity);
-  // Tight padding — 5% above/below; counts (everything ≥ 0) get clamped to 0.
   const pad = (dataMax - dataMin) * 0.05 || 1;
   const allNonNegative = dataMin >= 0;
-  const yMin = allNonNegative ? 0 : dataMin - pad;
-  const yMax = dataMax + pad;
-  const yTicks = niceTicks(yMin, yMax, 4).filter((t) => t >= yMin && t <= yMax);
+  // Snap the axis bounds out to "nice" tick multiples so the top gridline
+  // always sits at/above the peak (and the bottom at/below the trough) — data
+  // never rises past the last labelled gridline. Counts (≥ 0) keep a 0 floor.
+  const step = tickStep(allNonNegative ? 0 : dataMin - pad, dataMax + pad, 4);
+  const yMin = allNonNegative ? 0 : Math.floor((dataMin - pad) / step) * step;
+  const yMax = Math.ceil((dataMax + pad) / step) * step;
+  const yTicks: number[] = [];
+  for (let v = yMin; v <= yMax + step / 2; v += step) yTicks.push(v);
 
   const xCoord = (i: number) =>
     padL + (points.length === 1 ? W / 2 : (i / (points.length - 1)) * W);

@@ -55,21 +55,35 @@ export const PALETTE = {
 
 // ---------- helpers ----------
 
-function niceTicks(min: number, max: number, count = 4): number[] {
-  if (min === max) {
-    const pad = Math.max(Math.abs(min) * 0.1, 1);
-    return [min - pad, min, min + pad];
+/**
+ * "Nice" axis bounds + gridlines that fully contain [dataMin, dataMax]: the top
+ * tick sits at/above the data and the bottom at/below it, so a line or bar never
+ * spills past the last labelled gridline. `floorZero` pins the bottom to 0 for
+ * non-negative data (counts, traffic, etc.).
+ */
+function niceAxis(
+  dataMin: number,
+  dataMax: number,
+  opts: { floorZero?: boolean } = {},
+  count = 4,
+): { yMin: number; yMax: number; ticks: number[] } {
+  const pinZero = Boolean(opts.floorZero) && dataMin >= 0;
+  const pad = (dataMax - dataMin) * 0.08 || 1;
+  const lo = pinZero ? 0 : dataMin - pad;
+  const hi = dataMax + pad;
+  let step = 1;
+  if (hi > lo) {
+    const rough = (hi - lo) / count;
+    const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+    const norm = rough / mag;
+    const nice = norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10;
+    step = nice * mag;
   }
-  const span = max - min;
-  const rough = span / count;
-  const mag = Math.pow(10, Math.floor(Math.log10(rough)));
-  const norm = rough / mag;
-  const nice = norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10;
-  const step = nice * mag;
-  const start = Math.floor(min / step) * step;
+  const yMin = pinZero ? 0 : Math.floor(lo / step) * step;
+  const yMax = Math.ceil(hi / step) * step;
   const ticks: number[] = [];
-  for (let v = start; v <= max + step / 2; v += step) ticks.push(v);
-  return ticks;
+  for (let v = yMin; v <= yMax + step / 2; v += step) ticks.push(v);
+  return { yMin, yMax, ticks };
 }
 
 function formatTickValue(v: number): string {
@@ -175,11 +189,7 @@ export function DashboardCard(props: DashboardCardProps) {
   }
 
   const values = props.series.map((p) => p.value);
-  const dataMin = Math.min(...values);
-  const dataMax = Math.max(...values);
-  const padY = (dataMax - dataMin) * 0.08 || 1;
-  const yMin = dataMin >= 0 ? 0 : dataMin - padY;
-  const yMax = dataMax + padY;
+  const { yMin, yMax, ticks: yTicks } = niceAxis(Math.min(...values), Math.max(...values), { floorZero: true });
 
   const xCoord = (i: number) =>
     chartLeft + (props.series.length === 1 ? chartW / 2 : (i / (props.series.length - 1)) * chartW);
@@ -188,8 +198,6 @@ export function DashboardCard(props: DashboardCardProps) {
   const pts = props.series.map((p, i) => ({ x: xCoord(i), y: yCoord(p.value) }));
   const linePath = smoothPath(pts, chartTop, chartBottom);
   const areaPath = `${linePath} L ${pts[pts.length - 1].x} ${chartBottom} L ${pts[0].x} ${chartBottom} Z`;
-
-  const yTicks = niceTicks(yMin, yMax, 4).filter((t) => t >= yMin && t <= yMax);
 
   const baselineV = Number((props.baselineValue ?? String(props.series[0]?.value ?? "")).replace(/,/g, ""));
   const showBaseline = Number.isFinite(baselineV) && baselineV >= yMin && baselineV <= yMax;
@@ -333,12 +341,7 @@ export function LineChart(props: LineChartProps) {
     return <EmptyChart title={props.title} width={width} height={height} />;
   }
 
-  const dataMin = Math.min(...allValues);
-  const dataMax = Math.max(...allValues);
-  const pad = (dataMax - dataMin) * 0.08 || 1;
-  const yMin = dataMin >= 0 ? 0 : dataMin - pad;
-  const yMax = dataMax + pad;
-  const yTicks = niceTicks(yMin, yMax, 4).filter((t) => t >= yMin - 0.001 && t <= yMax + 0.001);
+  const { yMin, yMax, ticks: yTicks } = niceAxis(Math.min(...allValues), Math.max(...allValues), { floorZero: true });
 
   const xCoord = (i: number) =>
     m.l + (allDates.length === 1 ? W / 2 : (i / (allDates.length - 1)) * W);
@@ -431,10 +434,7 @@ export function BarChart(props: BarChartProps) {
   }
 
   const values = props.data.map((d) => d.value);
-  const dataMax = Math.max(...values, 0);
-  const yMin = 0;
-  const yMax = dataMax + (dataMax * 0.12 || 1);
-  const yTicks = niceTicks(yMin, yMax, 4);
+  const { yMin, yMax, ticks: yTicks } = niceAxis(0, Math.max(...values, 0), { floorZero: true });
 
   const slot = W / props.data.length;
   const barWidth = Math.min(slot * 0.65, 60);

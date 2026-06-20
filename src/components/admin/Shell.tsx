@@ -1,0 +1,61 @@
+import Link from "next/link";
+import Logo from "@/components/shared/Logo";
+import type { Session } from "@/lib/data";
+
+const NAV = [
+  { href: "/admin",           label: "Work" },
+  { href: "/admin/calendar",  label: "Calendar" },
+  { href: "/admin/clients",   label: "Clients" },
+  { href: "/admin/content",   label: "Content" },
+  { href: "/admin/reports",   label: "Reports" },
+  { href: "/admin/audit",     label: "Audit" },
+  { href: "/admin/settings",  label: "Settings" },
+];
+
+export default function AdminShell({
+  session,
+  children,
+  active,
+}: {
+  session: Session;
+  children: React.ReactNode;
+  active?: string;
+}) {
+  return (
+    <div className="min-h-screen flex">
+      <aside className="hidden md:flex w-60 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-bg-elev)]/80">
+        <div className="px-4 py-5">
+          <Link href="/admin" className="block">
+            <Logo compact width={200} height={56} />
+          </Link>
+          <div className="mt-2 px-1 text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-subtle)]">
+            Admin console
+          </div>
+        </div>
+
+        <nav className="flex flex-col gap-0.5 px-2 mt-2">
+          {NAV.map((item) => {
+            const isActive = active === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={
+                  "px-3 py-2 rounded-lg text-sm transition " +
+                  (isActive
+                    ? "bg-[var(--color-bg-hover)] text-white"
+                    : "text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-white")
+                }
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+      </aside>
+
+      <main className="flex-1 min-w-0">{children}</main>
+    </div>
+  );
+}

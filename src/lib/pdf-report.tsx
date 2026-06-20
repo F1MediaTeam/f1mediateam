@@ -168,6 +168,9 @@ export interface SectionInput<T> {
   charts?: ChartNode[];
   /** Extra tables, each on its own page after the primary detail table. */
   extraTables?: ExtraTable[];
+  /** Render the detail tables in landscape (for wide, many-column tables so
+   *  headers fit on one line). Cover/graphs page stays portrait. */
+  landscape?: boolean;
 }
 
 // =========================================================================
@@ -369,6 +372,7 @@ function TablePage<T>({
   toIso,
   logoBase64,
   footer,
+  orientation = "portrait",
 }: {
   title: string;
   columns: ColumnDef<T>[];
@@ -378,9 +382,14 @@ function TablePage<T>({
   toIso?: string;
   logoBase64: string;
   footer: React.ReactElement;
+  orientation?: "portrait" | "landscape";
 }) {
+  // Landscape pages are used for wide many-column tables; tighten the header
+  // font/padding there so long headers ("GSC Impressions") stay on one line.
+  const landscape = orientation === "landscape";
+  const headerExtra = landscape ? { fontSize: 8, paddingHorizontal: 4 } : {};
   return (
-    <Page size="LETTER" style={style.page}>
+    <Page size="LETTER" orientation={orientation} style={style.page}>
       <View style={style.detailHeader}>
         <Image src={logoBase64} style={style.detailLogo} />
         <Text style={style.detailTitle}>{title}</Text>
@@ -394,7 +403,7 @@ function TablePage<T>({
           const flex = flexFor(c.kind, c.flex);
           const align = alignFor(c.kind);
           return (
-            <Text key={i} style={[style.tableHeaderCell, { flex, textAlign: align }]}>
+            <Text key={i} style={[style.tableHeaderCell, headerExtra, { flex, textAlign: align }]}>
               {c.header}
             </Text>
           );
@@ -488,6 +497,7 @@ function ReportDocument<T>({
         toIso={input.toIso}
         logoBase64={logoBase64}
         footer={Footer}
+        orientation={input.landscape ? "landscape" : "portrait"}
       />
       {(input.extraTables ?? []).map((t, i) => (
         <TablePage
@@ -500,6 +510,7 @@ function ReportDocument<T>({
           toIso={input.toIso}
           logoBase64={logoBase64}
           footer={Footer}
+          orientation={input.landscape ? "landscape" : "portrait"}
         />
       ))}
     </Document>

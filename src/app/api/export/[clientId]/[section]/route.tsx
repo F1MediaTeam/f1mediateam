@@ -171,8 +171,16 @@ export async function GET(
         { metric: "semrush_paid_cost",            label: "SEMrush Paid Spend",  cardTitle: "Estimated paid spend",      source: "From SEMrush · USD",          agg: "avg", kind: "money" },
       ];
 
+      // SEMrush reports monthly, so fetch its full history regardless of the
+      // report's (often daily/short) window — otherwise a 30-day window that
+      // falls between monthly snapshots shows no SEMrush data at all. Daily
+      // connectors (GSC/GA4/Bing) stay scoped to the selected window.
       const all = await Promise.all(
-        defs.map((d) => data.listSnapshots({ clientId, metric: d.metric, from, to })),
+        defs.map((d) =>
+          d.metric.startsWith("semrush_")
+            ? data.listSnapshots({ clientId, metric: d.metric })
+            : data.listSnapshots({ clientId, metric: d.metric, from, to }),
+        ),
       );
       const snapshots = all.flat();
       const sortedDates = snapshots.map((s) => s.captured_at).sort();
@@ -317,7 +325,7 @@ export async function GET(
         return row;
       });
       const extraTables = semrushRows.length
-        ? [{ title: "SEMrush — Monthly detail", columns: semrushCols, rows: semrushRows }]
+        ? [{ title: "SEMrush — Monthly history", columns: semrushCols, rows: semrushRows }]
         : undefined;
 
       // Diagnostic breakdown so the user can see which connectors actually
@@ -359,6 +367,7 @@ export async function GET(
         breakdowns: [{ title: "Data sources", pairs: sourcePairs }],
         charts: trendCharts,
         extraTables,
+        landscape: true,
       });
       return pdfResponse(`${slug}-performance-report-${effectiveFrom}_to_${effectiveTo}.pdf`, buf);
     }

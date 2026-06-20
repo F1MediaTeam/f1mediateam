@@ -173,14 +173,20 @@ export async function GET(
         { metric: "semrush_paid_cost",            label: "SEMrush Paid Spend",  cardTitle: "Estimated paid spend",      source: "From SEMrush · USD",          agg: "avg", kind: "money" },
       ];
 
-      // Every metric — Google, Bing, and SEMrush alike — is scoped to the
-      // report's selected time frame so the data and the date label in the
-      // header always agree. (Pick "All time" in the UI to pull full history.)
-      // Also drop anything dated after today (in the viewer's tz) — a future
-      // date is never real data and only confuses the report.
+      // Every metric is scoped to the report's selected time frame so the data
+      // and the date label agree. SEMrush is the exception in cadence: it's
+      // monthly (stamped mid-month), so a short daily window can fall between
+      // its points. Snap the SEMrush window start back to the first of that
+      // month so any month the report overlaps still shows up. Also drop
+      // anything dated after today (viewer tz) — a future date is never real.
       const todayStr = todayIso(tz);
+      const semrushFrom = from ? `${from.slice(0, 7)}-01` : from;
       const all = (await Promise.all(
-        defs.map((d) => data.listSnapshots({ clientId, metric: d.metric, from, to })),
+        defs.map((d) =>
+          d.metric.startsWith("semrush_")
+            ? data.listSnapshots({ clientId, metric: d.metric, from: semrushFrom, to })
+            : data.listSnapshots({ clientId, metric: d.metric, from, to }),
+        ),
       )).map((series) => series.filter((s) => s.captured_at <= todayStr));
       const snapshots = all.flat();
       const sortedDates = snapshots.map((s) => s.captured_at).sort();
@@ -324,11 +330,18 @@ export async function GET(
         });
         return row;
       });
-      // SEMrush is monthly, so it gets its own table (one row per month in the
-      // selected window) rather than scattering across the daily grid. It
-      // inherits the report's date window, same as every other source.
+      // SEMrush is monthly, so it gets its own table (one row per month that
+      // overlaps the window) rather than scattering across the daily grid. Label
+      // the page with the actual span of the SEMrush rows shown so its header
+      // dates match its data.
       const extraTables = semrushRows.length
-        ? [{ title: "SEMrush — Monthly detail", columns: semrushCols, rows: semrushRows }]
+        ? [{
+            title: "SEMrush — Monthly detail",
+            columns: semrushCols,
+            rows: semrushRows,
+            fromIso: semrushDates[0],
+            toIso: semrushDates[semrushDates.length - 1],
+          }]
         : undefined;
 
       // Diagnostic breakdown so the user can see which connectors actually

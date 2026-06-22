@@ -71,6 +71,17 @@ export interface CalendarEvent {
   created_at: ISODateTime;
 }
 
+export interface CalendarEventAttachment {
+  id: UUID;
+  event_id: UUID;
+  storage_path: string;       // key inside the calendar-attachments bucket
+  filename: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  uploaded_by: UUID | null;
+  created_at: ISODateTime;
+}
+
 export interface MetricSnapshot {
   id: UUID;
   client_id: UUID;

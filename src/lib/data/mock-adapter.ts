@@ -11,6 +11,7 @@ import {
 } from "@/lib/mock/seed";
 import type {
   CalendarEvent,
+  CalendarEventAttachment,
   Client,
   ContentCard,
   ContentCardEvent,
@@ -223,6 +224,53 @@ export function deleteCalendarEvent(id: UUID): boolean {
     const i = s.calendar.findIndex((e) => e.id === id);
     if (i === -1) return false;
     s.calendar.splice(i, 1);
+    // Cascade attachments — Supabase does this via FK on delete cascade.
+    s.calendarAttachments = s.calendarAttachments.filter((a) => a.event_id !== id);
+    return true;
+  });
+}
+
+// ---------------- calendar event attachments ----------------
+
+export function listEventAttachments(eventId: UUID): CalendarEventAttachment[] {
+  return getState().calendarAttachments.filter((a) => a.event_id === eventId);
+}
+
+export function listAttachmentsForEvents(eventIds: UUID[]): CalendarEventAttachment[] {
+  if (eventIds.length === 0) return [];
+  const set = new Set(eventIds);
+  return getState().calendarAttachments.filter((a) => set.has(a.event_id));
+}
+
+export function recordEventAttachment(input: {
+  event_id: UUID;
+  storage_path: string;
+  filename: string;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  uploaded_by?: UUID | null;
+}): CalendarEventAttachment {
+  return mutate((s) => {
+    const row: CalendarEventAttachment = {
+      id: `att-${uid()}`,
+      event_id: input.event_id,
+      storage_path: input.storage_path,
+      filename: input.filename,
+      mime_type: input.mime_type ?? null,
+      size_bytes: input.size_bytes ?? null,
+      uploaded_by: input.uploaded_by ?? null,
+      created_at: nowIso(),
+    };
+    s.calendarAttachments.push(row);
+    return row;
+  });
+}
+
+export function deleteEventAttachment(id: UUID): boolean {
+  return mutate((s) => {
+    const i = s.calendarAttachments.findIndex((a) => a.id === id);
+    if (i === -1) return false;
+    s.calendarAttachments.splice(i, 1);
     return true;
   });
 }

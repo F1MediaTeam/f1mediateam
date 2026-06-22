@@ -23,6 +23,11 @@ export default async function ClientHome() {
     data.listContent({ clientId: client.id }),
   ]);
 
+  // Count attachments per event so the calendar grid can show a 📎 N badge.
+  const attachments = await data.listAttachmentsForEvents(events.map((e) => e.id));
+  const attCount = new Map<string, number>();
+  for (const a of attachments) attCount.set(a.event_id, (attCount.get(a.event_id) ?? 0) + 1);
+
   // Three-column status preview: proposed = awaiting approval, pending =
   // approved & being posted, posted = live. Most recent first per column.
   const byStage = {
@@ -132,15 +137,19 @@ export default async function ClientHome() {
                       ) : null}
                     </div>
                     <div className="space-y-1">
-                      {dayEvents.slice(0, 2).map((e) => (
-                        <div
-                          key={e.id}
-                          title={`${e.title} — ${formatDateTime(e.starts_at)}`}
-                          className="truncate text-[11px] rounded px-1.5 py-0.5 bg-emerald-500/10 text-emerald-300"
-                        >
-                          {e.type === "deadline" ? "◆ " : "● "}{e.title}
-                        </div>
-                      ))}
+                      {dayEvents.slice(0, 2).map((e) => {
+                        const n = attCount.get(e.id) ?? 0;
+                        return (
+                          <div
+                            key={e.id}
+                            title={`${e.title} — ${formatDateTime(e.starts_at)}${n ? ` · ${n} attachment${n === 1 ? "" : "s"}` : ""}`}
+                            className="truncate text-[11px] rounded px-1.5 py-0.5 bg-emerald-500/10 text-emerald-300 flex items-center gap-1"
+                          >
+                            <span className="truncate flex-1">{e.type === "deadline" ? "◆ " : "● "}{e.title}</span>
+                            {n > 0 ? <span className="font-mono text-[9px] opacity-90">📎{n}</span> : null}
+                          </div>
+                        );
+                      })}
                       {dayEvents.length > 2 ? (
                         <div className="text-[10px] text-[var(--color-text-muted)]">
                           +{dayEvents.length - 2} more

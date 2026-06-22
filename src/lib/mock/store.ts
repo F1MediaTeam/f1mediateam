@@ -29,6 +29,7 @@ import type {
   LoginAudit,
   ConnectorToken,
   EmailPref,
+  CalendarEventAttachment,
 } from "@/lib/types";
 
 interface State {
@@ -36,6 +37,7 @@ interface State {
   profiles: Profile[];
   tasks: Task[];
   calendar: CalendarEvent[];
+  calendarAttachments: CalendarEventAttachment[];
   snapshots: MetricSnapshot[];
   content: ContentCard[];
   contentEvents: ContentCardEvent[];
@@ -44,6 +46,11 @@ interface State {
   connectors: ConnectorToken[];
   emailPrefs: EmailPref[];
   acceptedDisclaimers: Record<string, string>; // user_id -> version
+}
+
+function ensureShape(s: State): State {
+  if (!Array.isArray(s.calendarAttachments)) s.calendarAttachments = [];
+  return s;
 }
 
 const STORE_PATH = path.join(process.cwd(), ".data", "mock-store.json");
@@ -56,6 +63,7 @@ function fresh(): State {
     profiles: structuredClone(seedProfiles),
     tasks: structuredClone(seedTasks),
     calendar: structuredClone(seedCalendar),
+    calendarAttachments: [],
     snapshots: structuredClone(seedSnapshots),
     content: structuredClone(seedContent),
     contentEvents: structuredClone(seedContentEvents),
@@ -72,7 +80,7 @@ function load(): State {
   try {
     if (fs.existsSync(STORE_PATH)) {
       const raw = fs.readFileSync(STORE_PATH, "utf-8");
-      state = JSON.parse(raw) as State;
+      state = ensureShape(JSON.parse(raw) as State);
       return state;
     }
   } catch {

@@ -6,6 +6,7 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import type {
   CalendarEvent,
+  CalendarEventAttachment,
   Client,
   ContentCard,
   ContentCardEvent,
@@ -313,6 +314,58 @@ export async function createCalendarEvent(input: {
 export async function deleteCalendarEvent(id: UUID): Promise<boolean> {
   const supabase = await createClient();
   const { error } = await supabase.from("calendar_events").delete().eq("id", id);
+  return !error;
+}
+
+// ---------- calendar event attachments ----------
+
+export async function listEventAttachments(eventId: UUID): Promise<CalendarEventAttachment[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("calendar_event_attachments")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: true });
+  return (data as CalendarEventAttachment[]) ?? [];
+}
+
+export async function listAttachmentsForEvents(eventIds: UUID[]): Promise<CalendarEventAttachment[]> {
+  if (eventIds.length === 0) return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("calendar_event_attachments")
+    .select("*")
+    .in("event_id", eventIds);
+  return (data as CalendarEventAttachment[]) ?? [];
+}
+
+export async function recordEventAttachment(input: {
+  event_id: UUID;
+  storage_path: string;
+  filename: string;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  uploaded_by?: UUID | null;
+}): Promise<CalendarEventAttachment | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("calendar_event_attachments")
+    .insert({
+      event_id: input.event_id,
+      storage_path: input.storage_path,
+      filename: input.filename,
+      mime_type: input.mime_type ?? null,
+      size_bytes: input.size_bytes ?? null,
+      uploaded_by: input.uploaded_by ?? null,
+    })
+    .select()
+    .single();
+  return (data as CalendarEventAttachment) ?? null;
+}
+
+export async function deleteEventAttachment(id: UUID): Promise<boolean> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("calendar_event_attachments").delete().eq("id", id);
   return !error;
 }
 

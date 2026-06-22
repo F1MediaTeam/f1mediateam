@@ -10,6 +10,7 @@ import { createClientCalendarEventAction } from "./actions";
 import { isoDate, formatDateTime } from "@/lib/utils";
 import MetricCompare from "@/components/shared/MetricCompare";
 import GscDashboard from "@/components/shared/GscDashboard";
+import SeoMetricsRow from "@/components/shared/SeoMetricsRow";
 import { fetchClientOrganicKeywords } from "@/lib/connectors/semrush";
 import CalendarAddModal from "@/components/client/CalendarAddModal";
 import Time from "@/components/shared/Time";
@@ -164,6 +165,12 @@ export default async function ClientHome() {
             </div>
           </CardBody>
         </Card>
+      ) : null}
+
+      {widgets.rankings ? (
+        <section className="mb-10">
+          <SeoMetricsRow clientId={client.id} />
+        </section>
       ) : null}
 
       {widgets.calendar && upcomingMeetings.length > 0 ? (

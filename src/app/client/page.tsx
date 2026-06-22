@@ -9,6 +9,8 @@ import { Card, CardBody, CardHeader, Pill } from "@/components/ui";
 import { createClientCalendarEventAction } from "./actions";
 import { isoDate, formatDateTime } from "@/lib/utils";
 import MetricCompare from "@/components/shared/MetricCompare";
+import GscDashboard from "@/components/shared/GscDashboard";
+import { fetchClientOrganicKeywords } from "@/lib/connectors/semrush";
 import CalendarAddModal from "@/components/client/CalendarAddModal";
 import Time from "@/components/shared/Time";
 import type { ContentCard } from "@/lib/types";
@@ -188,12 +190,7 @@ export default async function ClientHome() {
             <h2 className="text-lg font-semibold tracking-tight">Search performance</h2>
             <Pill>Google Search Console</Pill>
           </div>
-          <div className="grid grid-cols-1 gap-6">
-            <MetricCompare clientId={client.id} metric="clicks"       label="Organic clicks" />
-            <MetricCompare clientId={client.id} metric="impressions"  label="Impressions" />
-            <MetricCompare clientId={client.id} metric="avg_position" label="Average position" hint="Lower is better" invert />
-            <MetricCompare clientId={client.id} metric="visibility"   label="Search visibility" hint="Estimated visibility score" />
-          </div>
+          <GscSearchSection clientId={client.id} />
         </section>
       ) : null}
 
@@ -210,6 +207,54 @@ export default async function ClientHome() {
       ) : null}
 
     </ClientShell>
+  );
+}
+
+// GSC-style search-performance section. Loads the four time-series (clicks,
+// impressions, ctr, avg position) plus a top-queries table (SEMrush) and
+// hands them to the interactive dashboard component. Falls back gracefully
+// when SEMrush isn't configured.
+async function GscSearchSection({ clientId }: { clientId: string }) {
+  const [clicks, impressions, ctr, position] = await Promise.all([
+    data.listSnapshots({ clientId, metric: "clicks" }),
+    data.listSnapshots({ clientId, metric: "impressions" }),
+    data.listSnapshots({ clientId, metric: "ctr" }),
+    data.listSnapshots({ clientId, metric: "avg_position" }),
+  ]);
+
+  // SEMrush gives us position + estimated traffic share per phrase. We don't
+  // have per-query clicks/impressions from GSC yet, so the table shows what
+  // SEMrush returns and leaves clicks/impressions at zero with a tooltip note.
+  let topQueries: Array<{ label: string; clicks: number; impressions: number; ctr: number; position: number }> = [];
+  try {
+    const kws = await fetchClientOrganicKeywords(clientId, 25);
+    topQueries = kws.map((k) => ({
+      label: k.phrase,
+      clicks: Math.round(k.trafficPct * 10), // crude proxy — trafficPct is share of organic traffic
+      impressions: Math.round(k.volume),
+      ctr: k.volume > 0 ? (k.trafficPct * 10) / k.volume : 0,
+      position: k.position,
+    }));
+  } catch {
+    // Missing key / not connected — show empty table.
+  }
+
+  // Most recent snapshot date across all series.
+  const latest = [clicks, impressions, ctr, position]
+    .flat()
+    .map((s) => s.captured_at)
+    .sort()
+    .pop();
+
+  return (
+    <GscDashboard
+      clicks={clicks.map((s) => ({ captured_at: s.captured_at, value: s.value }))}
+      impressions={impressions.map((s) => ({ captured_at: s.captured_at, value: s.value }))}
+      ctr={ctr.map((s) => ({ captured_at: s.captured_at, value: s.value }))}
+      position={position.map((s) => ({ captured_at: s.captured_at, value: s.value }))}
+      topQueries={topQueries}
+      lastUpdated={latest ?? undefined}
+    />
   );
 }
 

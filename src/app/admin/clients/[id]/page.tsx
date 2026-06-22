@@ -75,7 +75,7 @@ export default async function ClientProfile({
               Build report
             </Link>
             <Link
-              href={`/admin/clients/${client.id}/presentation`}
+              href={`/admin/meeting-deck?client=${client.id}`}
               className="rounded-lg bg-[var(--color-accent)] text-black hover:opacity-90 px-4 py-2 text-sm font-medium"
             >
               Meeting deck

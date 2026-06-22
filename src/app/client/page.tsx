@@ -1,6 +1,7 @@
 // The "shared" client dashboard. Same component for every client; widgets
 // shown/hidden by client.config.widgets.
 
+import Link from "next/link";
 import { requireClient } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import ClientShell from "@/components/client/Shell";
@@ -10,13 +11,25 @@ import { isoDate, formatDateTime } from "@/lib/utils";
 import MetricCompare from "@/components/shared/MetricCompare";
 import CalendarAddModal from "@/components/client/CalendarAddModal";
 import Time from "@/components/shared/Time";
+import type { ContentCard } from "@/lib/types";
 
 export default async function ClientHome() {
   const session = await requireClient();
   const client = await data.getClient(session.client_id!);
   if (!client) return null;
   const widgets = client.config.widgets;
-  const events = await data.listCalendar({ clientId: client.id });
+  const [events, content] = await Promise.all([
+    data.listCalendar({ clientId: client.id }),
+    data.listContent({ clientId: client.id }),
+  ]);
+
+  // Three-column status preview: proposed = awaiting approval, pending =
+  // approved & being posted, posted = live. Most recent first per column.
+  const byStage = {
+    proposed: content.filter((c) => c.stage === "proposed").sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+    pending:  content.filter((c) => c.stage === "pending").sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+    posted:   content.filter((c) => c.stage === "posted").sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+  };
 
   const upcomingMeetings = [...events]
     .filter((e) => e.type === "meeting" && e.starts_at >= new Date().toISOString())
@@ -53,6 +66,32 @@ export default async function ClientHome() {
         </div>
         <h1 className="mt-1 text-4xl font-semibold tracking-tight">Welcome back.</h1>
       </div>
+
+      {widgets.content ? (
+        <div className="mb-10 grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+          <StatusColumn
+            tone="warn"
+            label="Awaiting Your Approval"
+            cards={byStage.proposed}
+            companyName={client.company_name}
+            seeAllHref="/client/content"
+          />
+          <StatusColumn
+            tone="accent"
+            label="Approved — Being Posted"
+            cards={byStage.pending}
+            companyName={client.company_name}
+            seeAllHref="/client/content"
+          />
+          <StatusColumn
+            tone="ok"
+            label="Live"
+            cards={byStage.posted}
+            companyName={client.company_name}
+            seeAllHref="/client/content"
+          />
+        </div>
+      ) : null}
 
       {widgets.calendar ? (
         <Card className="mb-10">
@@ -162,5 +201,72 @@ export default async function ClientHome() {
       ) : null}
 
     </ClientShell>
+  );
+}
+
+// One of the three status columns at the top of the overview. Renders the
+// stage pill + count, then up to 3 most-recent cards. Clickable area sends
+// the client to the full /client/content board.
+function StatusColumn({
+  tone,
+  label,
+  cards,
+  companyName,
+  seeAllHref,
+}: {
+  tone: "warn" | "accent" | "ok";
+  label: string;
+  cards: ContentCard[];
+  companyName: string;
+  seeAllHref: string;
+}) {
+  const visible = cards.slice(0, 3);
+  return (
+    <Card className="flex flex-col">
+      <CardHeader
+        title={<Pill tone={tone}>{label}</Pill>}
+        right={<span className="font-mono text-xs text-[var(--color-text-muted)]">{cards.length}</span>}
+      />
+      <CardBody className="space-y-2">
+        {visible.length === 0 ? (
+          <div className="text-xs text-[var(--color-text-subtle)] italic">Empty.</div>
+        ) : (
+          visible.map((card) => (
+            <div
+              key={card.id}
+              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3"
+            >
+              <div className="text-sm font-medium leading-snug">{card.title}</div>
+              <div className="mt-1 text-[11px] text-[var(--color-text-muted)] font-mono">
+                {companyName} · updated <Time iso={card.updated_at} />
+              </div>
+              {card.body ? (
+                <div className="mt-1.5 text-xs text-[var(--color-text-muted)] line-clamp-2">
+                  {card.body}
+                </div>
+              ) : null}
+              {card.link ? (
+                <a
+                  href={card.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-block text-xs text-[var(--color-accent)] hover:underline"
+                >
+                  {card.link.replace(/^https?:\/\//, "")} ↗
+                </a>
+              ) : null}
+            </div>
+          ))
+        )}
+        {cards.length > visible.length ? (
+          <Link
+            href={seeAllHref}
+            className="block text-center text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-text)] pt-1"
+          >
+            See all {cards.length} →
+          </Link>
+        ) : null}
+      </CardBody>
+    </Card>
   );
 }

@@ -222,10 +222,9 @@ export default async function ClientHome() {
 // hands them to the interactive dashboard component. Falls back gracefully
 // when SEMrush isn't configured.
 async function GscSearchSection({ clientId }: { clientId: string }) {
-  const [clicks, impressions, ctr, position] = await Promise.all([
+  const [clicks, impressions, position] = await Promise.all([
     data.listSnapshots({ clientId, metric: "clicks" }),
     data.listSnapshots({ clientId, metric: "impressions" }),
-    data.listSnapshots({ clientId, metric: "ctr" }),
     data.listSnapshots({ clientId, metric: "avg_position" }),
   ]);
 
@@ -247,7 +246,7 @@ async function GscSearchSection({ clientId }: { clientId: string }) {
   }
 
   // Most recent snapshot date across all series.
-  const latest = [clicks, impressions, ctr, position]
+  const latest = [clicks, impressions, position]
     .flat()
     .map((s) => s.captured_at)
     .sort()
@@ -257,7 +256,6 @@ async function GscSearchSection({ clientId }: { clientId: string }) {
     <GscDashboard
       clicks={clicks.map((s) => ({ captured_at: s.captured_at, value: s.value }))}
       impressions={impressions.map((s) => ({ captured_at: s.captured_at, value: s.value }))}
-      ctr={ctr.map((s) => ({ captured_at: s.captured_at, value: s.value }))}
       position={position.map((s) => ({ captured_at: s.captured_at, value: s.value }))}
       topQueries={topQueries}
       lastUpdated={latest ?? undefined}

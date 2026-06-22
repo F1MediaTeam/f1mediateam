@@ -26,8 +26,6 @@ interface TopRow {
 interface Props {
   clicks: Snapshot[];
   impressions: Snapshot[];
-  /** ctr in raw fraction (0–1) — multiplied by 100 for display */
-  ctr: Snapshot[];
   position: Snapshot[];
   topQueries: TopRow[];
   /** Date the data was last refreshed by the sync job. */
@@ -44,7 +42,7 @@ const RANGES = [
 type RangeKey = (typeof RANGES)[number]["value"];
 
 interface SeriesDef {
-  id: "clicks" | "impressions" | "ctr" | "position";
+  id: "clicks" | "impressions" | "position";
   label: string;
   color: string;        // line color
   tile: string;         // tile background tailwind class
@@ -56,22 +54,17 @@ interface SeriesDef {
 const SERIES: SeriesDef[] = [
   {
     id: "clicks", label: "Total clicks", color: "#3B82F6",
-    tile: "bg-blue-500/20 border-blue-400/40", ring: "ring-blue-400/40",
+    tile: "bg-blue-500/20 border-blue-400/40", ring: "ring-blue-400/60",
     fmt: (v) => formatNumber(v, { maximumFractionDigits: 0, notation: v >= 10_000 ? "compact" : "standard" }),
   },
   {
     id: "impressions", label: "Total impressions", color: "#8B5CF6",
-    tile: "bg-purple-500/20 border-purple-400/40", ring: "ring-purple-400/40",
+    tile: "bg-purple-500/20 border-purple-400/40", ring: "ring-purple-400/60",
     fmt: (v) => formatNumber(v, { maximumFractionDigits: 0, notation: v >= 10_000 ? "compact" : "standard" }),
   },
   {
-    id: "ctr", label: "Average CTR", color: "#14B8A6",
-    tile: "bg-teal-500/20 border-teal-400/40", ring: "ring-teal-400/40",
-    fmt: (v) => `${(v * 100).toFixed(1)}%`,
-  },
-  {
     id: "position", label: "Average position", color: "#F59E0B",
-    tile: "bg-amber-500/20 border-amber-400/40", ring: "ring-amber-400/40",
+    tile: "bg-amber-500/20 border-amber-400/40", ring: "ring-amber-400/60",
     fmt: (v) => v.toFixed(1),
     invert: true,
   },
@@ -191,7 +184,6 @@ export default function GscDashboard(props: Props) {
   const [enabled, setEnabled] = useState<Record<SeriesDef["id"], boolean>>({
     clicks: true,
     impressions: true,
-    ctr: true,
     position: true,
   });
 
@@ -201,14 +193,13 @@ export default function GscDashboard(props: Props) {
     const inputs: Record<SeriesDef["id"], Snapshot[]> = {
       clicks: props.clicks,
       impressions: props.impressions,
-      ctr: props.ctr,
       position: props.position,
     };
     return SERIES.map((def) => ({
       def,
       points: clipToRange(inputs[def.id], days),
     }));
-  }, [props.clicks, props.impressions, props.ctr, props.position, days]);
+  }, [props.clicks, props.impressions, props.position, days]);
 
   return (
     <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-elev)]/60 overflow-hidden">
@@ -243,38 +234,54 @@ export default function GscDashboard(props: Props) {
 
       {/* KPI tiles + chart */}
       <div className="p-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
           {seriesData.map(({ def, points }) => {
             const { headline } = summarize(points, def);
             const on = enabled[def.id];
+            const checkboxId = `series-toggle-${def.id}`;
             return (
-              <button
+              <label
                 key={def.id}
-                type="button"
-                onClick={() => setEnabled((e) => ({ ...e, [def.id]: !e[def.id] }))}
+                htmlFor={checkboxId}
                 className={
-                  "text-left rounded-xl border px-4 py-3 transition relative " +
+                  "relative cursor-pointer select-none text-left rounded-xl border px-4 py-3 transition flex flex-col " +
                   (on
-                    ? `${def.tile} ring-1 ${def.ring}`
-                    : "bg-[var(--color-bg)] border-[var(--color-border)] opacity-60")
+                    ? `${def.tile} ring-2 ${def.ring} shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]`
+                    : "bg-[var(--color-bg)] border-[var(--color-border)] opacity-55 hover:opacity-80")
                 }
               >
-                <div className="flex items-center gap-2 text-[11px]">
+                <input
+                  id={checkboxId}
+                  type="checkbox"
+                  className="sr-only"
+                  checked={on}
+                  onChange={() => setEnabled((e) => ({ ...e, [def.id]: !e[def.id] }))}
+                />
+                <div className="flex items-center gap-2">
+                  {/* Visible checkbox */}
                   <span
                     className={
-                      "inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm border " +
-                      (on ? "border-white/70 bg-white/20" : "border-white/30")
+                      "inline-flex items-center justify-center w-5 h-5 rounded border-2 transition shrink-0 " +
+                      (on ? "bg-white border-white text-black" : "bg-transparent border-white/50 text-transparent")
                     }
                     aria-hidden
                   >
-                    {on ? <span className="text-[9px] leading-none">✓</span> : null}
+                    <svg viewBox="0 0 20 20" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={3}>
+                      <polyline points="4,11 8,15 16,5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                   </span>
-                  <span className="text-[var(--color-text)] font-medium">{def.label}</span>
+                  {/* Color swatch + label */}
+                  <span
+                    className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: def.color }}
+                    aria-hidden
+                  />
+                  <span className="text-sm text-[var(--color-text)] font-medium">{def.label}</span>
                 </div>
                 <div className="mt-2 text-3xl font-semibold tabular-nums" style={{ color: def.color }}>
                   {def.fmt(headline)}
                 </div>
-              </button>
+              </label>
             );
           })}
         </div>

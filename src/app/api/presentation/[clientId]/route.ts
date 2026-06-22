@@ -5,6 +5,8 @@ import { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import { buildPresentationPdf, type Slide } from "@/lib/presentation-pdf";
+import { buildGammaBrief } from "@/lib/deck/gamma-brief";
+import { createGeneration, gammaConfigured, generationUrl } from "@/lib/connectors/gamma";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,6 +26,13 @@ function bullets(s: string): string[] {
 }
 function field(fd: FormData, name: string): string {
   return String(fd.get(name) ?? "").trim();
+}
+
+// "2026-06-22" → "6/22/2026" for the deck title card.
+function numericDate(iso: string): string {
+  const raw = iso || new Date().toISOString().slice(0, 10);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  return m ? `${Number(m[2])}/${Number(m[3])}/${m[1]}` : raw;
 }
 
 async function logoDataUrl(url: string): Promise<string | undefined> {
@@ -47,6 +56,49 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!client) return new Response("Client not found", { status: 404 });
 
   const fd = await request.formData();
+
+  // Branch: format=gamma renders the same writeup as a Gamma deck (vs. PDF).
+  if (field(fd, "format") === "gamma") {
+    if (!gammaConfigured()) {
+      return new Response(
+        "Gamma is not configured. Add GAMMA_API_KEY to enable deck generation.",
+        { status: 503 },
+      );
+    }
+    const latestPos = await data.getLatest(clientId, "avg_position");
+    const brief = buildGammaBrief({
+      companyName: client.company_name,
+      meetingDate: numericDate(field(fd, "meeting_date")),
+      themeId: field(fd, "theme") || undefined,
+      sections: {
+        social: field(fd, "social"),
+        flyers: field(fd, "flyers"),
+        insights: field(fd, "insights"),
+        backlinks: field(fd, "backlinks"),
+        pages: field(fd, "pages"),
+        ranking: field(fd, "ranking"),
+        recommendation: field(fd, "recommendation"),
+        gscNote: field(fd, "gsc_note"),
+      },
+      gsc: {
+        imprPrev: field(fd, "gsc_impr_prev"),
+        imprCur: field(fd, "gsc_impr_cur"),
+        clicks: field(fd, "gsc_clicks"),
+        avgPosition: latestPos ? String(Math.round(latestPos.value * 10) / 10) : undefined,
+      },
+      whatsNext: bullets(field(fd, "whats_next")),
+      draftPages: bullets(field(fd, "draft_pages")),
+    });
+    try {
+      const gen = await createGeneration(brief);
+      // 303 → the browser GETs the generation URL (opens in the form's new tab),
+      // which shows live progress and then the finished, editable deck.
+      return Response.redirect(generationUrl(gen.generationId), 303);
+    } catch (err) {
+      return new Response(err instanceof Error ? err.message : "Gamma generation failed", { status: 502 });
+    }
+  }
+
   const accent = field(fd, "accent") || "#14B8A6";
   const meetingDate = field(fd, "meeting_date") || new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   const logo = await logoDataUrl(field(fd, "logo_url"));

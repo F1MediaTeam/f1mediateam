@@ -53,7 +53,8 @@ export default async function PresentationBuilder({ params }: { params: Promise<
         <h1 className="text-3xl font-semibold tracking-tight mt-2 mb-1">Meeting deck</h1>
         <p className="text-sm text-[var(--color-text-muted)] mb-8">
           Fill in this meeting&apos;s writeup. GSC numbers are pre-filled from {client.company_name}&apos;s data — edit
-          anything, then generate a branded slide deck (PDF). Leave a section blank to skip its slide.
+          anything, then generate a branded slide deck as a <strong>PDF</strong> or an editable <strong>Gamma</strong> deck.
+          Leave a section blank to skip its slide. Gamma decks cap at 10 cards.
         </p>
 
         {/* Native POST → returns the PDF in a new tab. */}
@@ -74,6 +75,18 @@ export default async function PresentationBuilder({ params }: { params: Promise<
                   <label className={labelCls}>Logo URL (optional)</label>
                   <input type="url" name="logo_url" placeholder="https://…/logo.png" className={fieldCls} />
                 </div>
+              </div>
+              <div className="mt-4 max-w-xs">
+                <label className={labelCls}>Gamma theme</label>
+                <select name="theme" defaultValue="howlite" className={fieldCls}>
+                  <option value="howlite">Howlite — clean white/black (default)</option>
+                  <option value="consultant">Consultant — corporate blue</option>
+                  <option value="default-light">Basic Light</option>
+                  <option value="slate">Slate — gray, business</option>
+                  <option value="sage">Sage — soft green</option>
+                  <option value="ash">Ash — minimal mono</option>
+                </select>
+                <p className="text-[11px] text-[var(--color-text-muted)] mt-1.5">Used only for the Gamma deck. Accent/logo above apply to the PDF.</p>
               </div>
             </CardBody>
           </Card>
@@ -136,8 +149,9 @@ export default async function PresentationBuilder({ params }: { params: Promise<
             </CardBody>
           </Card>
 
-          <div className="flex justify-end">
-            <Button type="submit" className="px-8">Generate deck (PDF)</Button>
+          <div className="flex justify-end gap-3">
+            <Button type="submit" name="format" value="pdf" variant="secondary" className="px-8">Generate PDF</Button>
+            <Button type="submit" name="format" value="gamma" className="px-8">Generate in Gamma</Button>
           </div>
         </form>
       </div>

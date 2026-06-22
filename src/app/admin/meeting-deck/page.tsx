@@ -47,7 +47,8 @@ export default async function MeetingDeck({
           <p className="text-sm text-[var(--color-text-muted)] mt-3 max-w-xl">
             Pick a company, pick the time frame to pull data from, click Generate.
             Claude writes the narrative slides from that client&apos;s posted content,
-            GSC numbers, drafts, and open tasks. The PDF downloads when it&apos;s ready
+            GSC numbers, drafts, open tasks, and any Fieldy meeting notes in that
+            window that mention the client. The PDF downloads when it&apos;s ready
             — usually 15–30 seconds.
           </p>
         </div>

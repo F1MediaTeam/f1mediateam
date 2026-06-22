@@ -9,6 +9,7 @@
 
 import type { Client } from "@/lib/types";
 import { data } from "@/lib/data";
+import { fieldyConfigured, fieldyMeetingsInWindow, type FieldyMeetingNote } from "@/lib/connectors/fieldy";
 
 const ANTHROPIC_MODEL = "claude-opus-4-7";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -90,15 +91,49 @@ interface GatheredFacts {
   postedInWindow: Array<{ title: string; body: string | null; link: string | null; created_at: string }>;
   pipeline: Array<{ title: string; body: string | null; link: string | null; stage: string }>;
   openTasks: Array<{ title: string; due: string | null }>;
+  /** Fieldy meeting notes in the window that match this client (by name). */
+  meetings: FieldyMeetingNote[];
+}
+
+// Fieldy meetings aren't tagged with our client IDs, so match by name: the
+// client's company name (or a distinctive token of it) appearing in the
+// meeting title, keywords, summary, or notes. Tokens < 5 chars and generic
+// agency words are ignored to avoid false positives.
+const NAME_STOPWORDS = new Set([
+  "group", "media", "marketing", "agency", "company", "corp", "corporation",
+  "holdings", "global", "digital", "online", "services", "solutions", "studio",
+]);
+
+function meetingMatchesClient(m: FieldyMeetingNote, companyName: string): boolean {
+  const hay = `${m.title}\n${m.keywords.join(" ")}\n${m.summary}\n${m.content}`.toLowerCase();
+  const name = companyName.toLowerCase().trim();
+  if (name && hay.includes(name)) return true;
+  const tokens = name
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length >= 5 && !NAME_STOPWORDS.has(t));
+  return tokens.some((t) => hay.includes(t));
+}
+
+async function gatherClientMeetings(client: Client, window: RangeWindow): Promise<FieldyMeetingNote[]> {
+  if (!fieldyConfigured()) return [];
+  try {
+    const all = await fieldyMeetingsInWindow(window.fromIso, window.toIso);
+    return all.filter((m) => meetingMatchesClient(m, client.company_name)).slice(0, 6);
+  } catch {
+    // Fieldy outage / bad key must never break the analytics-driven deck.
+    return [];
+  }
 }
 
 async function gatherFacts(client: Client, window: RangeWindow): Promise<GatheredFacts> {
-  const [impr, clicks, position, content, tasks] = await Promise.all([
+  const [impr, clicks, position, content, tasks, meetings] = await Promise.all([
     data.listSnapshots({ clientId: client.id, metric: "impressions" }),
     data.listSnapshots({ clientId: client.id, metric: "clicks" }),
     data.listSnapshots({ clientId: client.id, metric: "avg_position" }),
     data.listContent({ clientId: client.id }),
     data.listTasks({ clientId: client.id, status: "open" }),
+    gatherClientMeetings(client, window),
   ]);
 
   const postedInWindow = content
@@ -132,6 +167,7 @@ async function gatherFacts(client: Client, window: RangeWindow): Promise<Gathere
       .sort((a, b) => (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999"))
       .slice(0, 10)
       .map((t) => ({ title: t.title, due: t.due_date })),
+    meetings,
   };
 }
 
@@ -194,6 +230,16 @@ function userPrompt(facts: GatheredFacts): string {
     });
   }
   lines.push("");
+  if (facts.meetings.length) {
+    lines.push("CLIENT MEETING NOTES (captured by Fieldy — what was actually discussed)");
+    facts.meetings.forEach((m) => {
+      const day = m.startTime ? m.startTime.slice(0, 10) : "";
+      lines.push(`- ${day ? day + " · " : ""}${m.title}`);
+      if (m.summary) lines.push(`    Summary: ${m.summary.slice(0, 500)}`);
+      if (m.content) lines.push(`    Notes: ${m.content.slice(0, 900).replace(/\n+/g, " ")}`);
+    });
+    lines.push("");
+  }
 
   lines.push(`Write the meeting narrative for ${facts.client.company_name}. Match this voice
 example (anonymized from a recent deck):
@@ -222,6 +268,11 @@ Return STRICT JSON, no markdown, matching this exact shape:
 
 Rules:
 - Never invent a URL that isn't in the data above.
+- When CLIENT MEETING NOTES are present, ground the narrative — especially
+  social, insights, recommendation, and whatsNext — in what was actually
+  discussed and agreed in those meetings. Reflect the client's stated concerns
+  and the next steps from the notes. Never invent specifics not in the notes
+  or data.
 - Numbers in the gscNote must match HEADLINE METRICS exactly (use the compact
   forms like ${compact(facts.gscImprCur)} when referenced).
 - If a section has no data to discuss (e.g. nothing posted), still write a

@@ -1,10 +1,11 @@
 import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
-import { Card, CardBody, CardHeader, Stat, Pill, Button } from "@/components/ui";
+import { Card, CardBody, CardHeader, Pill } from "@/components/ui";
 import { formatDate, isoDate } from "@/lib/utils";
 import { createTaskAction, toggleTaskAction, deleteTaskAction } from "./actions";
 import Time from "@/components/shared/Time";
+import AdminTaskAddModal from "@/components/admin/AdminTaskAddModal";
 
 function dayBucket(due: string | null, today: string, tomorrow: string, weekEnd: string) {
   if (!due) return "later";
@@ -46,69 +47,60 @@ export default async function AdminWork() {
 
   return (
     <AdminShell session={session} active="/admin">
-      <div className="px-8 py-8 max-w-7xl">
-        <div className="flex items-end justify-between mb-8">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-7xl">
+        <div className="flex items-end justify-between mb-8 gap-3 flex-wrap">
           <div>
             <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
               Work dashboard
             </div>
             <h1 className="text-3xl font-semibold tracking-tight mt-1">Today, tomorrow, this week</h1>
           </div>
-          <div className="text-xs text-[var(--color-text-muted)] font-mono">
-            <Time iso={new Date().toISOString()} dateOnly />
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-[var(--color-text-muted)] font-mono">
+              <Time iso={new Date().toISOString()} dateOnly />
+            </div>
+            <AdminTaskAddModal action={createTaskAction} clients={clients} />
           </div>
         </div>
 
+        {/* Square KPI tiles */}
         <div className="grid grid-cols-4 gap-2 sm:gap-4 mb-8">
-          <Stat label="Open tasks" value={tasks.length} />
-          <Stat
-            label="Overdue"
-            value={buckets.overdue.length}
-            trend={buckets.overdue.length ? { direction: "down", label: "needs attention" } : undefined}
-          />
-          <Stat label="Active clients" value={clients.length} />
-          <Stat label="Due this week" value={buckets.today.length + buckets.tomorrow.length + buckets.week.length} />
+          <SquareStat label="Open tasks" value={tasks.length} />
+          <SquareStat label="Overdue" value={buckets.overdue.length} tone={buckets.overdue.length ? "danger" : "default"} />
+          <SquareStat label="Active clients" value={clients.length} />
+          <SquareStat label="Due this week" value={buckets.today.length + buckets.tomorrow.length + buckets.week.length} />
         </div>
 
+        {/* Three task columns with a portrait-ish aspect so they read as boxes, not banners */}
         <div className="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-6 items-stretch">
           <TaskColumn title="Today"    bucket={buckets.today.concat(buckets.overdue)} clientName={clientName} />
           <TaskColumn title="Tomorrow" bucket={buckets.tomorrow} clientName={clientName} />
           <TaskColumn title="This week" bucket={buckets.week} clientName={clientName} />
         </div>
-
-        <div className="mt-10">
-          <Card>
-            <CardHeader title="Create task" subtitle="Assign work to a client" />
-            <CardBody>
-              <form action={createTaskAction} className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                <select
-                  name="client_id"
-                  required
-                  defaultValue={clients[0]?.id ?? ""}
-                  className="md:col-span-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-                >
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>{c.company_name}</option>
-                  ))}
-                </select>
-                <input
-                  name="title"
-                  required
-                  placeholder="What needs doing?"
-                  className="md:col-span-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-                />
-                <input
-                  name="due_date"
-                  type="date"
-                  className="md:col-span-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-                />
-                <Button type="submit" className="md:col-span-1">Add task</Button>
-              </form>
-            </CardBody>
-          </Card>
-        </div>
       </div>
     </AdminShell>
+  );
+}
+
+// Square KPI tile — locked aspect-ratio so the four-up row reads as a
+// row of boxes regardless of viewport. Padding scales with the box.
+function SquareStat({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: React.ReactNode;
+  tone?: "default" | "danger";
+}) {
+  const accent = tone === "danger" ? "text-[var(--color-down)]" : "text-[var(--color-text)]";
+  return (
+    <div className="aspect-square rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3 sm:p-4 flex flex-col justify-between">
+      <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] leading-tight">
+        {label}
+      </div>
+      <div className={`text-3xl sm:text-4xl font-semibold tabular-nums ${accent}`}>{value}</div>
+    </div>
   );
 }
 

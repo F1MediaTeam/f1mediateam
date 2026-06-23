@@ -58,6 +58,9 @@ function rowsOf(reports: SemrushReport[], type: string): Row[] {
 
 function normalizeDate(raw: string): string {
   const t = raw.trim();
+  // Unix seconds (Semrush backlinks_historical) → ISO date.
+  if (/^\d{10}$/.test(t)) return new Date(Number(t) * 1000).toISOString().slice(0, 10);
+  if (/^\d{13}$/.test(t)) return new Date(Number(t)).toISOString().slice(0, 10);
   // "20240115" → "2024-01-15"
   if (/^\d{8}$/.test(t)) return `${t.slice(0, 4)}-${t.slice(4, 6)}-${t.slice(6, 8)}`;
   // Already ISO-ish

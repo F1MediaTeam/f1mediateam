@@ -205,7 +205,6 @@ export async function fetchClientOrganicKeywords(clientId: string, limit = 250):
 // ===========================================================================
 
 const BACKLINKS_BASE = "https://api.semrush.com/analytics/v1/";
-const TRENDS_BASE = "https://api.semrush.com/analytics/ta/api/v3/";
 
 export interface DeepPullReport {
   report_type: string;
@@ -220,7 +219,13 @@ export interface DeepPullReport {
 function parseCsvRows(text: string): { rows: Record<string, string>[]; error: string | null } {
   const t = text.trim();
   if (!t) return { rows: [], error: null };
-  if (t.startsWith("ERROR")) return { rows: [], error: t.split(/\r?\n/)[0].slice(0, 160) };
+  if (t.startsWith("ERROR")) {
+    const line = t.split(/\r?\n/)[0];
+    // "ERROR 50 :: NOTHING FOUND" just means the report has no data for this
+    // domain (e.g. no paid keywords) — record it as empty, not a failure.
+    if (/NOTHING FOUND/i.test(line)) return { rows: [], error: null };
+    return { rows: [], error: line.slice(0, 160) };
+  }
   const lines = t.split(/\r?\n/);
   if (lines.length < 2) return { rows: [], error: null };
   const headers = lines[0].split(";").map((h) => h.trim());
@@ -329,7 +334,7 @@ const REPORT_SPECS: ReportSpec[] = [
   },
   {
     key: "authority_history", label: "Authority Score history", unitsPerLine: 40,
-    build: (c) => backlinksUrl(c, "backlinks_historical", "date,ascore,total,domains_num,follows_num,nofollows_num", 200),
+    build: (c) => backlinksUrl(c, "backlinks_historical", "date,ascore,domains_num,backlinks_num", 200),
   },
   {
     key: "backlinks", label: "Backlinks", unitsPerLine: 45,
@@ -357,22 +362,9 @@ const REPORT_SPECS: ReportSpec[] = [
   },
 ];
 
-// .Trends / Traffic Analytics — separate paid add-on. Best-effort: if the plan
-// doesn't include it, this report records an error and the pull continues.
-function trendsSpec(): ReportSpec {
-  return {
-    key: "traffic_summary", label: "Traffic Analytics (.Trends)", unitsPerLine: 50,
-    build: (c) => {
-      const p = new URLSearchParams({
-        key: c.apikey,
-        type: "traffic_summary",
-        targets: c.domain,
-        export_columns: "target,visits,users,desktop_share,mobile_share,direct,search_organic,search_paid,social,referral",
-      });
-      return `${TRENDS_BASE}?${p.toString()}`;
-    },
-  };
-}
+// Note: Traffic Analytics (.Trends) is a separate paid Semrush add-on with a
+// different API surface; it's intentionally not part of the deep pull (it 400s
+// without the add-on). Re-add a spec here if the plan includes .Trends.
 
 async function runSpec(spec: ReportSpec, ctx: SpecCtx): Promise<DeepPullReport> {
   const url = spec.build(ctx);
@@ -421,7 +413,7 @@ export async function semrushDeepPull(apikey: string, rawDomain: string, databas
   const ctx: SpecCtx = { ...baseCtx, seedPhrase };
 
   // 2. Everything else (skip the organic spec we already ran), plus Trends.
-  const rest = [...REPORT_SPECS.slice(1), trendsSpec()];
+  const rest = REPORT_SPECS.slice(1);
   const results = await pool(rest, 4, (spec) => runSpec(spec, ctx));
 
   return [organic, ...results];

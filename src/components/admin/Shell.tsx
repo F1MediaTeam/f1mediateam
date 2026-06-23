@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Logo from "@/components/shared/Logo";
+import MobileNavMenu from "@/components/shared/MobileNavMenu";
 import type { Session } from "@/lib/data";
 
 const NAV = [
@@ -23,7 +24,16 @@ export default function AdminShell({
   active?: string;
 }) {
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen md:flex">
+      {/* Mobile top bar — only renders below the md breakpoint. */}
+      <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-bg-elev)]/80 sticky top-0 z-30">
+        <Link href="/admin" className="flex items-center gap-2">
+          <Logo compact width={140} height={40} />
+        </Link>
+        <MobileNavMenu items={NAV} active={active} heading="Admin console" />
+      </header>
+
+      {/* Desktop sidebar — hidden on mobile. */}
       <aside className="hidden md:flex w-60 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-bg-elev)]/80">
         <div className="px-4 py-5">
           <Link href="/admin" className="block">
@@ -53,7 +63,6 @@ export default function AdminShell({
             );
           })}
         </nav>
-
       </aside>
 
       <main className="flex-1 min-w-0">{children}</main>

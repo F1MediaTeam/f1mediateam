@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { signOutAction } from "@/app/login/actions";
 import Logo from "@/components/shared/Logo";
+import MobileNavMenu from "@/components/shared/MobileNavMenu";
 import ImpersonationBanner from "@/components/client/ImpersonationBanner";
 import type { Session } from "@/lib/data";
 import type { Client } from "@/lib/types";
@@ -26,14 +27,15 @@ export default function ClientShell({
     <div className="min-h-screen">
       {session.is_impersonating ? <ImpersonationBanner clientName={client.company_name} /> : null}
       <header className="border-b border-[var(--color-border)] bg-[var(--color-bg-elev)]/70 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <Link href="/client" aria-label="F1 Media Team — home">
-              <Logo compact width={170} height={48} />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-6">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <Link href="/client" aria-label="F1 Media Team — home" className="shrink-0">
+              <Logo compact width={140} height={40} />
             </Link>
-            <span className="text-[var(--color-border-strong)]">/</span>
-            <span className="text-sm font-medium">{client.company_name}</span>
+            <span className="text-[var(--color-border-strong)] hidden sm:inline">/</span>
+            <span className="text-sm font-medium truncate hidden sm:inline">{client.company_name}</span>
           </div>
+          {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1">
             {NAV.map((item) => (
               <Link
@@ -50,15 +52,17 @@ export default function ClientShell({
               </Link>
             ))}
           </nav>
-          <div className="flex items-center gap-3 text-xs">
-            <span className="text-[var(--color-text-muted)] hidden sm:block">{session.email}</span>
+          <div className="flex items-center gap-2 sm:gap-3 text-xs">
+            <span className="text-[var(--color-text-muted)] hidden lg:block">{session.email}</span>
             <form action={signOutAction}>
-              <button className="text-[var(--color-text-muted)] hover:text-white">Sign out</button>
+              <button className="text-[var(--color-text-muted)] hover:text-white px-2 py-1">Sign out</button>
             </form>
+            {/* Mobile hamburger — shows the same nav items as desktop. */}
+            <MobileNavMenu items={NAV} active={active} heading={client.company_name} />
           </div>
         </div>
       </header>
-      <main className="max-w-7xl mx-auto px-6 py-10">{children}</main>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10">{children}</main>
     </div>
   );
 }

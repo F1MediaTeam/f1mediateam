@@ -11,7 +11,6 @@ import { isoDate, formatDateTime } from "@/lib/utils";
 import MetricCompare from "@/components/shared/MetricCompare";
 import GscDashboard from "@/components/shared/GscDashboard";
 import SeoMetricsRow from "@/components/shared/SeoMetricsRow";
-import { fetchClientOrganicKeywords } from "@/lib/connectors/semrush";
 import CalendarAddModal from "@/components/client/CalendarAddModal";
 import Time from "@/components/shared/Time";
 import type { ContentCard } from "@/lib/types";
@@ -222,28 +221,12 @@ export default async function ClientHome() {
 // hands them to the interactive dashboard component. Falls back gracefully
 // when SEMrush isn't configured.
 async function GscSearchSection({ clientId }: { clientId: string }) {
-  const [clicks, impressions, position] = await Promise.all([
+  const [clicks, impressions, position, ctr] = await Promise.all([
     data.listSnapshots({ clientId, metric: "clicks" }),
     data.listSnapshots({ clientId, metric: "impressions" }),
     data.listSnapshots({ clientId, metric: "avg_position" }),
+    data.listSnapshots({ clientId, metric: "ctr" }),
   ]);
-
-  // SEMrush gives us position + estimated traffic share per phrase. We don't
-  // have per-query clicks/impressions from GSC yet, so the table shows what
-  // SEMrush returns and leaves clicks/impressions at zero with a tooltip note.
-  let topQueries: Array<{ label: string; clicks: number; impressions: number; ctr: number; position: number }> = [];
-  try {
-    const kws = await fetchClientOrganicKeywords(clientId, 25);
-    topQueries = kws.map((k) => ({
-      label: k.phrase,
-      clicks: Math.round(k.trafficPct * 10), // crude proxy — trafficPct is share of organic traffic
-      impressions: Math.round(k.volume),
-      ctr: k.volume > 0 ? (k.trafficPct * 10) / k.volume : 0,
-      position: k.position,
-    }));
-  } catch {
-    // Missing key / not connected — show empty table.
-  }
 
   // Most recent snapshot date across all series.
   const latest = [clicks, impressions, position]
@@ -254,10 +237,11 @@ async function GscSearchSection({ clientId }: { clientId: string }) {
 
   return (
     <GscDashboard
+      clientId={clientId}
       clicks={clicks.map((s) => ({ captured_at: s.captured_at, value: s.value }))}
       impressions={impressions.map((s) => ({ captured_at: s.captured_at, value: s.value }))}
       position={position.map((s) => ({ captured_at: s.captured_at, value: s.value }))}
-      topQueries={topQueries}
+      ctr={ctr.map((s) => ({ captured_at: s.captured_at, value: s.value }))}
       lastUpdated={latest ?? undefined}
     />
   );

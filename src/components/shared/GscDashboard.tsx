@@ -1,13 +1,17 @@
 "use client";
 
 // GSC-style search performance dashboard for the client overview.
-// Top row: time-frame pills (7d / 28d / 3mo / 1y / all). Below: four
-// colored KPI tiles (clicks, impressions, CTR, avg position) — each is a
-// toggleable series. Below: a single line chart that overlays whichever
-// series are enabled. Mirrors the layout of Google Search Console's
-// Performance page so clients land on something they already recognise.
+// Top row: time-frame pills (7d / 28d / 3mo / 1y / all). Below: three
+// colored KPI tiles (clicks, impressions, avg position) — each is a
+// checkbox-toggled series. Below: a single line chart that overlays
+// whichever series are enabled. Mirrors the layout of Google Search
+// Console's Performance page so clients land on something familiar.
+//
+// Tabs at the bottom — Queries / Pages / Days — fetch their data when
+// activated. Queries and Pages call /api/gsc-breakdown for the current
+// range; Days reads the daily snapshots already passed in as props.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatNumber } from "@/lib/utils";
 
 interface Snapshot {
@@ -24,10 +28,12 @@ interface TopRow {
 }
 
 interface Props {
+  clientId: string;
   clicks: Snapshot[];
   impressions: Snapshot[];
   position: Snapshot[];
-  topQueries: TopRow[];
+  /** CTR snapshots — used for the Days table only, not graphed. Optional. */
+  ctr?: Snapshot[];
   /** Date the data was last refreshed by the sync job. */
   lastUpdated?: string;
 }
@@ -289,47 +295,179 @@ export default function GscDashboard(props: Props) {
         <MultiLineChart series={seriesData} enabled={enabled} />
       </div>
 
-      {/* Queries tab */}
-      <div className="border-t border-[var(--color-border)]">
-        <div className="flex items-center gap-6 px-4 pt-3 text-[11px] uppercase tracking-wider">
-          <span className="text-[var(--color-text)] border-b-2 border-[var(--color-accent)] pb-2 -mb-px">
-            Queries
-          </span>
-          <span className="text-[var(--color-text-subtle)] pb-2 cursor-not-allowed" title="Coming soon">Pages</span>
-          <span className="text-[var(--color-text-subtle)] pb-2 cursor-not-allowed" title="Coming soon">Days</span>
-        </div>
-        <div className="p-4">
-          {props.topQueries.length === 0 ? (
-            <div className="text-xs text-[var(--color-text-muted)] py-6 text-center">
-              No keyword data yet. SEMrush sync hasn&apos;t produced results for this window.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] border-b border-[var(--color-border)]">
-                    <th className="py-2 pr-4 font-medium">Top queries</th>
-                    <th className="py-2 px-4 font-medium text-right">Clicks</th>
-                    <th className="py-2 px-4 font-medium text-right">Impressions</th>
-                    <th className="py-2 px-4 font-medium text-right">CTR</th>
-                    <th className="py-2 pl-4 font-medium text-right">Position</th>
+      <BreakdownTabs
+        clientId={props.clientId}
+        days={days}
+        clicks={props.clicks}
+        impressions={props.impressions}
+        position={props.position}
+        ctr={props.ctr}
+      />
+    </div>
+  );
+}
+
+// ---------- bottom tabs (Queries / Pages / Days) ----------
+
+type TabKey = "queries" | "pages" | "days";
+
+function BreakdownTabs({
+  clientId,
+  days,
+  clicks,
+  impressions,
+  position,
+  ctr,
+}: {
+  clientId: string;
+  days: number;
+  clicks: Snapshot[];
+  impressions: Snapshot[];
+  position: Snapshot[];
+  ctr?: Snapshot[];
+}) {
+  const [tab, setTab] = useState<TabKey>("queries");
+  const [rows, setRows] = useState<TopRow[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Resolve the current window's from/to. The dashboard's range pills above
+  // control `days`, so we use today minus that many days. For the "all time"
+  // case we cap at GSC's hard limit (~16 months).
+  const { from, to } = useMemo(() => {
+    const today = new Date();
+    today.setUTCDate(today.getUTCDate() - 2); // GSC has ~2 day lag
+    const span = Number.isFinite(days) ? days : 480;
+    const start = new Date(today);
+    start.setUTCDate(start.getUTCDate() - span);
+    return { from: start.toISOString().slice(0, 10), to: today.toISOString().slice(0, 10) };
+  }, [days]);
+
+  // Fetch breakdown for the active tab + range.
+  useEffect(() => {
+    if (tab === "days") return; // days uses local snapshot data
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setRows(null);
+    const dimension = tab === "pages" ? "pages" : "queries";
+    fetch(`/api/gsc-breakdown/${clientId}?dimension=${dimension}&from=${from}&to=${to}`)
+      .then(async (res) => {
+        const body = (await res.json()) as { rows: Array<{ key: string; clicks: number; impressions: number; ctr: number; position: number }>; error?: string };
+        if (cancelled) return;
+        if (body.error) setError(body.error);
+        setRows((body.rows ?? []).map((r) => ({
+          label: r.key,
+          clicks: r.clicks,
+          impressions: r.impressions,
+          ctr: r.ctr,
+          position: r.position,
+        })));
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, clientId, from, to]);
+
+  // Days tab — assemble per-day rows from the snapshots we already have.
+  const daysRows: TopRow[] = useMemo(() => {
+    if (tab !== "days") return [];
+    const span = Number.isFinite(days) ? days : Math.max(clicks.length, impressions.length);
+    const clicksWin = clicks.slice(-span);
+    const imprWin = impressions.slice(-span);
+    const posWin = position.slice(-span);
+    const ctrWin = (ctr ?? []).slice(-span);
+    const idx = new Map<string, TopRow>();
+    for (const s of imprWin) idx.set(s.captured_at, { label: s.captured_at, clicks: 0, impressions: s.value, ctr: 0, position: 0 });
+    for (const s of clicksWin) { const r = idx.get(s.captured_at) ?? { label: s.captured_at, clicks: 0, impressions: 0, ctr: 0, position: 0 }; r.clicks = s.value; idx.set(s.captured_at, r); }
+    for (const s of posWin) { const r = idx.get(s.captured_at); if (r) r.position = s.value; }
+    for (const s of ctrWin) { const r = idx.get(s.captured_at); if (r) r.ctr = s.value; }
+    // Derive CTR if not present.
+    for (const r of idx.values()) {
+      if (r.ctr === 0 && r.impressions > 0) r.ctr = r.clicks / r.impressions;
+    }
+    return Array.from(idx.values()).sort((a, b) => b.label.localeCompare(a.label));
+  }, [tab, days, clicks, impressions, position, ctr]);
+
+  const activeRows = tab === "days" ? daysRows : (rows ?? []);
+  const labelHeader = tab === "queries" ? "Top queries" : tab === "pages" ? "Top pages" : "Date";
+
+  function TabButton({ id, label }: { id: TabKey; label: string }) {
+    const active = tab === id;
+    return (
+      <button
+        type="button"
+        onClick={() => setTab(id)}
+        className={
+          "pb-2 -mb-px text-[11px] uppercase tracking-wider transition " +
+          (active
+            ? "text-[var(--color-text)] border-b-2 border-[var(--color-accent)]"
+            : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]")
+        }
+      >
+        {label}
+      </button>
+    );
+  }
+
+  return (
+    <div className="border-t border-[var(--color-border)]">
+      <div className="flex items-center gap-6 px-4 pt-3">
+        <TabButton id="queries" label="Queries" />
+        <TabButton id="pages" label="Pages" />
+        <TabButton id="days" label="Days" />
+      </div>
+      <div className="p-4">
+        {loading ? (
+          <div className="text-xs text-[var(--color-text-muted)] py-6 text-center">Loading…</div>
+        ) : error && activeRows.length === 0 ? (
+          <div className="text-xs text-red-300 py-6 text-center">{error}</div>
+        ) : activeRows.length === 0 ? (
+          <div className="text-xs text-[var(--color-text-muted)] py-6 text-center">
+            {tab === "days"
+              ? "No daily snapshots in this range yet — the sync hasn't produced data."
+              : "No data yet. GSC sync may not be connected for this client."}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] border-b border-[var(--color-border)]">
+                  <th className="py-2 pr-4 font-medium">{labelHeader}</th>
+                  <th className="py-2 px-4 font-medium text-right">Clicks</th>
+                  <th className="py-2 px-4 font-medium text-right">Impressions</th>
+                  <th className="py-2 px-4 font-medium text-right">CTR</th>
+                  <th className="py-2 pl-4 font-medium text-right">Position</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--color-border)]/60">
+                {activeRows.slice(0, 20).map((r, i) => (
+                  <tr key={i}>
+                    <td className="py-2 pr-4 text-[var(--color-text)]">
+                      {tab === "pages" ? (
+                        <a href={r.label} target="_blank" rel="noreferrer" className="hover:underline text-emerald-300">
+                          {r.label.replace(/^https?:\/\//, "").slice(0, 70)}
+                        </a>
+                      ) : (
+                        r.label
+                      )}
+                    </td>
+                    <td className="py-2 px-4 text-right font-mono text-blue-300">{formatNumber(r.clicks)}</td>
+                    <td className="py-2 px-4 text-right font-mono text-purple-300">{formatNumber(r.impressions)}</td>
+                    <td className="py-2 px-4 text-right font-mono text-teal-300">{(r.ctr * 100).toFixed(1)}%</td>
+                    <td className="py-2 pl-4 text-right font-mono text-amber-300">{r.position.toFixed(1)}</td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--color-border)]/60">
-                  {props.topQueries.slice(0, 15).map((r, i) => (
-                    <tr key={i}>
-                      <td className="py-2 pr-4 text-[var(--color-text)]">{r.label}</td>
-                      <td className="py-2 px-4 text-right font-mono text-blue-300">{formatNumber(r.clicks)}</td>
-                      <td className="py-2 px-4 text-right font-mono text-purple-300">{formatNumber(r.impressions)}</td>
-                      <td className="py-2 px-4 text-right font-mono text-teal-300">{(r.ctr * 100).toFixed(1)}%</td>
-                      <td className="py-2 pl-4 text-right font-mono text-amber-300">{r.position.toFixed(1)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -58,7 +58,10 @@ export default async function AdminContent({
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-6 mb-8 items-stretch">
+        {/* Mobile shows the three stages stacked vertically (each card has
+            room to render Mark posted / Delete cleanly). md+ shows the
+            three columns side-by-side. */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 mb-8 items-stretch">
           {STAGES.map(({ stage, label, tone }) => {
             const col = cards.filter((c) => c.stage === stage);
             const changeReqCount =

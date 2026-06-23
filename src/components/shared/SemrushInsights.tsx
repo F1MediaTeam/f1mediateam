@@ -1,7 +1,10 @@
-// Visualizes the Semrush "deep pull" data as charts. Server component — the
-// only interactive piece is the Authority Score line (TrendChart, a client
-// component) which it composes. Each panel hides itself when its data is
-// absent, so a partial pull still renders cleanly.
+// Visualizes the Semrush "deep pull" data as charts. Client component so it can
+// compose TrendChart (which needs a `formatter` function prop — functions can't
+// cross the server→client boundary). Each panel hides itself when its data is
+// absent, so a partial pull still renders cleanly. The `data` prop is compact
+// (precomputed server-side by buildSemrushChartData), so serialization is cheap.
+
+"use client";
 
 import TrendChart from "@/components/shared/TrendChart";
 import type { SemrushChartData, ChartSeries } from "@/lib/semrush-charts";

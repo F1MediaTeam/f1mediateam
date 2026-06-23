@@ -334,3 +334,31 @@ export async function refreshConnectorAction(formData: FormData) {
   }
   revalidatePath(`/admin/clients/${client_id}`);
 }
+
+// --- semrush deep pull ---
+
+export async function semrushDeepPullAction(formData: FormData) {
+  await requireAdmin();
+  const client_id = String(formData.get("client_id") ?? "");
+  if (!client_id) return;
+  const { semrushDeepPullForClient } = await import("@/lib/connectors/semrush");
+
+  const result = await semrushDeepPullForClient(client_id);
+  if (result) {
+    for (const r of result.reports) {
+      await data.upsertSemrushReport({
+        client_id,
+        report_type: r.report_type,
+        rows: r.rows,
+        meta: {
+          label: r.label,
+          domain: result.domain,
+          row_count: r.row_count,
+          units_estimate: r.units_estimate,
+          error: r.error,
+        },
+      });
+    }
+  }
+  revalidatePath(`/admin/clients/${client_id}`);
+}

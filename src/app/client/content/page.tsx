@@ -1,9 +1,10 @@
+import { Fragment } from "react";
 import { requireClient } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import ClientShell from "@/components/client/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import Time from "@/components/shared/Time";
-import { approveContentAction, requestChangesAction } from "../actions";
+import { approveContentAction, requestChangesAction, addClientContentAction } from "../actions";
 import ContentCardControls from "@/components/shared/ContentCardControls";
 import ContentDetailModal from "@/components/shared/ContentDetailModal";
 import type { ContentStage } from "@/lib/types";
@@ -34,11 +35,13 @@ export default async function ClientContent() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+      <div className="space-y-6">
         {STAGES.map(({ stage, label, tone }) => {
           const col = cards.filter((c) => c.stage === stage);
           return (
-            <Card key={stage} className="flex flex-col h-full">
+            <Fragment key={stage}>
+            {stage === "posted" ? <AddContentLauncher /> : null}
+            <Card className="flex flex-col">
               <CardHeader title={<Pill tone={tone}>{label}</Pill>} />
               <CardBody className="space-y-2 flex-1 max-h-[65vh] overflow-y-auto">
                 {col.length === 0 ? (
@@ -81,10 +84,16 @@ export default async function ClientContent() {
                         />
 
                         {stage === "proposed" ? (
-                          <form action={approveContentAction} className="mt-3">
-                            <input type="hidden" name="id" value={card.id} />
-                            <Button size="sm" type="submit" className="w-full">Approve</Button>
-                          </form>
+                          card.created_by === session.user_id ? (
+                            <div className="mt-3 text-[11px] italic text-[var(--color-text-muted)]">
+                              Submitted — pending our review.
+                            </div>
+                          ) : (
+                            <form action={approveContentAction} className="mt-3">
+                              <input type="hidden" name="id" value={card.id} />
+                              <Button size="sm" type="submit" className="w-full">Approve</Button>
+                            </form>
+                          )
                         ) : null}
                       </div>
                     );
@@ -92,6 +101,7 @@ export default async function ClientContent() {
                 )}
               </CardBody>
             </Card>
+            </Fragment>
           );
         })}
       </div>
@@ -99,29 +109,25 @@ export default async function ClientContent() {
   );
 }
 
-function ApproveActions({ cardId }: { cardId: string }) {
+function AddContentLauncher() {
+  const inputCls =
+    "w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40";
   return (
-    <div className="mt-3 space-y-2">
-      <form action={approveContentAction}>
-        <input type="hidden" name="id" value={cardId} />
-        <Button size="sm" type="submit" className="w-full">Approve</Button>
+    <details className="rounded-xl border border-dashed border-[var(--color-border-strong)] bg-[var(--color-bg-elev)]">
+      <summary className="cursor-pointer list-none select-none px-4 py-3 text-sm font-medium text-[var(--color-accent)] flex items-center gap-2">
+        <span className="text-lg leading-none">＋</span> Add content
+      </summary>
+      <form action={addClientContentAction} className="px-4 pb-4 pt-1 space-y-2">
+        <p className="text-[11px] text-[var(--color-text-muted)]">
+          Propose something for us to post or review. It goes to our team as a proposal.
+        </p>
+        <input name="title" required placeholder="Title" className={inputCls} />
+        <input name="link" type="url" placeholder="Optional link (https://…)" className={inputCls} />
+        <textarea name="body" rows={2} placeholder="Notes — what you'd like us to post or review" className={inputCls} />
+        <div className="flex justify-end">
+          <Button size="sm" type="submit">Submit for review</Button>
+        </div>
       </form>
-      <details>
-        <summary className="cursor-pointer text-[11px] text-[var(--color-text-muted)] hover:text-white">
-          Request changes
-        </summary>
-        <form action={requestChangesAction} className="mt-2 space-y-2">
-          <input type="hidden" name="id" value={cardId} />
-          <textarea
-            name="note"
-            required
-            rows={2}
-            placeholder="What needs to change?"
-            className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-2 text-xs"
-          />
-          <Button size="sm" variant="secondary" type="submit" className="w-full">Send notes</Button>
-        </form>
-      </details>
-    </div>
+    </details>
   );
 }

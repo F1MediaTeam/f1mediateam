@@ -125,6 +125,24 @@ export async function requestChangesAction(formData: FormData) {
   revalidatePath("/client");
 }
 
+export async function addClientContentAction(formData: FormData) {
+  const session = await requireClient();
+  if (!session.client_id) return;
+  const title = String(formData.get("title") ?? "").trim();
+  if (!title) return;
+  const link = String(formData.get("link") ?? "").trim() || null;
+  const body = String(formData.get("body") ?? "").trim() || null;
+  await data.createClientContent({
+    client_id: session.client_id,
+    title,
+    body,
+    link,
+    created_by: session.user_id,
+  });
+  revalidatePath("/client/content");
+  revalidatePath("/admin/content");
+}
+
 export async function createClientCalendarEventAction(formData: FormData) {
   const session = await requireClient();
   if (!session.client_id) return;

@@ -187,3 +187,254 @@ export async function fetchClientOrganicKeywords(clientId: string, limit = 250):
   if (!creds?.access_token || !creds.account_label) return [];
   return fetchOrganicKeywords(creds.access_token, creds.account_label, limit);
 }
+
+// ===========================================================================
+// DEEP PULL — fetch the full Semrush catalog (Analytics domain + keyword +
+// Backlinks API + best-effort .Trends) for one client, on demand.
+//
+// Each report is fetched independently and parsed by its returned HEADER row
+// (so the stored records are keyed by Semrush's own column labels — robust to
+// column-set drift). Failures are captured per-report so a partial pull still
+// records everything that succeeded. Display limits are deliberately bounded
+// per report to keep API-unit spend sane (~100k+ units for a full pull).
+//
+// Endpoint bases:
+//   Analytics (domain/keyword): https://api.semrush.com/
+//   Backlinks API:              https://api.semrush.com/analytics/v1/
+//   Trends (.Trends add-on):    https://api.semrush.com/analytics/ta/api/v3/
+// ===========================================================================
+
+const BACKLINKS_BASE = "https://api.semrush.com/analytics/v1/";
+const TRENDS_BASE = "https://api.semrush.com/analytics/ta/api/v3/";
+
+export interface DeepPullReport {
+  report_type: string;
+  label: string;
+  rows: Record<string, string>[];
+  row_count: number;
+  units_estimate: number;
+  error: string | null;
+}
+
+/** Parse Semrush ';'-CSV keyed by the returned header labels. */
+function parseCsvRows(text: string): { rows: Record<string, string>[]; error: string | null } {
+  const t = text.trim();
+  if (!t) return { rows: [], error: null };
+  if (t.startsWith("ERROR")) return { rows: [], error: t.split(/\r?\n/)[0].slice(0, 160) };
+  const lines = t.split(/\r?\n/);
+  if (lines.length < 2) return { rows: [], error: null };
+  const headers = lines[0].split(";").map((h) => h.trim());
+  const rows = lines.slice(1).filter(Boolean).map((line) => {
+    const cells = line.split(";");
+    const o: Record<string, string> = {};
+    headers.forEach((h, i) => (o[h] = (cells[i] ?? "").trim()));
+    return o;
+  });
+  return { rows, error: null };
+}
+
+async function semrushFetch(url: string): Promise<{ rows: Record<string, string>[]; error: string | null }> {
+  try {
+    const res = await fetch(url);
+    const text = await res.text();
+    if (!res.ok) return { rows: [], error: `HTTP ${res.status}: ${text.trim().slice(0, 140)}` };
+    return parseCsvRows(text);
+  } catch (e) {
+    return { rows: [], error: e instanceof Error ? e.message : "fetch failed" };
+  }
+}
+
+interface SpecCtx {
+  apikey: string;
+  domain: string;
+  database: string;
+  seedPhrase: string;
+}
+
+interface ReportSpec {
+  key: string;
+  label: string;
+  unitsPerLine: number;
+  // Build the request URL, or return null to skip (e.g. no seed phrase yet).
+  build: (ctx: SpecCtx) => string | null;
+}
+
+function analyticsUrl(ctx: SpecCtx, type: string, columns: string, extra: Record<string, string>): string {
+  const p = new URLSearchParams({
+    type,
+    key: ctx.apikey,
+    database: ctx.database,
+    export_columns: columns,
+    ...extra,
+  });
+  return `${BASE}?${p.toString()}`;
+}
+
+function backlinksUrl(ctx: SpecCtx, type: string, columns: string, displayLimit: number): string {
+  const p = new URLSearchParams({
+    type,
+    key: ctx.apikey,
+    target: ctx.domain,
+    target_type: "root_domain",
+    export_columns: columns,
+    display_limit: String(displayLimit),
+  });
+  return `${BACKLINKS_BASE}?${p.toString()}`;
+}
+
+// The full catalog. Display limits are tuned to be generous but not reckless.
+const REPORT_SPECS: ReportSpec[] = [
+  // --- Domain Analytics ---
+  {
+    key: "organic_keywords", label: "Organic keywords", unitsPerLine: 10,
+    build: (c) => analyticsUrl(c, "domain_organic", "Ph,Po,Pp,Nq,Cp,Co,Tr,Tc,Ur,Td", { domain: c.domain, display_limit: "1000" }),
+  },
+  {
+    key: "paid_keywords", label: "Paid keywords", unitsPerLine: 20,
+    build: (c) => analyticsUrl(c, "domain_adwords", "Ph,Po,Pp,Nq,Cp,Tr,Ur", { domain: c.domain, display_limit: "500" }),
+  },
+  {
+    key: "organic_competitors", label: "Organic competitors", unitsPerLine: 40,
+    build: (c) => analyticsUrl(c, "domain_organic_organic", "Dn,Cr,Np,Or,Ot,Oc,Ad", { domain: c.domain, display_limit: "100" }),
+  },
+  {
+    key: "paid_competitors", label: "Paid competitors", unitsPerLine: 40,
+    build: (c) => analyticsUrl(c, "domain_adwords_adwords", "Dn,Cr,Np,Ad,At,Ac", { domain: c.domain, display_limit: "100" }),
+  },
+  {
+    key: "ad_copies", label: "Ad copies", unitsPerLine: 40,
+    build: (c) => analyticsUrl(c, "domain_adwords_unique", "Ph,Tt,Ds,Vu,Ur", { domain: c.domain, display_limit: "100" }),
+  },
+  {
+    key: "pla_keywords", label: "Shopping (PLA) keywords", unitsPerLine: 30,
+    build: (c) => analyticsUrl(c, "domain_shopping", "Ph,Po,Pp,Pc,Tr,Ur", { domain: c.domain, display_limit: "200" }),
+  },
+  // --- Keyword research (seeded from the top organic keyword) ---
+  {
+    key: "keyword_overview", label: "Top keyword — overview", unitsPerLine: 10,
+    build: (c) => (c.seedPhrase ? analyticsUrl(c, "phrase_this", "Ph,Nq,Cp,Co,Nr,Td", { phrase: c.seedPhrase }) : null),
+  },
+  {
+    key: "related_keywords", label: "Related keywords", unitsPerLine: 40,
+    build: (c) => (c.seedPhrase ? analyticsUrl(c, "phrase_related", "Ph,Nq,Cp,Co,Nr,Rr,Td", { phrase: c.seedPhrase, display_limit: "100" }) : null),
+  },
+  {
+    key: "question_keywords", label: "Question keywords", unitsPerLine: 40,
+    build: (c) => (c.seedPhrase ? analyticsUrl(c, "phrase_questions", "Ph,Nq,Cp,Co,Nr,Td", { phrase: c.seedPhrase, display_limit: "100" }) : null),
+  },
+  // --- Backlinks API ---
+  {
+    key: "backlinks_overview", label: "Backlinks overview", unitsPerLine: 45,
+    build: (c) => backlinksUrl(c, "backlinks_overview", "ascore,total,domains_num,urls_num,ips_num,follows_num,nofollows_num,texts_num,images_num,forms_num,frames_num", 1),
+  },
+  {
+    key: "authority_history", label: "Authority Score history", unitsPerLine: 40,
+    build: (c) => backlinksUrl(c, "backlinks_historical", "date,ascore,total,domains_num,follows_num,nofollows_num", 200),
+  },
+  {
+    key: "backlinks", label: "Backlinks", unitsPerLine: 45,
+    build: (c) => backlinksUrl(c, "backlinks", "source_url,source_title,target_url,anchor,page_ascore,first_seen,last_seen,nofollow", 500),
+  },
+  {
+    key: "ref_domains", label: "Referring domains", unitsPerLine: 40,
+    build: (c) => backlinksUrl(c, "backlinks_refdomains", "domain_ascore,domain,backlinks_num,first_seen,last_seen", 500),
+  },
+  {
+    key: "ref_ips", label: "Referring IPs", unitsPerLine: 20,
+    build: (c) => backlinksUrl(c, "backlinks_refips", "ip,country,domains_num,backlinks_num,first_seen,last_seen", 200),
+  },
+  {
+    key: "anchors", label: "Anchors", unitsPerLine: 40,
+    build: (c) => backlinksUrl(c, "backlinks_anchors", "anchor,domains_num,backlinks_num", 300),
+  },
+  {
+    key: "indexed_pages", label: "Indexed pages", unitsPerLine: 40,
+    build: (c) => backlinksUrl(c, "backlinks_pages", "source_url,domains_num,backlinks_num,last_seen", 300),
+  },
+  {
+    key: "backlink_competitors", label: "Backlink competitors", unitsPerLine: 40,
+    build: (c) => backlinksUrl(c, "backlinks_competitors", "neighbour,similarity,common_refdomains,domains_num,backlinks_num", 50),
+  },
+];
+
+// .Trends / Traffic Analytics — separate paid add-on. Best-effort: if the plan
+// doesn't include it, this report records an error and the pull continues.
+function trendsSpec(): ReportSpec {
+  return {
+    key: "traffic_summary", label: "Traffic Analytics (.Trends)", unitsPerLine: 50,
+    build: (c) => {
+      const p = new URLSearchParams({
+        key: c.apikey,
+        type: "traffic_summary",
+        targets: c.domain,
+        export_columns: "target,visits,users,desktop_share,mobile_share,direct,search_organic,search_paid,social,referral",
+      });
+      return `${TRENDS_BASE}?${p.toString()}`;
+    },
+  };
+}
+
+async function runSpec(spec: ReportSpec, ctx: SpecCtx): Promise<DeepPullReport> {
+  const url = spec.build(ctx);
+  if (!url) {
+    return { report_type: spec.key, label: spec.label, rows: [], row_count: 0, units_estimate: 0, error: "skipped (no seed keyword)" };
+  }
+  const { rows, error } = await semrushFetch(url);
+  return {
+    report_type: spec.key,
+    label: spec.label,
+    rows,
+    row_count: rows.length,
+    units_estimate: error ? 0 : Math.max(spec.unitsPerLine, rows.length * spec.unitsPerLine),
+    error,
+  };
+}
+
+// Bounded-concurrency map so we don't hammer Semrush's rate limit.
+async function pool<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let i = 0;
+  async function worker() {
+    while (i < items.length) {
+      const idx = i++;
+      out[idx] = await fn(items[idx]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker));
+  return out;
+}
+
+/**
+ * Pull the entire Semrush catalog for one domain. Runs the organic-keywords
+ * report first to derive a seed phrase for the keyword-research reports, then
+ * fans the rest out with bounded concurrency. Never throws — every report's
+ * success/failure is captured in its DeepPullReport.
+ */
+export async function semrushDeepPull(apikey: string, rawDomain: string, database = "us"): Promise<DeepPullReport[]> {
+  const domain = normalizeDomain(rawDomain);
+  const baseCtx: SpecCtx = { apikey, domain, database, seedPhrase: "" };
+
+  // 1. Organic keywords first → seed phrase for keyword research.
+  const organicSpec = REPORT_SPECS[0];
+  const organic = await runSpec(organicSpec, baseCtx);
+  const seedPhrase = organic.rows[0] ? String(Object.values(organic.rows[0])[0] ?? "") : "";
+  const ctx: SpecCtx = { ...baseCtx, seedPhrase };
+
+  // 2. Everything else (skip the organic spec we already ran), plus Trends.
+  const rest = [...REPORT_SPECS.slice(1), trendsSpec()];
+  const results = await pool(rest, 4, (spec) => runSpec(spec, ctx));
+
+  return [organic, ...results];
+}
+
+/** Resolve a client's stored Semrush key + domain and run a full deep pull. */
+export async function semrushDeepPullForClient(clientId: string): Promise<{ domain: string; reports: DeepPullReport[] } | null> {
+  const connectors = await data.listConnectors(clientId);
+  const token = connectors.find((c) => c.provider === "semrush");
+  if (!token) return null;
+  const creds = await data.getConnectorWithCredentials(token.id);
+  if (!creds?.access_token || !creds.account_label) return null;
+  const domain = normalizeDomain(creds.account_label);
+  const reports = await semrushDeepPull(creds.access_token, domain);
+  return { domain, reports };
+}

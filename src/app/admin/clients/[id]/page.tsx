@@ -9,11 +9,14 @@ import SemrushGauges from "@/components/shared/SemrushGauges";
 import OrganicKeywordsPanel from "@/components/shared/OrganicKeywordsPanel";
 import { formatBytes, formatLocation } from "@/lib/utils";
 import Time from "@/components/shared/Time";
-import { setWidgetAction, disconnectConnectorAction, refreshConnectorAction, advanceContentAction, createContentAction } from "@/app/admin/actions";
+import { setWidgetAction, disconnectConnectorAction, refreshConnectorAction, advanceContentAction, createContentAction, semrushDeepPullAction } from "@/app/admin/actions";
 import CreateClientUserForm from "@/components/admin/CreateClientUserForm";
 import ImpersonateButton from "@/components/admin/ImpersonateButton";
 import LiveSyncTrigger from "@/components/admin/LiveSyncTrigger";
-import type { ContentStage } from "@/lib/types";
+import type { ContentStage, SemrushReport } from "@/lib/types";
+
+// A full Semrush deep pull fans out ~18 API calls; give the server action room.
+export const maxDuration = 60;
 
 export default async function ClientProfile({
   params,
@@ -25,7 +28,7 @@ export default async function ClientProfile({
   const client = await data.getClient(id);
   if (!client) notFound();
 
-  const [tasks, events, files, audit, content, connectors, customerUser] = await Promise.all([
+  const [tasks, events, files, audit, content, connectors, customerUser, semrushReports] = await Promise.all([
     data.listTasks({ clientId: id }),
     data.listCalendar({ clientId: id }),
     data.listFiles(id),
@@ -33,7 +36,11 @@ export default async function ClientProfile({
     data.listContent({ clientId: id }),
     data.listConnectors(id),
     data.getClientUser(id),
+    data.listSemrushReports(id),
   ]);
+  const semrushConnected = connectors.some((c) => c.provider === "semrush");
+  const semrushUnits = semrushReports.reduce((a, r) => a + (Number((r.meta as Record<string, unknown>)?.units_estimate) || 0), 0);
+  const semrushLastPulled = semrushReports.reduce<string | null>((acc, r) => (!acc || r.pulled_at > acc ? r.pulled_at : acc), null);
 
   const stageMeta: { stage: ContentStage; label: string; tone: "warn" | "accent" | "ok" }[] = [
     { stage: "proposed", label: "Proposed", tone: "warn" },
@@ -337,6 +344,61 @@ export default async function ClientProfile({
           </Card>
         </div>
 
+        <Card className="mb-8">
+          <CardHeader
+            title="Semrush — deep data"
+            subtitle={
+              semrushLastPulled
+                ? `Full catalog · ~${semrushUnits.toLocaleString()} units last pull`
+                : "Pull the full Semrush catalog on demand — keywords, competitors, backlinks, and more"
+            }
+            right={
+              semrushConnected ? (
+                <form action={semrushDeepPullAction}>
+                  <input type="hidden" name="client_id" value={client.id} />
+                  <Button size="sm" type="submit">
+                    {semrushLastPulled ? "Re-run deep pull" : "Run deep pull"}
+                  </Button>
+                </form>
+              ) : (
+                <Link
+                  href={`/admin/clients/${client.id}/connect/semrush`}
+                  className="text-xs text-[var(--color-accent)] hover:underline"
+                >
+                  Connect Semrush →
+                </Link>
+              )
+            }
+          />
+          <CardBody>
+            {!semrushConnected ? (
+              <div className="text-xs text-[var(--color-text-muted)]">
+                Connect Semrush (API key + domain) to enable the deep pull.
+              </div>
+            ) : semrushReports.length === 0 ? (
+              <div className="space-y-1 text-xs text-[var(--color-text-muted)]">
+                <p>
+                  No deep pull yet. One run fetches organic &amp; paid keywords, competitors, ad copies, the full
+                  backlink profile (overview, backlinks, referring domains/IPs, anchors, indexed pages, competitors,
+                  Authority Score history), seeded keyword research, and — best-effort — Traffic Analytics.
+                </p>
+                <p className="text-amber-400">Heads up: a full pull can use ~100k+ Semrush API units and takes ~30–60s.</p>
+              </div>
+            ) : (
+              <>
+                <div className="mb-3 font-mono text-[11px] text-[var(--color-text-subtle)]">
+                  Last pulled <Time iso={semrushLastPulled!} /> · ~{semrushUnits.toLocaleString()} units
+                </div>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  {semrushReports.map((r) => (
+                    <SemrushReportCard key={r.id} r={r} />
+                  ))}
+                </div>
+              </>
+            )}
+          </CardBody>
+        </Card>
+
         <Card>
           <CardHeader title="Files" subtitle={`${files.length} items`} />
           <CardBody className="space-y-1.5">
@@ -359,5 +421,52 @@ export default async function ClientProfile({
         </Card>
       </div>
     </AdminShell>
+  );
+}
+
+function SemrushReportCard({ r }: { r: SemrushReport }) {
+  const meta = (r.meta ?? {}) as Record<string, unknown>;
+  const label = (meta.label as string) ?? r.report_type;
+  const err = meta.error as string | null | undefined;
+  const units = Number(meta.units_estimate) || 0;
+  const headers = r.rows[0] ? Object.keys(r.rows[0]).slice(0, 5) : [];
+  return (
+    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm font-medium">{label}</div>
+        <span className="font-mono text-[11px] text-[var(--color-text-muted)]">{r.row_count} rows</span>
+      </div>
+      {err ? <div className="mt-1 text-[11px] text-red-400">⚠ {err}</div> : null}
+      {headers.length ? (
+        <div className="mt-2 overflow-x-auto">
+          <table className="w-full text-[11px]">
+            <thead>
+              <tr className="text-left text-[var(--color-text-muted)]">
+                {headers.map((h) => (
+                  <th key={h} className="pr-3 pb-1 font-medium whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {r.rows.slice(0, 5).map((row, i) => (
+                <tr key={i} className="border-t border-[var(--color-border)]">
+                  {headers.map((h) => (
+                    <td key={h} className="max-w-[160px] truncate pr-3 py-1">{row[h]}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {r.row_count > 5 ? (
+            <div className="mt-1 text-[10px] text-[var(--color-text-subtle)]">+{r.row_count - 5} more rows stored</div>
+          ) : null}
+        </div>
+      ) : !err ? (
+        <div className="mt-2 text-[11px] text-[var(--color-text-subtle)]">No rows returned.</div>
+      ) : null}
+      <div className="mt-1.5 font-mono text-[10px] text-[var(--color-text-subtle)]">
+        ~{units.toLocaleString()} units · pulled <Time iso={r.pulled_at} />
+      </div>
+    </div>
   );
 }

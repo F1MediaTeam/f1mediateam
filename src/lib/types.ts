@@ -94,6 +94,20 @@ export interface MetricSnapshot {
   created_at: ISODateTime;
 }
 
+// One Semrush "deep pull" report (a list-type report: keywords, backlinks,
+// competitors, …). `rows` is the array of records keyed by Semrush's own
+// column labels; `meta` carries domain, est. units, and any per-report error.
+export interface SemrushReport {
+  id: UUID;
+  client_id: UUID;
+  report_type: string;
+  captured_at: ISODate;
+  pulled_at: ISODateTime;
+  rows: Record<string, string>[];
+  row_count: number;
+  meta: Record<string, unknown>;
+}
+
 export type ContentStage = "proposed" | "pending" | "posted";
 
 export interface ContentCard {

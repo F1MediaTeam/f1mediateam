@@ -20,6 +20,7 @@ import type {
   UserRole,
   UUID,
   ConnectorToken,
+  SemrushReport,
 } from "@/lib/types";
 
 // ---------- session ----------
@@ -526,6 +527,34 @@ export async function createContent(input: {
   return (data as ContentCard) ?? null;
 }
 
+// Client-submitted proposals. Clients had their direct INSERT revoked
+// (migration 0006), so this goes through the service role with locked-down
+// fields — the caller (client action) pins client_id to the requester's own
+// client and stage is always `proposed`.
+export async function createClientContent(input: {
+  client_id: UUID;
+  title: string;
+  body?: string | null;
+  link?: string | null;
+  created_by?: UUID | null;
+}): Promise<ContentCard | null> {
+  const supabase = await createServiceClient();
+  const { data } = await supabase
+    .from("content_cards")
+    .insert({
+      client_id: input.client_id,
+      title: input.title,
+      body: input.body ?? null,
+      link: input.link ?? null,
+      file_url: null,
+      stage: "proposed",
+      created_by: input.created_by ?? null,
+    })
+    .select()
+    .single();
+  return (data as ContentCard) ?? null;
+}
+
 const STAGE_ORDER: ContentStage[] = ["proposed", "pending", "posted"];
 
 export async function moveContentStage(
@@ -909,4 +938,37 @@ export async function updateConnectorAccessToken(
       updated_at: new Date().toISOString(),
     })
     .eq("id", connectorId);
+}
+
+// ---------- semrush deep-pull reports ----------
+
+export async function upsertSemrushReport(input: {
+  client_id: UUID;
+  report_type: string;
+  rows: Record<string, string>[];
+  meta?: Record<string, unknown>;
+}): Promise<void> {
+  const supabase = await createServiceClient();
+  await supabase.from("semrush_reports").upsert(
+    {
+      client_id: input.client_id,
+      report_type: input.report_type,
+      captured_at: new Date().toISOString().slice(0, 10),
+      pulled_at: new Date().toISOString(),
+      rows: input.rows,
+      row_count: input.rows.length,
+      meta: input.meta ?? {},
+    },
+    { onConflict: "client_id,report_type" },
+  );
+}
+
+export async function listSemrushReports(clientId: UUID): Promise<SemrushReport[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("semrush_reports")
+    .select("*")
+    .eq("client_id", clientId)
+    .order("report_type", { ascending: true });
+  return (data as SemrushReport[]) ?? [];
 }

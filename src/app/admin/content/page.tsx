@@ -20,6 +20,14 @@ const STAGES: { stage: ContentStage; label: string; tone: "warn" | "accent" | "o
   { stage: "posted",   label: "Posted",   tone: "ok" },
 ];
 
+// Stable per-company color so cards are attributable at a glance (esp. ones a
+// client submitted themselves). Hash the client id → a fixed hue.
+function companyColor(clientId: string): string {
+  let h = 0;
+  for (let i = 0; i < clientId.length; i++) h = (h * 31 + clientId.charCodeAt(i)) % 360;
+  return `hsl(${h} 65% 58%)`;
+}
+
 export default async function AdminContent({
   searchParams,
 }: {
@@ -111,8 +119,10 @@ export default async function AdminContent({
                       return (
                         <div
                           key={card.id}
+                          style={{ borderLeftColor: companyColor(card.client_id) }}
                           className={
-                            "relative rounded-lg border bg-[var(--color-bg-elev)] p-3 min-w-0 overflow-hidden " +
+                            // border-l-4 + inline borderLeftColor = per-company color bar.
+                            "relative rounded-lg border border-l-4 bg-[var(--color-bg-elev)] p-3 min-w-0 overflow-hidden " +
                             (changeRequest ? "border-amber-500/50" : "border-[var(--color-border)]")
                           }
                         >

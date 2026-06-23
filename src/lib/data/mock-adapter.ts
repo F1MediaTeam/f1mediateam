@@ -24,10 +24,43 @@ import type {
   Task,
   UserRole,
   UUID,
+  SemrushReport,
 } from "@/lib/types";
 
 const nowIso = () => new Date().toISOString();
 const uid = () => Math.random().toString(36).slice(2, 12);
+
+// In-memory Semrush deep-pull store (dev only — real pulls need live creds).
+const semrushReportStore: SemrushReport[] = [];
+
+export function upsertSemrushReport(input: {
+  client_id: UUID;
+  report_type: string;
+  rows: Record<string, string>[];
+  meta?: Record<string, unknown>;
+}): void {
+  const row: SemrushReport = {
+    id: `sr-${uid()}`,
+    client_id: input.client_id,
+    report_type: input.report_type,
+    captured_at: nowIso().slice(0, 10),
+    pulled_at: nowIso(),
+    rows: input.rows,
+    row_count: input.rows.length,
+    meta: input.meta ?? {},
+  };
+  const idx = semrushReportStore.findIndex(
+    (r) => r.client_id === input.client_id && r.report_type === input.report_type,
+  );
+  if (idx >= 0) semrushReportStore[idx] = row;
+  else semrushReportStore.push(row);
+}
+
+export function listSemrushReports(clientId: UUID): SemrushReport[] {
+  return semrushReportStore
+    .filter((r) => r.client_id === clientId)
+    .sort((a, b) => a.report_type.localeCompare(b.report_type));
+}
 
 // ---------------- auth (mock) ----------------
 
@@ -370,6 +403,17 @@ export function createContent(input: {
     s.content.unshift(card);
     return card;
   });
+}
+
+// Mock mirror of the service-role client submission path (see supabase-adapter).
+export function createClientContent(input: {
+  client_id: UUID;
+  title: string;
+  body?: string | null;
+  link?: string | null;
+  created_by?: UUID | null;
+}): ContentCard {
+  return createContent(input);
 }
 
 const STAGE_ORDER: ContentStage[] = ["proposed", "pending", "posted"];

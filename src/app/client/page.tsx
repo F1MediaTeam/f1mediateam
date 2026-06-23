@@ -221,6 +221,19 @@ export default async function ClientHome() {
         </section>
       ) : null}
 
+      {widgets.rankings ? (
+        <section className="mb-10">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold tracking-tight">SEMrush trends</h2>
+            <Pill>SEMrush</Pill>
+          </div>
+          <div className="grid grid-cols-1 gap-6">
+            <MetricCompare clientId={client.id} metric="semrush_organic_traffic"  label="Organic traffic (est.)"   hint="Estimated organic visits across all ranked keywords" />
+            <MetricCompare clientId={client.id} metric="semrush_organic_keywords" label="Organic keywords"         hint="Number of keyword phrases ranking in Google" />
+          </div>
+        </section>
+      ) : null}
+
       {widgets.traffic ? (
         <section className="mb-10">
           <div className="mb-3 flex items-center justify-between">

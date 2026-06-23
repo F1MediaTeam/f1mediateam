@@ -7,6 +7,8 @@ import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import MetricCompare from "@/components/shared/MetricCompare";
 import SemrushGauges from "@/components/shared/SemrushGauges";
 import OrganicKeywordsPanel from "@/components/shared/OrganicKeywordsPanel";
+import SemrushInsights from "@/components/shared/SemrushInsights";
+import { buildSemrushChartData } from "@/lib/semrush-charts";
 import { formatBytes, formatLocation } from "@/lib/utils";
 import Time from "@/components/shared/Time";
 import { setWidgetAction, disconnectConnectorAction, refreshConnectorAction, advanceContentAction, createContentAction, semrushDeepPullAction } from "@/app/admin/actions";
@@ -388,6 +390,10 @@ export default async function ClientProfile({
               <>
                 <div className="mb-3 font-mono text-[11px] text-[var(--color-text-subtle)]">
                   Last pulled <Time iso={semrushLastPulled!} /> · ~{semrushUnits.toLocaleString()} units
+                </div>
+                <SemrushInsights data={buildSemrushChartData(semrushReports)} />
+                <div className="mt-6 mb-2 text-[11px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                  Raw reports
                 </div>
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                   {semrushReports.map((r) => (

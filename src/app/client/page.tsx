@@ -11,6 +11,8 @@ import { isoDate, formatDateTime } from "@/lib/utils";
 import MetricCompare from "@/components/shared/MetricCompare";
 import GscDashboard from "@/components/shared/GscDashboard";
 import SeoMetricsRow from "@/components/shared/SeoMetricsRow";
+import SemrushInsights from "@/components/shared/SemrushInsights";
+import { buildSemrushChartData } from "@/lib/semrush-charts";
 import ContentCardControls from "@/components/shared/ContentCardControls";
 import ContentDetailModal from "@/components/shared/ContentDetailModal";
 import CalendarAddModal from "@/components/client/CalendarAddModal";
@@ -23,10 +25,12 @@ export default async function ClientHome() {
   const client = await data.getClient(session.client_id!);
   if (!client) return null;
   const widgets = client.config.widgets;
-  const [events, content] = await Promise.all([
+  const [events, content, semrushReports] = await Promise.all([
     data.listCalendar({ clientId: client.id }),
     data.listContent({ clientId: client.id }),
+    data.listSemrushReports(client.id),
   ]);
+  const semrushChart = buildSemrushChartData(semrushReports);
 
   // Count attachments per event so the calendar grid can show a 📎 N badge.
   const attachments = await data.listAttachmentsForEvents(events.map((e) => e.id));
@@ -176,6 +180,16 @@ export default async function ClientHome() {
       {widgets.rankings ? (
         <section className="mb-10">
           <SeoMetricsRow clientId={client.id} />
+        </section>
+      ) : null}
+
+      {widgets.rankings && semrushChart.hasAny ? (
+        <section className="mb-10">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold tracking-tight">SEO insights</h2>
+            <Pill>SEMrush</Pill>
+          </div>
+          <SemrushInsights data={semrushChart} />
         </section>
       ) : null}
 

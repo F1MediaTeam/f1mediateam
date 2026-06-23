@@ -1,0 +1,146 @@
+// Visualizes the Semrush "deep pull" data as charts. Server component — the
+// only interactive piece is the Authority Score line (TrendChart, a client
+// component) which it composes. Each panel hides itself when its data is
+// absent, so a partial pull still renders cleanly.
+
+import TrendChart from "@/components/shared/TrendChart";
+import type { SemrushChartData, ChartSeries } from "@/lib/semrush-charts";
+
+function fmt(n: number): string {
+  if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, "")}K`;
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
+function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-4">
+      <div className="mb-3">
+        <div className="text-sm font-medium">{title}</div>
+        {subtitle ? <div className="text-[11px] text-[var(--color-text-muted)]">{subtitle}</div> : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function HBars({ series, accent = "var(--color-accent)" }: { series: ChartSeries[]; accent?: string }) {
+  const max = Math.max(1, ...series.map((s) => s.value));
+  return (
+    <div className="space-y-1.5">
+      {series.map((s) => (
+        <div key={s.label} className="flex items-center gap-2 text-[11px]">
+          <span className="w-28 shrink-0 truncate text-[var(--color-text-muted)]" title={s.label}>
+            {s.label}
+          </span>
+          <div className="h-4 flex-1 overflow-hidden rounded bg-[var(--color-bg)]">
+            <div className="h-full rounded" style={{ width: `${(s.value / max) * 100}%`, backgroundColor: accent }} />
+          </div>
+          <span className="w-12 shrink-0 text-right font-mono text-[var(--color-text-muted)]">{fmt(s.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Donut({ follow, nofollow }: { follow: number; nofollow: number }) {
+  const total = follow + nofollow;
+  const pct = total ? follow / total : 0;
+  const r = 40;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className="flex items-center gap-5">
+      <svg viewBox="0 0 100 100" className="h-28 w-28 shrink-0">
+        <circle cx={50} cy={50} r={r} fill="none" stroke="var(--color-bg)" strokeWidth={14} />
+        <circle
+          cx={50}
+          cy={50}
+          r={r}
+          fill="none"
+          stroke="var(--color-accent)"
+          strokeWidth={14}
+          strokeDasharray={`${pct * c} ${c}`}
+          strokeLinecap="round"
+          transform="rotate(-90 50 50)"
+        />
+        <text x={50} y={48} textAnchor="middle" fontSize={18} fontWeight={600} fill="var(--color-text)">
+          {Math.round(pct * 100)}%
+        </text>
+        <text x={50} y={62} textAnchor="middle" fontSize={8} fill="var(--color-text-muted)">
+          follow
+        </text>
+      </svg>
+      <div className="space-y-2 text-xs">
+        <div className="flex items-center gap-2">
+          <span className="inline-block h-3 w-3 rounded-sm bg-[var(--color-accent)]" />
+          <span className="text-[var(--color-text-muted)]">Follow</span>
+          <span className="ml-auto font-mono">{fmt(follow)}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="inline-block h-3 w-3 rounded-sm bg-[var(--color-bg)] border border-[var(--color-border-strong)]" />
+          <span className="text-[var(--color-text-muted)]">Nofollow</span>
+          <span className="ml-auto font-mono">{fmt(nofollow)}</span>
+        </div>
+        <div className="flex items-center gap-2 border-t border-[var(--color-border)] pt-2">
+          <span className="text-[var(--color-text-muted)]">Total</span>
+          <span className="ml-auto font-mono">{fmt(total)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function SemrushInsights({ data }: { data: SemrushChartData }) {
+  if (!data.hasAny) {
+    return (
+      <div className="text-xs text-[var(--color-text-muted)]">
+        No Semrush data to chart yet. Run a deep pull to populate these graphs.
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {data.authority ? (
+        <div className="lg:col-span-2">
+          <Panel title="Authority Score" subtitle="Backlink authority over time">
+            <TrendChart
+              points={data.authority}
+              height={220}
+              formatter={(v) => String(Math.round(v))}
+            />
+          </Panel>
+        </div>
+      ) : null}
+
+      {data.positions ? (
+        <Panel title="Keyword positions" subtitle="Organic keywords by ranking bucket">
+          <HBars series={data.positions} />
+        </Panel>
+      ) : null}
+
+      {data.topKeywords ? (
+        <Panel title="Top keywords" subtitle="By share of organic traffic">
+          <HBars series={data.topKeywords} />
+        </Panel>
+      ) : null}
+
+      {data.backlinkProfile ? (
+        <Panel title="Backlink profile" subtitle="Follow vs nofollow">
+          <Donut follow={data.backlinkProfile.follow} nofollow={data.backlinkProfile.nofollow} />
+        </Panel>
+      ) : null}
+
+      {data.refDomains ? (
+        <Panel title="Top referring domains" subtitle="By number of backlinks">
+          <HBars series={data.refDomains} accent="var(--color-up)" />
+        </Panel>
+      ) : null}
+
+      {data.competitors ? (
+        <Panel title="Organic competitors" subtitle="By shared keywords">
+          <HBars series={data.competitors} accent="var(--color-up)" />
+        </Panel>
+      ) : null}
+    </div>
+  );
+}

@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import { requireClient } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import ClientShell from "@/components/client/Shell";
@@ -35,15 +34,17 @@ export default async function ClientContent() {
         </p>
       </div>
 
-      <div className="space-y-6">
+      <div className="mb-4">
+        <AddContentLauncher />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 items-start">
         {STAGES.map(({ stage, label, tone }) => {
           const col = cards.filter((c) => c.stage === stage);
           return (
-            <Fragment key={stage}>
-            {stage === "posted" ? <AddContentLauncher /> : null}
-            <Card className="flex flex-col">
+            <Card key={stage} className="flex flex-col h-full">
               <CardHeader title={<Pill tone={tone}>{label}</Pill>} />
-              <CardBody className="space-y-2 flex-1 max-h-[65vh] overflow-y-auto">
+              <CardBody className="space-y-2 flex-1 max-h-[70vh] overflow-y-auto">
                 {col.length === 0 ? (
                   <div className="text-xs text-[var(--color-text-subtle)] text-center py-6">Empty.</div>
                 ) : (
@@ -101,7 +102,6 @@ export default async function ClientContent() {
                 )}
               </CardBody>
             </Card>
-            </Fragment>
           );
         })}
       </div>

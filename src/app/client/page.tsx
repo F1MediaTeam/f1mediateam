@@ -105,11 +105,15 @@ export default async function ClientHome() {
 
       {widgets.calendar ? (
         <Card className="mb-10">
-          <CardHeader
-            title={`Calendar · ${monthLabel}`}
-            right={<CalendarAddModal action={createClientCalendarEventAction} />}
-          />
-          <CardBody>
+          <CardBody className="pt-5">
+            {/* Centered month title with the + Add button right-aligned on the
+                same row — matches the admin dashboard's calendar header. */}
+            <div className="relative mb-4">
+              <div className="text-center text-xl font-semibold tracking-tight">{monthLabel}</div>
+              <div className="absolute top-0 right-0">
+                <CalendarAddModal action={createClientCalendarEventAction} />
+              </div>
+            </div>
             <div className="grid grid-cols-7 text-xs uppercase tracking-wider text-[var(--color-text-muted)] mb-2">
               {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
                 <div key={d} className="px-2 py-1">{d}</div>

@@ -42,16 +42,16 @@ export default function AdminTaskAddModal({ action, clients }: Props) {
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 pt-6 sm:pt-4 overflow-y-auto">
           <div
-            className="absolute inset-0 bg-black/65 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/65 backdrop-blur-sm"
             onClick={() => setOpen(false)}
             aria-hidden
           />
           <div
             role="dialog"
             aria-modal="true"
-            className="relative w-full max-w-lg rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg-card)] p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+            className="relative w-full max-w-lg rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg-card)] p-6 shadow-2xl my-auto"
           >
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-semibold">Create task</h3>
@@ -76,7 +76,7 @@ export default function AdminTaskAddModal({ action, clients }: Props) {
               </div>
               <div>
                 <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">What needs doing?</label>
-                <input name="title" required placeholder="Task title" className={field} autoFocus />
+                <input name="title" required placeholder="Task title" className={field} />
               </div>
               <div>
                 <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">Due date (optional)</label>

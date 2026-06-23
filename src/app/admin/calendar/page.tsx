@@ -146,51 +146,59 @@ export default async function AdminCalendar() {
             right={<AdminCalendarAddModal action={createCalendarAction} clients={clients} />}
           />
           <CardBody>
-            <div className="grid grid-cols-7 text-xs uppercase tracking-wider text-[var(--color-text-muted)] mb-2">
-              {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
-                <div key={d} className="px-2 py-1">{d}</div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1.5">
-              {days.map((d) => {
-                const key = isoDate(d);
-                const isCurrentMonth = d.getMonth() === new Date().getMonth();
-                const dayEvents = eventsByDay.get(key) ?? [];
-                return (
-                  <div
-                    key={key}
-                    className={
-                      "rounded-lg border p-2 min-h-[120px] sm:min-h-[140px] flex flex-col " +
-                      (isCurrentMonth
-                        ? "border-[var(--color-border)] bg-[var(--color-bg-elev)]"
-                        : "border-[var(--color-border)]/40 bg-[var(--color-bg-elev)]/40 opacity-50")
-                    }
-                  >
-                    <CalendarDayHeader iso={key} dayNumber={d.getDate()} />
-                    <div className="space-y-1 mt-1 flex-1 overflow-hidden">
-                      {dayEvents.slice(0, 4).map((e) => {
-                        const p = colorForClient(e.client_id);
-                        return (
-                          <div
-                            key={e.id}
-                            className={`text-[11px] rounded px-1.5 py-1 ${p.bg} ${p.text} leading-tight`}
-                            title={`${e.title} — ${formatDateTime(e.starts_at)}`}
-                          >
-                            <div className="font-medium truncate">
-                              {e.type === "deadline" ? "◆" : "●"} {e.title}
+            {/* Horizontal scroll on small screens so each day cell stays
+                readable instead of crushed to ~40px wide. The inner grid is
+                always 7-wide; min-width forces the columns to at least be
+                usable. */}
+            <div className="overflow-x-auto -mx-2 px-2 pb-2">
+              <div className="min-w-[700px] sm:min-w-0">
+                <div className="grid grid-cols-7 text-xs uppercase tracking-wider text-[var(--color-text-muted)] mb-2">
+                  {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
+                    <div key={d} className="px-2 py-1">{d}</div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-2">
+                  {days.map((d) => {
+                    const key = isoDate(d);
+                    const isCurrentMonth = d.getMonth() === new Date().getMonth();
+                    const dayEvents = eventsByDay.get(key) ?? [];
+                    return (
+                      <div
+                        key={key}
+                        className={
+                          "rounded-lg border p-2 min-h-[160px] sm:min-h-[180px] lg:min-h-[200px] flex flex-col " +
+                          (isCurrentMonth
+                            ? "border-[var(--color-border)] bg-[var(--color-bg-elev)]"
+                            : "border-[var(--color-border)]/40 bg-[var(--color-bg-elev)]/40 opacity-50")
+                        }
+                      >
+                        <CalendarDayHeader iso={key} dayNumber={d.getDate()} />
+                        <div className="space-y-1 mt-1 flex-1 overflow-hidden">
+                          {dayEvents.slice(0, 5).map((e) => {
+                            const p = colorForClient(e.client_id);
+                            return (
+                              <div
+                                key={e.id}
+                                className={`text-[11px] rounded px-1.5 py-1 ${p.bg} ${p.text} leading-tight`}
+                                title={`${e.title} — ${formatDateTime(e.starts_at)}`}
+                              >
+                                <div className="font-medium truncate">
+                                  {e.type === "deadline" ? "◆" : "●"} {e.title}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {dayEvents.length > 5 ? (
+                            <div className="text-[10px] text-[var(--color-text-muted)]">
+                              +{dayEvents.length - 5} more
                             </div>
-                          </div>
-                        );
-                      })}
-                      {dayEvents.length > 4 ? (
-                        <div className="text-[10px] text-[var(--color-text-muted)]">
-                          +{dayEvents.length - 4} more
+                          ) : null}
                         </div>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </CardBody>
         </Card>

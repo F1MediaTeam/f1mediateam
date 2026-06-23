@@ -63,32 +63,13 @@ export default async function AdminCalendar() {
   return (
     <AdminShell session={session} active="/admin/calendar">
       <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-[1600px] mx-auto">
-        {/* Header: title + client legend */}
-        <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
-          <div>
-            <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
-              Master calendar
-            </div>
-            <h1 className="text-3xl font-semibold tracking-tight mt-1">{monthLabel}</h1>
+        {/* Header: title only — the client legend moves down between
+            Upcoming and the calendar grid. */}
+        <div className="mb-6">
+          <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
+            Master calendar
           </div>
-          <div className="flex flex-wrap gap-2">
-            {clients.map((c) => {
-              const p = colorForClient(c.id);
-              return (
-                <span
-                  key={c.id}
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${p.bg} ${p.text} border-current/30`}
-                >
-                  <span className="inline-block w-2 h-2 rounded-full bg-current opacity-90" />
-                  {c.company_name}
-                </span>
-              );
-            })}
-            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs bg-slate-500/10 text-slate-300 border-current/30">
-              <span className="inline-block w-2 h-2 rounded-full bg-current opacity-90" />
-              F1 Media
-            </span>
-          </div>
+          <h1 className="text-3xl font-semibold tracking-tight mt-1">{monthLabel}</h1>
         </div>
 
         {/* Upcoming — full width row, above the calendar */}
@@ -137,6 +118,26 @@ export default async function AdminCalendar() {
             )}
           </CardBody>
         </Card>
+
+        {/* Client legend — color key shared by both Upcoming and the grid. */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {clients.map((c) => {
+            const p = colorForClient(c.id);
+            return (
+              <span
+                key={c.id}
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${p.bg} ${p.text} border-current/30`}
+              >
+                <span className="inline-block w-2 h-2 rounded-full bg-current opacity-90" />
+                {c.company_name}
+              </span>
+            );
+          })}
+          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs bg-slate-500/10 text-slate-300 border-current/30">
+            <span className="inline-block w-2 h-2 rounded-full bg-current opacity-90" />
+            F1 Media
+          </span>
+        </div>
 
         {/* Calendar grid — wider, taller day cells, +Add button in card header */}
         <Card>

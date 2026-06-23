@@ -1,11 +1,12 @@
 import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
-import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
+import { Card, CardBody, CardHeader, Pill } from "@/components/ui";
 import { formatDateTime, isoDate } from "@/lib/utils";
 import { createCalendarAction, deleteCalendarAction } from "../actions";
 import Time from "@/components/shared/Time";
 import CalendarDayHeader from "@/components/admin/CalendarDayHeader";
+import AdminCalendarAddModal from "@/components/admin/AdminCalendarAddModal";
 
 // Simple month grid with events. 6-row x 7-day layout.
 function buildMonth(today: Date) {
@@ -61,8 +62,9 @@ export default async function AdminCalendar() {
 
   return (
     <AdminShell session={session} active="/admin/calendar">
-      <div className="px-8 py-8 max-w-7xl">
-        <div className="flex items-end justify-between mb-8">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-[1600px] mx-auto">
+        {/* Header: title + client legend */}
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
           <div>
             <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
               Master calendar
@@ -77,7 +79,7 @@ export default async function AdminCalendar() {
                   key={c.id}
                   className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${p.bg} ${p.text} border-current/30`}
                 >
-                  <span className={`inline-block w-2 h-2 rounded-full bg-current opacity-90`} />
+                  <span className="inline-block w-2 h-2 rounded-full bg-current opacity-90" />
                   {c.company_name}
                 </span>
               );
@@ -89,8 +91,61 @@ export default async function AdminCalendar() {
           </div>
         </div>
 
+        {/* Upcoming — full width row, above the calendar */}
         <Card className="mb-8">
-          <CardBody className="pt-6">
+          <CardHeader title="Upcoming" subtitle="Next 8 items across all clients" />
+          <CardBody>
+            {upcoming.length === 0 ? (
+              <div className="text-xs text-[var(--color-text-muted)]">Nothing scheduled.</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                {upcoming.map((e) => {
+                  const p = colorForClient(e.client_id);
+                  const clientLabel = e.client_id
+                    ? (clients.find((c) => c.id === e.client_id)?.company_name ?? "—")
+                    : "F1 Media (internal)";
+                  return (
+                    <div
+                      key={e.id}
+                      className="flex items-start gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-3"
+                    >
+                      <div className={`shrink-0 w-1.5 self-stretch rounded-full bg-current ${p.text}`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium truncate">{e.title}</div>
+                        <div className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span><Time iso={e.starts_at} /></span>
+                          <span>·</span>
+                          <span className="truncate">{clientLabel}</span>
+                          <Pill tone={e.type === "deadline" ? "warn" : "accent"}>
+                            {e.type}
+                          </Pill>
+                        </div>
+                      </div>
+                      <form action={deleteCalendarAction}>
+                        <input type="hidden" name="id" value={e.id} />
+                        <button
+                          title="Delete"
+                          className="h-6 w-6 grid place-items-center rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-red-300 hover:border-red-500/40"
+                        >
+                          ×
+                        </button>
+                      </form>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+
+        {/* Calendar grid — wider, taller day cells, +Add button in card header */}
+        <Card>
+          <CardHeader
+            title={monthLabel}
+            subtitle="Click + Add to schedule a meeting or deadline"
+            right={<AdminCalendarAddModal action={createCalendarAction} clients={clients} />}
+          />
+          <CardBody>
             <div className="grid grid-cols-7 text-xs uppercase tracking-wider text-[var(--color-text-muted)] mb-2">
               {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
                 <div key={d} className="px-2 py-1">{d}</div>
@@ -105,30 +160,31 @@ export default async function AdminCalendar() {
                   <div
                     key={key}
                     className={
-                      "rounded-lg border p-2 min-h-[88px] " +
+                      "rounded-lg border p-2 min-h-[120px] sm:min-h-[140px] flex flex-col " +
                       (isCurrentMonth
                         ? "border-[var(--color-border)] bg-[var(--color-bg-elev)]"
                         : "border-[var(--color-border)]/40 bg-[var(--color-bg-elev)]/40 opacity-50")
                     }
                   >
                     <CalendarDayHeader iso={key} dayNumber={d.getDate()} />
-                    <div className="space-y-1">
-                      {dayEvents.slice(0, 3).map((e) => {
+                    <div className="space-y-1 mt-1 flex-1 overflow-hidden">
+                      {dayEvents.slice(0, 4).map((e) => {
                         const p = colorForClient(e.client_id);
                         return (
                           <div
                             key={e.id}
-                            className={`truncate text-[11px] rounded px-1.5 py-0.5 ${p.bg} ${p.text}`}
+                            className={`text-[11px] rounded px-1.5 py-1 ${p.bg} ${p.text} leading-tight`}
                             title={`${e.title} — ${formatDateTime(e.starts_at)}`}
                           >
-                            {e.type === "deadline" ? "◆ " : "● "}
-                            {e.title}
+                            <div className="font-medium truncate">
+                              {e.type === "deadline" ? "◆" : "●"} {e.title}
+                            </div>
                           </div>
                         );
                       })}
-                      {dayEvents.length > 3 ? (
+                      {dayEvents.length > 4 ? (
                         <div className="text-[10px] text-[var(--color-text-muted)]">
-                          +{dayEvents.length - 3} more
+                          +{dayEvents.length - 4} more
                         </div>
                       ) : null}
                     </div>
@@ -138,97 +194,6 @@ export default async function AdminCalendar() {
             </div>
           </CardBody>
         </Card>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card className="lg:col-span-2">
-            <CardHeader title="Upcoming" subtitle="Next 8 items across all clients" />
-            <CardBody className="space-y-2">
-              {upcoming.length === 0 ? (
-                <div className="text-xs text-[var(--color-text-muted)]">Nothing scheduled.</div>
-              ) : (
-                upcoming.map((e) => {
-                  const p = colorForClient(e.client_id);
-                  const clientLabel = e.client_id
-                    ? (clients.find((c) => c.id === e.client_id)?.company_name ?? "—")
-                    : "F1 Media (internal)";
-                  return (
-                    <div
-                      key={e.id}
-                      className="flex items-center gap-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-4 py-3"
-                    >
-                      <div className={`shrink-0 w-1.5 h-10 rounded-full bg-current ${p.text}`} />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium">{e.title}</div>
-                        <div className="text-xs text-[var(--color-text-muted)] flex items-center gap-2 mt-0.5">
-                          <span><Time iso={e.starts_at} /></span>
-                          <span>·</span>
-                          <span>{clientLabel}</span>
-                          <Pill tone={e.type === "deadline" ? "warn" : "accent"}>
-                            {e.type}
-                          </Pill>
-                        </div>
-                      </div>
-                      <form action={deleteCalendarAction}>
-                        <input type="hidden" name="id" value={e.id} />
-                        <button
-                          title="Delete"
-                          className="h-7 w-7 grid place-items-center rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-red-300 hover:border-red-500/40"
-                        >
-                          ×
-                        </button>
-                      </form>
-                    </div>
-                  );
-                })
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader title="Add event" />
-            <CardBody>
-              <form action={createCalendarAction} className="space-y-3">
-                <select
-                  name="client_id"
-                  required
-                  defaultValue="internal"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-                >
-                  <option value="internal">F1 Media (internal)</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>{c.company_name}</option>
-                  ))}
-                </select>
-                <input
-                  name="title"
-                  required
-                  placeholder="Title"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-                />
-                <select
-                  name="type"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-                >
-                  <option value="meeting">Meeting</option>
-                  <option value="deadline">Deadline</option>
-                </select>
-                <input
-                  name="starts_at"
-                  type="datetime-local"
-                  required
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-                />
-                <textarea
-                  name="notes"
-                  rows={2}
-                  placeholder="Notes (optional)"
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-                />
-                <Button type="submit" className="w-full">Add</Button>
-              </form>
-            </CardBody>
-          </Card>
-        </div>
       </div>
     </AdminShell>
   );

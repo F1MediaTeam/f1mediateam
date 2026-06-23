@@ -59,7 +59,7 @@ export default async function AdminWork() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-4 gap-2 sm:gap-4 mb-8">
           <Stat label="Open tasks" value={tasks.length} />
           <Stat
             label="Overdue"
@@ -70,7 +70,7 @@ export default async function AdminWork() {
           <Stat label="Due this week" value={buckets.today.length + buckets.tomorrow.length + buckets.week.length} />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-6 items-stretch">
           <TaskColumn title="Today"    bucket={buckets.today.concat(buckets.overdue)} clientName={clientName} />
           <TaskColumn title="Tomorrow" bucket={buckets.tomorrow} clientName={clientName} />
           <TaskColumn title="This week" bucket={buckets.week} clientName={clientName} />

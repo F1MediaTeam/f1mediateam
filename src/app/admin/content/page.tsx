@@ -4,6 +4,7 @@ import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import Time from "@/components/shared/Time";
 import { advanceContentAction, createContentAction, deleteContentAction } from "../actions";
+import AdminContentAddModal from "@/components/admin/AdminContentAddModal";
 import type { ContentStage } from "@/lib/types";
 
 const STAGES: { stage: ContentStage; label: string; tone: "warn" | "accent" | "ok" }[] = [
@@ -30,8 +31,8 @@ export default async function AdminContent({
 
   return (
     <AdminShell session={session} active="/admin/content">
-      <div className="px-8 py-8 max-w-7xl">
-        <div className="flex items-end justify-between mb-8">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-[1600px] mx-auto">
+        <div className="flex items-end justify-between mb-8 gap-3 flex-wrap">
           <div>
             <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
               Content approvals
@@ -40,21 +41,24 @@ export default async function AdminContent({
               Proposed → Pending → Posted
             </h1>
           </div>
-          <form className="flex items-center gap-2">
-            <span className="text-xs text-[var(--color-text-muted)]">Client:</span>
-            <select
-              name="client"
-              defaultValue={clientFilter ?? ""}
-              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-            >
-              <option value="">All</option>
-              {clients.map((c) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
-            </select>
-            <Button size="sm" variant="secondary" type="submit">Filter</Button>
-          </form>
+          <div className="flex items-center gap-2 flex-wrap">
+            <form className="flex items-center gap-2">
+              <span className="text-xs text-[var(--color-text-muted)]">Client:</span>
+              <select
+                name="client"
+                defaultValue={clientFilter ?? ""}
+                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
+              >
+                <option value="">All</option>
+                {clients.map((c) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+              </select>
+              <Button size="sm" variant="secondary" type="submit">Filter</Button>
+            </form>
+            <AdminContentAddModal action={createContentAction} clients={clients} />
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-6 mb-8 items-stretch">
           {STAGES.map(({ stage, label, tone }) => {
             const col = cards.filter((c) => c.stage === stage);
             const changeReqCount =
@@ -65,7 +69,7 @@ export default async function AdminContent({
                   }).length
                 : 0;
             return (
-              <Card key={stage}>
+              <Card key={stage} className="flex flex-col h-full">
                 <CardHeader
                   title={
                     <span className="flex items-center gap-2">
@@ -79,7 +83,7 @@ export default async function AdminContent({
                   }
                   right={<span className="font-mono text-xs text-[var(--color-text-muted)]">{col.length}</span>}
                 />
-                <CardBody className="space-y-2 max-h-[65vh] overflow-y-auto">
+                <CardBody className="space-y-2 flex-1 max-h-[65vh] overflow-y-auto">
                   {col.length === 0 ? (
                     <div className="text-xs text-[var(--color-text-subtle)] py-4 text-center">
                       Empty.
@@ -186,39 +190,6 @@ export default async function AdminContent({
           })}
         </div>
 
-        <Card>
-          <CardHeader title="New content card" subtitle="Drafted by you, sent to the client as Proposed" />
-          <CardBody>
-            <form action={createContentAction} className="grid grid-cols-1 md:grid-cols-6 gap-3">
-              <select
-                name="client_id"
-                required
-                defaultValue={clients[0]?.id ?? ""}
-                className="md:col-span-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-              >
-                {clients.map((c) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
-              </select>
-              <input
-                name="title"
-                required
-                placeholder="Title"
-                className="md:col-span-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-              />
-              <input
-                name="link"
-                placeholder="Optional link"
-                className="md:col-span-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-              />
-              <Button type="submit" className="md:col-span-1">Add</Button>
-              <textarea
-                name="body"
-                rows={2}
-                placeholder="Notes / what's in this card?"
-                className="md:col-span-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-              />
-            </form>
-          </CardBody>
-        </Card>
       </div>
     </AdminShell>
   );

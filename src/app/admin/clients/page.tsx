@@ -2,11 +2,12 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
-import { Card, CardBody, CardHeader, Stat, Button } from "@/components/ui";
+import { CardBody, CardHeader, Stat } from "@/components/ui";
 import { formatPercentChange, formatNumber } from "@/lib/utils";
 import { createClientAction } from "../actions";
 import Time from "@/components/shared/Time";
 import DeleteClientButton from "@/components/admin/DeleteClientButton";
+import AdminClientAddModal from "@/components/admin/AdminClientAddModal";
 import type { Client } from "@/lib/types";
 
 export default async function AdminClients() {
@@ -15,44 +16,20 @@ export default async function AdminClients() {
 
   return (
     <AdminShell session={session} active="/admin/clients">
-      <div className="px-8 py-8 max-w-7xl">
-        <div className="mb-8 flex items-end justify-between">
+      <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-7xl">
+        <div className="mb-8 flex items-end justify-between gap-3 flex-wrap">
           <div>
             <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">Clients</div>
             <h1 className="text-3xl font-semibold tracking-tight mt-1">
               {clients.length} {clients.length === 1 ? "active company" : "active companies"}
             </h1>
           </div>
+          <AdminClientAddModal action={createClientAction} />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           {clients.map((c) => <ClientCard key={c.id} client={c} />)}
         </div>
-
-        <Card>
-          <CardHeader title="Add a client" subtitle="Creates a new tenant. You can assign a user to it after." />
-          <CardBody>
-            <form action={createClientAction} className="grid grid-cols-1 md:grid-cols-6 gap-3">
-              <input
-                name="company_name"
-                required
-                placeholder="Company name"
-                className="md:col-span-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-              />
-              <input
-                name="join_date"
-                type="date"
-                className="md:col-span-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-              />
-              <input
-                name="websites"
-                placeholder="Website (comma-separated)"
-                className="md:col-span-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-              />
-              <Button type="submit" className="md:col-span-1">Add</Button>
-            </form>
-          </CardBody>
-        </Card>
       </div>
     </AdminShell>
   );

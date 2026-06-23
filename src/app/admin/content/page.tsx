@@ -102,12 +102,12 @@ export default async function AdminContent({
                         <div
                           key={card.id}
                           className={
-                            "rounded-lg border bg-[var(--color-bg-elev)] p-3 " +
+                            "rounded-lg border bg-[var(--color-bg-elev)] p-3 min-w-0 overflow-hidden " +
                             (changeRequest ? "border-amber-500/50" : "border-[var(--color-border)]")
                           }
                         >
-                          <div className="text-sm font-medium leading-snug">{card.title}</div>
-                          <div className="mt-1 text-[11px] text-[var(--color-text-muted)] font-mono">
+                          <div className="text-sm font-medium leading-snug break-words">{card.title}</div>
+                          <div className="mt-1 text-[11px] text-[var(--color-text-muted)] font-mono break-words">
                             {clientNameOf(card.client_id)} · updated <Time iso={card.updated_at} />
                           </div>
                           {changeRequest ? (
@@ -115,11 +115,11 @@ export default async function AdminContent({
                               <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-400">
                                 ⚠ Changes requested by client
                               </div>
-                              <div className="mt-0.5 text-xs text-amber-200 leading-snug">{changeRequest}</div>
+                              <div className="mt-0.5 text-xs text-amber-200 leading-snug break-words">{changeRequest}</div>
                             </div>
                           ) : null}
                           {card.body ? (
-                            <div className="mt-2 text-xs text-[var(--color-text-muted)] line-clamp-3">
+                            <div className="mt-2 text-xs text-[var(--color-text-muted)] line-clamp-3 break-words">
                               {card.body}
                             </div>
                           ) : null}
@@ -128,14 +128,15 @@ export default async function AdminContent({
                               href={card.link}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="mt-2 inline-block text-xs text-[var(--color-accent)] hover:underline"
+                              className="mt-2 block text-xs text-[var(--color-accent)] hover:underline truncate"
+                              title={card.link}
                             >
                               {card.link.replace(/^https?:\/\//, "")} ↗
                             </a>
                           ) : null}
 
                           {events.length ? (
-                            <div className="mt-2 border-t border-[var(--color-border)] pt-2 space-y-0.5 text-[10px] text-[var(--color-text-subtle)]">
+                            <div className="mt-2 border-t border-[var(--color-border)] pt-2 space-y-0.5 text-[10px] text-[var(--color-text-subtle)] break-words">
                               {events.slice(0, 3).map((e) => (
                                 <div key={e.id}>
                                   <span className="font-mono"><Time iso={e.created_at} /></span>{" "}
@@ -147,26 +148,28 @@ export default async function AdminContent({
                             </div>
                           ) : null}
 
-                          <div className="mt-3 flex items-center gap-1.5">
+                          {/* Action buttons stack on narrow columns so 'Mark posted'
+                              doesn't overlap 'Back'. */}
+                          <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:gap-1.5 gap-1.5">
                             {stage !== "proposed" ? (
                               <form action={advanceContentAction}>
                                 <input type="hidden" name="id" value={card.id} />
                                 <input type="hidden" name="direction" value="back" />
-                                <Button size="sm" variant="ghost" type="submit">← Back</Button>
+                                <Button size="sm" variant="ghost" type="submit" className="w-full sm:w-auto">← Back</Button>
                               </form>
                             ) : null}
                             {stage !== "posted" ? (
                               <form action={advanceContentAction}>
                                 <input type="hidden" name="id" value={card.id} />
                                 <input type="hidden" name="direction" value="forward" />
-                                <Button size="sm" type="submit">
+                                <Button size="sm" type="submit" className="w-full sm:w-auto">
                                   {stage === "proposed" ? "Approve →" : "Mark posted →"}
                                 </Button>
                               </form>
                             ) : null}
                             <form
                               action={deleteContentAction}
-                              className="ml-auto"
+                              className="sm:ml-auto"
                             >
                               <input type="hidden" name="id" value={card.id} />
                               <Button
@@ -174,7 +177,7 @@ export default async function AdminContent({
                                 variant="ghost"
                                 type="submit"
                                 title="Delete card"
-                                className="text-[var(--color-text-muted)] hover:text-red-400"
+                                className="text-[var(--color-text-muted)] hover:text-red-400 w-full sm:w-auto"
                               >
                                 Delete
                               </Button>

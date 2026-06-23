@@ -48,24 +48,22 @@ export default async function AdminWork() {
   return (
     <AdminShell session={session} active="/admin">
       <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-7xl">
-        <div className="flex items-end justify-between mb-6 gap-3 flex-wrap">
-          <div>
+        {/* Header row: title left, date stacked on the right. */}
+        <div className="flex items-start justify-between mb-4 gap-3">
+          <div className="min-w-0">
             <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
               Work dashboard
             </div>
             <h1 className="text-3xl font-semibold tracking-tight mt-1">Today, tomorrow, this week</h1>
           </div>
-          <div className="text-xs text-[var(--color-text-muted)] font-mono">
+          <div className="text-xs text-[var(--color-text-muted)] font-mono text-right shrink-0">
             <Time iso={new Date().toISOString()} dateOnly />
           </div>
         </div>
 
-        {/* + Add task button sits directly above the rightmost KPI tile (Due this week)
-            so the primary action is anchored at the same vertical line as the tiles. */}
-        <div className="grid grid-cols-4 gap-2 sm:gap-4 mb-2">
-          <div className="col-start-4 flex justify-end">
-            <AdminTaskAddModal action={createTaskAction} clients={clients} />
-          </div>
+        {/* + Add task right-aligned just below the header, full natural size. */}
+        <div className="flex justify-end mb-3">
+          <AdminTaskAddModal action={createTaskAction} clients={clients} />
         </div>
 
         {/* Square KPI tiles */}

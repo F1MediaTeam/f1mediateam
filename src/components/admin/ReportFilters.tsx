@@ -79,7 +79,9 @@ export default function ReportFilters({
           <label className="block text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
             Time frame
           </label>
-          <div className="inline-flex rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] p-1 gap-1">
+          {/* flex-wrap so the row drops to a second line on narrow viewports
+              instead of pushing "Custom" off the right edge. */}
+          <div className="flex flex-wrap rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] p-1 gap-1">
             {RANGES.map((r) => {
               const active = range === r.value;
               return (
@@ -88,7 +90,7 @@ export default function ReportFilters({
                   type="button"
                   onClick={() => setRange(r.value)}
                   className={cn(
-                    "px-3.5 py-1.5 text-xs font-medium rounded-md transition tracking-wide",
+                    "px-3.5 py-1.5 text-xs font-medium rounded-md transition tracking-wide whitespace-nowrap",
                     active
                       ? "bg-[var(--color-accent)] text-black shadow-sm"
                       : "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)]",

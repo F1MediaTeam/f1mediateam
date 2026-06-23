@@ -11,8 +11,11 @@ import { isoDate, formatDateTime } from "@/lib/utils";
 import MetricCompare from "@/components/shared/MetricCompare";
 import GscDashboard from "@/components/shared/GscDashboard";
 import SeoMetricsRow from "@/components/shared/SeoMetricsRow";
+import ContentCardControls from "@/components/shared/ContentCardControls";
+import ContentDetailModal from "@/components/shared/ContentDetailModal";
 import CalendarAddModal from "@/components/client/CalendarAddModal";
 import Time from "@/components/shared/Time";
+import { approveContentAction, requestChangesAction } from "./actions";
 import type { ContentCard } from "@/lib/types";
 
 export default async function ClientHome() {
@@ -247,9 +250,9 @@ async function GscSearchSection({ clientId }: { clientId: string }) {
   );
 }
 
-// One of the three status columns at the top of the overview. Renders the
-// stage pill + count, then up to 3 most-recent cards. Clickable area sends
-// the client to the full /client/content board.
+// One of the three status columns at the top of the overview. Each card is
+// click-to-detail, with a 3-dot actions menu in its top-right for proposed
+// cards (Request changes). Count label dropped per design.
 function StatusColumn({
   tone,
   label,
@@ -266,10 +269,7 @@ function StatusColumn({
   const visible = cards.slice(0, 3);
   return (
     <Card className="flex flex-col h-full">
-      <CardHeader
-        title={<Pill tone={tone}>{label}</Pill>}
-        right={<span className="font-mono text-xs text-[var(--color-text-muted)]">{cards.length}</span>}
-      />
+      <CardHeader title={<Pill tone={tone}>{label}</Pill>} />
       <CardBody className="space-y-2 flex-1">
         {visible.length === 0 ? (
           <div className="text-xs text-[var(--color-text-subtle)] italic">Empty.</div>
@@ -277,27 +277,36 @@ function StatusColumn({
           visible.map((card) => (
             <div
               key={card.id}
-              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3"
+              className="relative rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3"
             >
-              <div className="text-sm font-medium leading-snug">{card.title}</div>
-              <div className="mt-1 text-[11px] text-[var(--color-text-muted)] font-mono">
-                {companyName} · updated <Time iso={card.updated_at} />
+              <div className="absolute top-2 right-2">
+                <ContentCardControls
+                  card={{ id: card.id, title: card.title, body: card.body, link: card.link, stage: card.stage }}
+                  role="client"
+                  updateAction={approveContentAction}
+                  requestChangesAction={requestChangesAction}
+                />
               </div>
-              {card.body ? (
-                <div className="mt-1.5 text-xs text-[var(--color-text-muted)] line-clamp-2">
-                  {card.body}
-                </div>
-              ) : null}
-              {card.link ? (
-                <a
-                  href={card.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 inline-block text-xs text-[var(--color-accent)] hover:underline"
-                >
-                  {card.link.replace(/^https?:\/\//, "")} ↗
-                </a>
-              ) : null}
+              <ContentDetailModal
+                triggerClassName="block w-full text-left pr-8"
+                card={{ id: card.id, title: card.title, body: card.body, link: card.link, stage: card.stage, created_at: card.created_at, updated_at: card.updated_at }}
+                companyName={companyName}
+                events={[]}
+                triggerLabel={
+                  <>
+                    <div className="text-sm font-medium leading-snug break-words">{card.title}</div>
+                    <div className="mt-1 text-[11px] text-[var(--color-text-muted)] font-mono">
+                      {companyName} · updated <Time iso={card.updated_at} />
+                    </div>
+                    {card.body ? (
+                      <div className="mt-1.5 text-xs text-[var(--color-text-muted)] line-clamp-2 break-words">
+                        {card.body}
+                      </div>
+                    ) : null}
+                    <div className="mt-2 text-[10px] text-[var(--color-accent)] opacity-70">Click for details ↗</div>
+                  </>
+                }
+              />
             </div>
           ))
         )}

@@ -210,14 +210,16 @@ export default async function AdminDashboard() {
           </CardBody>
         </Card>
 
-        {/* Calendar grid — flush against Upcoming */}
+        {/* Calendar grid — flush against Upcoming. Month title centered on top
+            of the grid; + Add stays in the top-right corner of the card. */}
         <Card className="mt-2">
-          <CardHeader
-            title={monthLabel}
-            subtitle="Tap + Add to schedule a meeting or deadline"
-            right={<AdminCalendarAddModal action={createCalendarAction} clients={clients} />}
-          />
-          <CardBody>
+          <CardBody className="pt-5">
+            <div className="relative mb-4">
+              <div className="text-center text-xl font-semibold tracking-tight">{monthLabel}</div>
+              <div className="absolute top-0 right-0">
+                <AdminCalendarAddModal action={createCalendarAction} clients={clients} />
+              </div>
+            </div>
             <div className="overflow-x-auto -mx-2 px-2 pb-2">
               <div className="min-w-[700px] sm:min-w-0">
                 <div className="grid grid-cols-7 text-xs uppercase tracking-wider text-[var(--color-text-muted)] mb-2">

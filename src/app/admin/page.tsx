@@ -6,6 +6,7 @@ import { formatDate, isoDate } from "@/lib/utils";
 import { createTaskAction, toggleTaskAction, deleteTaskAction } from "./actions";
 import Time from "@/components/shared/Time";
 import AdminTaskAddModal from "@/components/admin/AdminTaskAddModal";
+import Greeting from "@/components/admin/Greeting";
 
 function dayBucket(due: string | null, today: string, tomorrow: string, weekEnd: string) {
   if (!due) return "later";
@@ -54,7 +55,7 @@ export default async function AdminWork() {
             <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
               Work dashboard
             </div>
-            <h1 className="text-3xl font-semibold tracking-tight mt-1">Today, tomorrow, this week</h1>
+            <h1 className="text-3xl font-semibold tracking-tight mt-1"><Greeting /></h1>
           </div>
           <div className="text-xs text-[var(--color-text-muted)] font-mono text-right shrink-0">
             <Time iso={new Date().toISOString()} dateOnly />

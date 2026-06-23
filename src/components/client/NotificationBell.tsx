@@ -1,9 +1,9 @@
-// Bell icon in the client header. Shows a red count badge for content cards
-// in the "proposed" stage — i.e. items waiting for the client's approval.
-// Clicking the bell goes to /client/content where they can act on them.
+// Server-side fetcher for the client's pending content cards (proposed
+// stage = awaiting their approval). Hands the list to NotificationDropdown
+// which owns the open/close state + dropdown rendering.
 
-import Link from "next/link";
 import { data } from "@/lib/data";
+import NotificationDropdown from "./NotificationDropdown";
 
 interface Props {
   clientId: string;
@@ -11,23 +11,15 @@ interface Props {
 
 export default async function NotificationBell({ clientId }: Props) {
   const pending = await data.listContent({ clientId, stage: "proposed" });
-  const count = pending.length;
-
-  return (
-    <Link
-      href="/client/content"
-      aria-label={count > 0 ? `${count} pending approvals` : "Notifications"}
-      title={count > 0 ? `${count} pending approval${count === 1 ? "" : "s"}` : "No new notifications"}
-      className="relative inline-flex items-center justify-center w-9 h-9 rounded-lg hover:bg-[var(--color-bg-hover)] transition"
-    >
-      <span className="text-xl leading-none" aria-hidden>🔔</span>
-      {count > 0 ? (
-        <span
-          className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold leading-none flex items-center justify-center tabular-nums shadow-sm ring-2 ring-[var(--color-bg-elev)]"
-        >
-          {count > 99 ? "99+" : count}
-        </span>
-      ) : null}
-    </Link>
-  );
+  // Newest first so the freshest items appear at the top of the dropdown.
+  const items = pending
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+    .slice(0, 20)
+    .map((c) => ({
+      id: c.id,
+      title: c.title,
+      updated_at: c.updated_at,
+      body: c.body,
+    }));
+  return <NotificationDropdown items={items} />;
 }

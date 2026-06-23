@@ -120,9 +120,18 @@ function TaskColumn({
     <Card className="flex flex-col h-full">
       <CardHeader
         title={
-          <span className="flex items-center gap-2 min-w-0">
+          <span className="flex items-center justify-between gap-2 min-w-0">
             <span className="truncate">{title}</span>
-            <Pill>{bucket.length}</Pill>
+            <span
+              className={
+                "shrink-0 inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-full text-sm font-semibold tabular-nums " +
+                (bucket.length > 0
+                  ? "bg-[var(--color-accent)] text-black"
+                  : "bg-[var(--color-bg)] text-[var(--color-text-muted)] border border-[var(--color-border)]")
+              }
+            >
+              {bucket.length}
+            </span>
           </span>
         }
       />

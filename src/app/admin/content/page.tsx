@@ -136,7 +136,7 @@ export default async function AdminContent({
                           ) : null}
 
                           {events.length ? (
-                            <div className="mt-2 border-t border-[var(--color-border)] pt-2 space-y-0.5 text-[10px] text-[var(--color-text-subtle)] break-words">
+                            <div className="mt-2 border-t border-[var(--color-border)] pt-2 space-y-0.5 text-[10px] text-[var(--color-text-subtle)] break-words hidden lg:block">
                               {events.slice(0, 3).map((e) => (
                                 <div key={e.id}>
                                   <span className="font-mono"><Time iso={e.created_at} /></span>{" "}
@@ -148,28 +148,30 @@ export default async function AdminContent({
                             </div>
                           ) : null}
 
-                          {/* Action buttons stack on narrow columns so 'Mark posted'
-                              doesn't overlap 'Back'. */}
+                          {/* Action buttons. Each form takes the full available
+                              width when stacked so its inner button does too —
+                              no more cramped half-width "Mark posted" splitting
+                              across two lines next to a tiny "Back". */}
                           <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:gap-1.5 gap-1.5">
                             {stage !== "proposed" ? (
-                              <form action={advanceContentAction}>
+                              <form action={advanceContentAction} className="w-full sm:w-auto">
                                 <input type="hidden" name="id" value={card.id} />
                                 <input type="hidden" name="direction" value="back" />
-                                <Button size="sm" variant="ghost" type="submit" className="w-full sm:w-auto">← Back</Button>
+                                <Button size="sm" variant="ghost" type="submit" className="w-full sm:w-auto whitespace-nowrap">← Back</Button>
                               </form>
                             ) : null}
                             {stage !== "posted" ? (
-                              <form action={advanceContentAction}>
+                              <form action={advanceContentAction} className="w-full sm:w-auto">
                                 <input type="hidden" name="id" value={card.id} />
                                 <input type="hidden" name="direction" value="forward" />
-                                <Button size="sm" type="submit" className="w-full sm:w-auto">
+                                <Button size="sm" type="submit" className="w-full sm:w-auto whitespace-nowrap">
                                   {stage === "proposed" ? "Approve →" : "Mark posted →"}
                                 </Button>
                               </form>
                             ) : null}
                             <form
                               action={deleteContentAction}
-                              className="sm:ml-auto"
+                              className="w-full sm:w-auto sm:ml-auto"
                             >
                               <input type="hidden" name="id" value={card.id} />
                               <Button
@@ -177,7 +179,7 @@ export default async function AdminContent({
                                 variant="ghost"
                                 type="submit"
                                 title="Delete card"
-                                className="text-[var(--color-text-muted)] hover:text-red-400 w-full sm:w-auto"
+                                className="text-[var(--color-text-muted)] hover:text-red-400 w-full sm:w-auto whitespace-nowrap"
                               >
                                 Delete
                               </Button>

@@ -3,8 +3,15 @@ import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import Time from "@/components/shared/Time";
-import { advanceContentAction, createContentAction, deleteContentAction } from "../actions";
+import {
+  advanceContentAction,
+  createContentAction,
+  deleteContentAction,
+  updateContentAction,
+} from "../actions";
 import AdminContentAddModal from "@/components/admin/AdminContentAddModal";
+import ContentCardControls from "@/components/shared/ContentCardControls";
+import ContentDetailModal from "@/components/shared/ContentDetailModal";
 import type { ContentStage } from "@/lib/types";
 
 const STAGES: { stage: ContentStage; label: string; tone: "warn" | "accent" | "ok" }[] = [
@@ -105,56 +112,49 @@ export default async function AdminContent({
                         <div
                           key={card.id}
                           className={
-                            "rounded-lg border bg-[var(--color-bg-elev)] p-3 min-w-0 overflow-hidden " +
+                            "relative rounded-lg border bg-[var(--color-bg-elev)] p-3 min-w-0 overflow-hidden " +
                             (changeRequest ? "border-amber-500/50" : "border-[var(--color-border)]")
                           }
                         >
-                          <div className="text-sm font-medium leading-snug break-words">{card.title}</div>
-                          <div className="mt-1 text-[11px] text-[var(--color-text-muted)] font-mono break-words">
-                            {clientNameOf(card.client_id)} · updated <Time iso={card.updated_at} />
+                          {/* 3-dot menu absolutely positioned in top-right */}
+                          <div className="absolute top-2 right-2">
+                            <ContentCardControls
+                              card={{ id: card.id, title: card.title, body: card.body, link: card.link, stage: card.stage }}
+                              role="admin"
+                              updateAction={updateContentAction}
+                              deleteAction={deleteContentAction}
+                            />
                           </div>
-                          {changeRequest ? (
-                            <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
-                              <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-400">
-                                ⚠ Changes requested by client
-                              </div>
-                              <div className="mt-0.5 text-xs text-amber-200 leading-snug break-words">{changeRequest}</div>
-                            </div>
-                          ) : null}
-                          {card.body ? (
-                            <div className="mt-2 text-xs text-[var(--color-text-muted)] line-clamp-3 break-words">
-                              {card.body}
-                            </div>
-                          ) : null}
-                          {card.link ? (
-                            <a
-                              href={card.link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="mt-2 block text-xs text-[var(--color-accent)] hover:underline truncate"
-                              title={card.link}
-                            >
-                              {card.link.replace(/^https?:\/\//, "")} ↗
-                            </a>
-                          ) : null}
 
-                          {events.length ? (
-                            <div className="mt-2 border-t border-[var(--color-border)] pt-2 space-y-0.5 text-[10px] text-[var(--color-text-subtle)] break-words hidden lg:block">
-                              {events.slice(0, 3).map((e) => (
-                                <div key={e.id}>
-                                  <span className="font-mono"><Time iso={e.created_at} /></span>{" "}
-                                  · {e.actor_role}{" "}
-                                  {e.from_stage ? `${e.from_stage} → ${e.to_stage}` : e.to_stage}
-                                  {e.note ? ` · ${e.note}` : ""}
+                          {/* Click anywhere on the card body opens the detail popup */}
+                          <ContentDetailModal
+                            triggerClassName="block w-full text-left pr-8"
+                            card={{ id: card.id, title: card.title, body: card.body, link: card.link, stage: card.stage, created_at: card.created_at, updated_at: card.updated_at }}
+                            companyName={clientNameOf(card.client_id)}
+                            events={events.map((e) => ({ id: e.id, created_at: e.created_at, from_stage: e.from_stage, to_stage: e.to_stage, actor_role: e.actor_role, note: e.note }))}
+                            triggerLabel={
+                              <>
+                                <div className="text-sm font-medium leading-snug break-words">{card.title}</div>
+                                <div className="mt-1 text-[11px] text-[var(--color-text-muted)] font-mono break-words">
+                                  {clientNameOf(card.client_id)} · updated <Time iso={card.updated_at} />
                                 </div>
-                              ))}
-                            </div>
-                          ) : null}
+                                {changeRequest ? (
+                                  <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2">
+                                    <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-400">⚠ Changes requested</div>
+                                    <div className="mt-0.5 text-xs text-amber-200 leading-snug break-words line-clamp-2">{changeRequest}</div>
+                                  </div>
+                                ) : null}
+                                {card.body ? (
+                                  <div className="mt-2 text-xs text-[var(--color-text-muted)] line-clamp-3 break-words">
+                                    {card.body}
+                                  </div>
+                                ) : null}
+                                <div className="mt-2 text-[10px] text-[var(--color-accent)] opacity-70">Click for details ↗</div>
+                              </>
+                            }
+                          />
 
-                          {/* Action buttons. Each form takes the full available
-                              width when stacked so its inner button does too —
-                              no more cramped half-width "Mark posted" splitting
-                              across two lines next to a tiny "Back". */}
+                          {/* Stage-flow buttons: Back / Approve / Mark posted */}
                           <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:gap-1.5 gap-1.5">
                             {stage !== "proposed" ? (
                               <form action={advanceContentAction} className="w-full sm:w-auto">
@@ -172,21 +172,6 @@ export default async function AdminContent({
                                 </Button>
                               </form>
                             ) : null}
-                            <form
-                              action={deleteContentAction}
-                              className="w-full sm:w-auto sm:ml-auto"
-                            >
-                              <input type="hidden" name="id" value={card.id} />
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                type="submit"
-                                title="Delete card"
-                                className="text-[var(--color-text-muted)] hover:text-red-400 w-full sm:w-auto whitespace-nowrap"
-                              >
-                                Delete
-                              </Button>
-                            </form>
                           </div>
                         </div>
                       );

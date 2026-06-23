@@ -591,6 +591,24 @@ export async function deleteContent(cardId: UUID): Promise<void> {
   await supabase.from("content_cards").delete().eq("id", cardId);
 }
 
+export async function updateContent(
+  cardId: UUID,
+  patch: Partial<Pick<ContentCard, "title" | "body" | "link">>,
+): Promise<ContentCard | null> {
+  const supabase = await createClient();
+  const updateRow: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (patch.title !== undefined) updateRow.title = patch.title;
+  if (patch.body !== undefined) updateRow.body = patch.body;
+  if (patch.link !== undefined) updateRow.link = patch.link;
+  const { data } = await supabase
+    .from("content_cards")
+    .update(updateRow)
+    .eq("id", cardId)
+    .select()
+    .single();
+  return (data as ContentCard) ?? null;
+}
+
 export async function rejectContent(
   cardId: UUID,
   actor: { user_id: UUID; role: UserRole; client_id: UUID | null },

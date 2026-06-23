@@ -187,6 +187,19 @@ export async function deleteContentAction(formData: FormData) {
   revalidatePath("/client/content");
 }
 
+export async function updateContentAction(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+  const title = String(formData.get("title") ?? "").trim();
+  const body = String(formData.get("body") ?? "").trim() || null;
+  const link = String(formData.get("link") ?? "").trim() || null;
+  if (!title) return;
+  await data.updateContent(id, { title, body, link });
+  revalidatePath("/admin/content");
+  revalidatePath("/client/content");
+}
+
 export async function advanceContentAction(formData: FormData) {
   const session = await requireAdmin();
   const id = String(formData.get("id") ?? "");

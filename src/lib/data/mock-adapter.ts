@@ -440,6 +440,21 @@ export function deleteContent(cardId: UUID): void {
   });
 }
 
+export function updateContent(
+  cardId: UUID,
+  patch: Partial<Pick<ContentCard, "title" | "body" | "link">>,
+): ContentCard | null {
+  return mutate((s) => {
+    const c = s.content.find((x) => x.id === cardId);
+    if (!c) return null;
+    if (patch.title !== undefined) c.title = patch.title;
+    if (patch.body !== undefined) c.body = patch.body;
+    if (patch.link !== undefined) c.link = patch.link;
+    c.updated_at = nowIso();
+    return c;
+  });
+}
+
 export function rejectContent(
   cardId: UUID,
   actor: { user_id: UUID; role: UserRole; client_id: UUID | null },

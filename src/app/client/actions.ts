@@ -79,15 +79,50 @@ export async function approveContentAction(formData: FormData) {
 
 export async function requestChangesAction(formData: FormData) {
   const session = await requireClient();
+  if (!session.client_id) return;
   const id = String(formData.get("id") ?? "");
-  const note = String(formData.get("note") ?? "").trim();
-  if (!note) return;
+  const noteText = String(formData.get("note") ?? "").trim();
+  if (!noteText) return;
+
+  // Upload any attached files to the same calendar-attachments bucket the
+  // calendar uses (client folder is already RLS-isolated). Storage paths get
+  // appended to the change-request note so the admin sees them when reviewing
+  // the card's activity log.
+  const uploadedPaths: string[] = [];
+  const files = formData.getAll("attachments");
+  for (const f of files) {
+    if (!(f instanceof File) || f.size === 0) continue;
+    if (f.size > 25 * 1024 * 1024) continue;
+    if (usingMock) {
+      uploadedPaths.push(`mock://${session.client_id}/content/${id}/${f.name}`);
+      continue;
+    }
+    try {
+      const safeName = f.name.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 120) || "file";
+      const path = `${session.client_id}/content/${id}/${randomUUID()}-${safeName}`;
+      const supabase = await createServiceClient();
+      const buf = await f.arrayBuffer();
+      const { error } = await supabase.storage
+        .from("calendar-attachments")
+        .upload(path, buf, { contentType: f.type || "application/octet-stream", upsert: false });
+      if (!error) uploadedPaths.push(path);
+    } catch (e) {
+      console.error("change-request file upload failed", e);
+    }
+  }
+
+  // Compose the note with attachment markers the admin UI can later parse.
+  const note = uploadedPaths.length
+    ? `${noteText}\n\n${uploadedPaths.map((p) => `[ATTACH:${p}]`).join("\n")}`
+    : noteText;
+
   await data.rejectContent(
     id,
     { user_id: session.user_id, role: session.role, client_id: session.client_id },
     note,
   );
   revalidatePath("/client/content");
+  revalidatePath("/client");
 }
 
 export async function createClientCalendarEventAction(formData: FormData) {

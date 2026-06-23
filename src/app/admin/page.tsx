@@ -48,17 +48,22 @@ export default async function AdminWork() {
   return (
     <AdminShell session={session} active="/admin">
       <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-7xl">
-        <div className="flex items-end justify-between mb-8 gap-3 flex-wrap">
+        <div className="flex items-end justify-between mb-6 gap-3 flex-wrap">
           <div>
             <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
               Work dashboard
             </div>
             <h1 className="text-3xl font-semibold tracking-tight mt-1">Today, tomorrow, this week</h1>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-xs text-[var(--color-text-muted)] font-mono">
-              <Time iso={new Date().toISOString()} dateOnly />
-            </div>
+          <div className="text-xs text-[var(--color-text-muted)] font-mono">
+            <Time iso={new Date().toISOString()} dateOnly />
+          </div>
+        </div>
+
+        {/* + Add task button sits directly above the rightmost KPI tile (Due this week)
+            so the primary action is anchored at the same vertical line as the tiles. */}
+        <div className="grid grid-cols-4 gap-2 sm:gap-4 mb-2">
+          <div className="col-start-4 flex justify-end">
             <AdminTaskAddModal action={createTaskAction} clients={clients} />
           </div>
         </div>
@@ -114,12 +119,16 @@ function TaskColumn({
   clientName: (id: string) => string;
 }) {
   return (
-    <Card>
+    <Card className="flex flex-col h-full">
       <CardHeader
-        title={title}
-        right={<Pill>{bucket.length}</Pill>}
+        title={
+          <span className="flex items-center gap-2 min-w-0">
+            <span className="truncate">{title}</span>
+            <Pill>{bucket.length}</Pill>
+          </span>
+        }
       />
-      <CardBody className="space-y-2">
+      <CardBody className="space-y-2 flex-1">
         {bucket.length === 0 ? (
           <div className="text-xs text-[var(--color-text-subtle)] py-4 text-center">
             Nothing here — clean queue.

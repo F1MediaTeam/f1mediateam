@@ -4,8 +4,7 @@ import MobileNavMenu from "@/components/shared/MobileNavMenu";
 import type { Session } from "@/lib/data";
 
 const NAV = [
-  { href: "/admin",           label: "Work" },
-  { href: "/admin/calendar",  label: "Calendar" },
+  { href: "/admin",           label: "Dashboard" },
   { href: "/admin/clients",   label: "Clients" },
   { href: "/admin/content",   label: "Content" },
   { href: "/admin/meeting-deck", label: "Meeting deck" },

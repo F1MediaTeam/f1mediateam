@@ -275,8 +275,10 @@ export default async function AdminDashboard() {
   );
 }
 
-// Square KPI tile — locked aspect-ratio so the four-up row reads as a row of
-// boxes regardless of viewport.
+// KPI tile — square on phones (so the 4-up row reads as boxes inside a
+// narrow viewport), then becomes a fixed-height card on tablet+ so the
+// number stays close to the label instead of floating at the bottom of a
+// 350px-tall empty box.
 function SquareStat({
   label,
   value,
@@ -288,7 +290,7 @@ function SquareStat({
 }) {
   const accent = tone === "danger" ? "text-[var(--color-down)]" : "text-[var(--color-text)]";
   return (
-    <div className="aspect-square rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3 sm:p-4 flex flex-col justify-between">
+    <div className="aspect-square sm:aspect-auto sm:h-28 lg:h-32 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3 sm:p-4 flex flex-col justify-between">
       <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] leading-tight">
         {label}
       </div>

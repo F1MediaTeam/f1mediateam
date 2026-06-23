@@ -20,10 +20,72 @@
 // Response: { ok: true, card_id: "<uuid>" } on 200, or { error } on 4xx/5xx.
 
 import { NextRequest } from "next/server";
-import { data } from "@/lib/data";
+import { data, usingMock } from "@/lib/data";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+// The webhook runs unauthenticated (only the shared secret guards it), so a
+// normal anon-key Supabase client gets blocked by RLS on the clients table.
+// Use the service-role client to verify the client exists, then fall back to
+// the standard adapter for the insert — RLS on content_cards allows inserts
+// when called via the service role, and the mock adapter already permits
+// writes without auth.
+async function clientExists(clientId: string): Promise<boolean> {
+  if (usingMock) {
+    const c = await data.getClient(clientId);
+    return Boolean(c);
+  }
+  try {
+    const supabase = await createServiceClient();
+    const { data: row } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("id", clientId)
+      .maybeSingle();
+    return Boolean(row);
+  } catch {
+    return false;
+  }
+}
+
+// Insert via the service client so the unauthenticated webhook can write to
+// content_cards (RLS would otherwise block).
+async function insertCardServiceRole(input: {
+  client_id: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+}): Promise<{ id: string } | null> {
+  if (usingMock) {
+    const card = await data.createContent({
+      client_id: input.client_id,
+      title: input.title,
+      body: input.body,
+      link: input.link,
+      created_by: null,
+    });
+    return card ? { id: card.id } : null;
+  }
+  const supabase = await createServiceClient();
+  const { data: row, error } = await supabase
+    .from("content_cards")
+    .insert({
+      client_id: input.client_id,
+      title: input.title,
+      body: input.body,
+      link: input.link,
+      stage: "proposed",
+    })
+    .select("id")
+    .single();
+  if (error) {
+    console.error("inbound createContent failed", error);
+    return null;
+  }
+  return row as { id: string };
+}
 
 interface InboundPayload {
   caption?: unknown;
@@ -55,8 +117,9 @@ export async function POST(
   }
 
   const { clientId } = await params;
-  const client = await data.getClient(clientId);
-  if (!client) return Response.json({ error: "Client not found" }, { status: 404 });
+  if (!(await clientExists(clientId))) {
+    return Response.json({ error: "Client not found" }, { status: 404 });
+  }
 
   let body: InboundPayload;
   try {
@@ -87,14 +150,16 @@ export async function POST(
   const title = caption.replace(/\s+/g, " ").slice(0, 80);
 
   try {
-    const created = await data.createContent({
+    const created = await insertCardServiceRole({
       client_id: clientId,
       title,
       body: cardBody,
       link: postUrl || null,
-      created_by: null,
     });
-    return Response.json({ ok: true, card_id: created?.id ?? null });
+    if (!created) {
+      return Response.json({ error: "createContent failed" }, { status: 500 });
+    }
+    return Response.json({ ok: true, card_id: created.id });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "createContent failed";
     return Response.json({ error: msg }, { status: 500 });

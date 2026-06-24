@@ -288,6 +288,40 @@ export async function connectSemrushAction(formData: FormData) {
   revalidatePath(`/admin/clients/${client_id}`);
 }
 
+/**
+ * Update a SEMrush connector's meta JSON with the IDs and manual values that
+ * power the SEO Snapshot row's Site Health, Visibility, AI Visibility and
+ * Mentions cards. Each field is optional — empty string clears the override.
+ */
+export async function updateSemrushMetaAction(formData: FormData) {
+  await requireAdmin();
+  const client_id = String(formData.get("client_id") ?? "");
+  const token_id = String(formData.get("token_id") ?? "");
+  if (!client_id || !token_id) {
+    revalidatePath(`/admin/clients/${client_id}`);
+    return;
+  }
+  const parseNum = (raw: FormDataEntryValue | null): number | null | undefined => {
+    if (raw == null) return undefined;
+    const s = String(raw).trim();
+    if (s === "") return null; // clear
+    const n = Number(s);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const patch: Record<string, unknown> = {};
+  const sa = parseNum(formData.get("site_audit_project_id"));
+  if (sa !== undefined) patch.site_audit_project_id = sa;
+  const pt = parseNum(formData.get("position_tracking_campaign_id"));
+  if (pt !== undefined) patch.position_tracking_campaign_id = pt;
+  const av = parseNum(formData.get("ai_visibility_value"));
+  if (av !== undefined) patch.ai_visibility_value = av;
+  const mn = parseNum(formData.get("mentions_value"));
+  if (mn !== undefined) patch.mentions_value = mn;
+  await data.updateConnectorMeta(token_id, patch);
+  revalidatePath(`/admin/clients/${client_id}`);
+  revalidatePath(`/admin/clients/${client_id}/connect/semrush`);
+}
+
 export async function connectBingAction(formData: FormData) {
   await requireAdmin();
   const client_id = String(formData.get("client_id") ?? "");

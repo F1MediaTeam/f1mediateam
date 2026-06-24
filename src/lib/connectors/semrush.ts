@@ -95,57 +95,206 @@ export const semrushConnector: Connector = {
     const domain = creds.account_label;
     if (!domain) throw new Error("Semrush domain missing — reconnect with the client's domain");
 
-    const params = new URLSearchParams({
-      // Semrush v3 renamed the historical endpoint — singular "rank", not "ranks".
-      type: "domain_rank_history",
-      domain,
-      database: "us",
-      export_columns: EXPORT_COLUMNS.join(","),
-      key: apikey,
-    });
-    const res = await fetch(`${BASE}?${params.toString()}`);
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Semrush domain_rank_history failed (${res.status}): ${text}`);
-    }
-    const rows = parseSemrushCsv(await res.text());
-
     const snapshots: SyncResult["snapshots"] = [];
     const meta = { domain, source_provider: "semrush" };
-    for (const row of rows) {
-      const captured_at = parseSemrushDate(row.Dt);
-      snapshots.push({ source: "semrush", metric: "semrush_organic_keywords", value: row.Or, captured_at, is_baseline: false, meta });
-      snapshots.push({ source: "semrush", metric: "semrush_organic_traffic",  value: row.Ot, captured_at, is_baseline: false, meta });
-      snapshots.push({ source: "semrush", metric: "semrush_organic_cost",     value: row.Oc, captured_at, is_baseline: false, meta });
-      snapshots.push({ source: "semrush", metric: "semrush_paid_keywords",    value: row.Ad, captured_at, is_baseline: false, meta });
-      snapshots.push({ source: "semrush", metric: "semrush_paid_traffic",     value: row.At, captured_at, is_baseline: false, meta });
-      snapshots.push({ source: "semrush", metric: "semrush_paid_cost",        value: row.Ac, captured_at, is_baseline: false, meta });
+    const today = new Date().toISOString().slice(0, 10);
+
+    // --- Historical rank pull is expensive (~600 units). Only fetch on Sunday
+    //     or when there's no existing history for this client. Daily syncs
+    //     skip this and rely on the cheap domain_rank current call below.
+    const isSunday = new Date().getUTCDay() === 0;
+    const force = ctx.token.meta && ctx.token.meta.force_history === true;
+    const hasHistory = await data.hasSemrushHistory(ctx.clientId);
+    const wantHistory = isSunday || !hasHistory || force;
+    if (wantHistory) {
+      const params = new URLSearchParams({
+        // Semrush v3 renamed the historical endpoint — singular "rank", not "ranks".
+        type: "domain_rank_history",
+        domain,
+        database: "us",
+        export_columns: EXPORT_COLUMNS.join(","),
+        key: apikey,
+      });
+      const res = await fetch(`${BASE}?${params.toString()}`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Semrush domain_rank_history failed (${res.status}): ${text}`);
+      }
+      const rows = parseSemrushCsv(await res.text());
+      for (const row of rows) {
+        const captured_at = parseSemrushDate(row.Dt);
+        snapshots.push({ source: "semrush", metric: "semrush_organic_keywords", value: row.Or, captured_at, is_baseline: false, meta });
+        snapshots.push({ source: "semrush", metric: "semrush_organic_traffic",  value: row.Ot, captured_at, is_baseline: false, meta });
+        snapshots.push({ source: "semrush", metric: "semrush_organic_cost",     value: row.Oc, captured_at, is_baseline: false, meta });
+        snapshots.push({ source: "semrush", metric: "semrush_paid_keywords",    value: row.Ad, captured_at, is_baseline: false, meta });
+        snapshots.push({ source: "semrush", metric: "semrush_paid_traffic",     value: row.At, captured_at, is_baseline: false, meta });
+        snapshots.push({ source: "semrush", metric: "semrush_paid_cost",        value: row.Ac, captured_at, is_baseline: false, meta });
+      }
     }
 
-    // Backlinks overview — single live snapshot (not historical). Captured today.
-    // Authority Score, total backlinks, referring domains.  ~40 API units.
+    // --- Current (daily) snapshot via domain_rank — overwrites today's row so the
+    //     dashboard reflects today's organic numbers, not last month's bucket.
+    const current = await fetchDomainRankCurrent(domain, apikey);
+    if (current) {
+      snapshots.push({ source: "semrush", metric: "semrush_organic_keywords", value: current.Or, captured_at: today, is_baseline: false, meta });
+      snapshots.push({ source: "semrush", metric: "semrush_organic_traffic",  value: current.Ot, captured_at: today, is_baseline: false, meta });
+    }
+
+    // --- Backlinks overview (~40 units).
     const backlinks = await fetchBacklinksOverview(domain, apikey);
     if (backlinks) {
-      const today = new Date().toISOString().slice(0, 10);
       snapshots.push({ source: "semrush", metric: "semrush_backlinks",          value: backlinks.total,       captured_at: today, is_baseline: false, meta });
       snapshots.push({ source: "semrush", metric: "semrush_referring_domains",  value: backlinks.domains_num, captured_at: today, is_baseline: false, meta });
       snapshots.push({ source: "semrush", metric: "semrush_authority_score",    value: backlinks.ascore,      captured_at: today, is_baseline: false, meta });
     }
 
+    // --- Site Audit health score — requires per-client Site Audit project.
+    //     Project ID is stored on the token's meta.site_audit_project_id.
+    const siteAuditId = readNumericMeta(ctx.token.meta, "site_audit_project_id");
+    if (siteAuditId) {
+      const sa = await fetchSiteAuditScore(siteAuditId, apikey);
+      if (sa != null) {
+        snapshots.push({ source: "semrush", metric: "site_health", value: sa, captured_at: today, is_baseline: false, meta });
+      }
+    }
+
+    // --- Position Tracking visibility — requires per-client tracking campaign.
+    //     Campaign ID stored on token.meta.position_tracking_campaign_id.
+    const trackId = readNumericMeta(ctx.token.meta, "position_tracking_campaign_id");
+    if (trackId) {
+      const vis = await fetchPositionTrackingVisibility(trackId, apikey);
+      if (vis != null) {
+        snapshots.push({ source: "semrush", metric: "visibility", value: vis, captured_at: today, is_baseline: false, meta });
+      }
+    }
+
+    // --- AI Visibility + Mentions: no public SEMrush API endpoint. Admin sets
+    //     the value on the token meta (copied from the SEMrush One UI) and the
+    //     sync writes it as today's snapshot so the dashboard stays in step.
+    const aiVis = readNumericMeta(ctx.token.meta, "ai_visibility_value");
+    if (aiVis != null) {
+      snapshots.push({ source: "semrush", metric: "ai_visibility", value: aiVis, captured_at: today, is_baseline: false, meta: { ...meta, manual: true } });
+    }
+    const mentions = readNumericMeta(ctx.token.meta, "mentions_value");
+    if (mentions != null) {
+      snapshots.push({ source: "semrush", metric: "mentions", value: mentions, captured_at: today, is_baseline: false, meta: { ...meta, manual: true } });
+    }
+
     const effectiveAsOf = snapshots.length
       ? snapshots[snapshots.length - 1].captured_at
-      : new Date().toISOString().slice(0, 10);
-    // SEMrush returns the full monthly history on every call, so replace the
-    // client's existing SEMrush rows rather than accumulating — this purges any
-    // stale rows a past parsing bug may have written.
-    return { snapshots, effectiveAsOf, replaceSource: "semrush" };
+      : today;
+    // Replace the full SEMrush dataset only when we just pulled the full history
+    // (Sundays, or first-time sync). On daily syncs we just upsert today's rows.
+    return { snapshots, effectiveAsOf, ...(wantHistory ? { replaceSource: "semrush" as const } : {}) };
   },
 };
+
+function readNumericMeta(meta: Record<string, unknown> | null | undefined, key: string): number | null {
+  if (!meta) return null;
+  const v = meta[key];
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
 
 interface BacklinksOverview {
   ascore: number;
   total: number;
   domains_num: number;
+}
+
+interface DomainRankCurrent {
+  Or: number;
+  Ot: number;
+}
+
+/** Current (today) domain_rank — cheap (~10 units). Replaces the monthly bucket value with today's number. */
+async function fetchDomainRankCurrent(domain: string, apikey: string): Promise<DomainRankCurrent | null> {
+  const params = new URLSearchParams({
+    type: "domain_rank",
+    domain,
+    database: "us",
+    export_columns: "Or,Ot",
+    key: apikey,
+  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}?${params.toString()}`);
+  } catch {
+    return null;
+  }
+  if (!res.ok) return null;
+  const text = (await res.text()).trim();
+  if (!text || text.startsWith("ERROR")) return null;
+  const lines = text.split(/\r?\n/);
+  if (lines.length < 2) return null;
+  const cols = lines[1].split(";");
+  return { Or: Number(cols[0] || 0), Ot: Number(cols[1] || 0) };
+}
+
+/**
+ * Site Audit health score from the Projects API. The endpoint returns issue
+ * counts (errors/warnings/notices) and page status (healthy/broken). Semrush's
+ * "Site Health" % is the share of healthy pages; we approximate the same.
+ * 100 units per call. Requires a Site Audit project for the client.
+ */
+async function fetchSiteAuditScore(projectId: number, apikey: string): Promise<number | null> {
+  const url = `https://api.semrush.com/reports/v1/projects/${projectId}/siteaudit/info?key=${encodeURIComponent(apikey)}`;
+  let res: Response;
+  try {
+    res = await fetch(url);
+  } catch {
+    return null;
+  }
+  if (!res.ok) return null;
+  let payload: Record<string, unknown>;
+  try {
+    payload = (await res.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const crawled = Number(payload.pages_crawled ?? 0);
+  const healthy = Number(payload.healthy ?? 0);
+  if (crawled > 0) return Math.round((healthy / crawled) * 100);
+  // Fallback: derive from issue counts so a fresh audit without page stats still scores.
+  const errors = Number(payload.errors ?? 0);
+  const warnings = Number(payload.warnings ?? 0);
+  const notices = Number(payload.notices ?? 0);
+  const penalty = Math.min(100, errors * 5 + warnings * 2 + notices * 0.5);
+  return Math.max(0, Math.round(100 - penalty));
+}
+
+interface PositionTrackingRow {
+  Vi: number; // Visibility index
+}
+
+/**
+ * Position Tracking organic_overview report — returns the campaign's visibility
+ * index for today. ~100 units. Requires a Position Tracking campaign.
+ */
+async function fetchPositionTrackingVisibility(campaignId: number, apikey: string): Promise<number | null> {
+  const params = new URLSearchParams({
+    action: "report",
+    type: "tracking_overview_organic",
+    key: apikey,
+    project_id: String(campaignId),
+    export_columns: "Vi",
+  });
+  let res: Response;
+  try {
+    res = await fetch(`https://api.semrush.com/reports/v1/projects/${campaignId}/tracking/?${params.toString()}`);
+  } catch {
+    return null;
+  }
+  if (!res.ok) return null;
+  const text = (await res.text()).trim();
+  if (!text || text.startsWith("ERROR")) return null;
+  // Two-line CSV: header, then a single row of Vi
+  const lines = text.split(/\r?\n/);
+  if (lines.length < 2) return null;
+  const cols = lines[1].split(";");
+  const vi = Number(cols[0] || 0);
+  return Number.isFinite(vi) ? vi : null;
 }
 
 /** Single-row backlinks overview from Semrush. Null on plan/quota failure. */

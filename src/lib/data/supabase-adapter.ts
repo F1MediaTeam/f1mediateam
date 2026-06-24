@@ -472,6 +472,47 @@ export async function deleteSnapshotsBySource(clientId: UUID, source: string): P
   return count ?? 0;
 }
 
+/**
+ * Has this client ever had a SEMrush history pull stored? Used by the daily
+ * connector to decide whether to pay the ~600-unit history call or skip it.
+ */
+export async function hasSemrushHistory(clientId: UUID): Promise<boolean> {
+  const supabase = await createServiceClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const { count, error } = await supabase
+    .from("metric_snapshots")
+    .select("id", { count: "exact", head: true })
+    .eq("client_id", clientId)
+    .eq("source", "semrush")
+    .lt("captured_at", today);
+  if (error) return false;
+  return (count ?? 0) > 0;
+}
+
+/**
+ * Patch a connector token's meta JSON. Used by the admin SEMrush settings page
+ * to persist Site Audit / Position Tracking IDs and manual AI Visibility +
+ * Mentions values without touching credentials.
+ */
+export async function updateConnectorMeta(
+  tokenId: UUID,
+  patch: Record<string, unknown>,
+): Promise<void> {
+  const supabase = await createServiceClient();
+  const { data: row, error: readErr } = await supabase
+    .from("connector_tokens")
+    .select("meta")
+    .eq("id", tokenId)
+    .single();
+  if (readErr) throw new Error(`updateConnectorMeta read failed: ${readErr.message}`);
+  const merged = { ...(row?.meta ?? {}), ...patch };
+  const { error: writeErr } = await supabase
+    .from("connector_tokens")
+    .update({ meta: merged, updated_at: new Date().toISOString() })
+    .eq("id", tokenId);
+  if (writeErr) throw new Error(`updateConnectorMeta write failed: ${writeErr.message}`);
+}
+
 // ---------- content ----------
 
 export async function listContent(filter?: {

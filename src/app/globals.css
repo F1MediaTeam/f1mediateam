@@ -123,6 +123,14 @@ small, caption, figcaption, .text-caption {
    rule holds — only weight/size/tracking communicate hierarchy now. */
 .font-mono, code, kbd, samp, pre { font-family: var(--font-sans); }
 
+/* SVG <text> nodes (charts, gauges, sparklines, slide deck) often have
+   fontFamily set as an attribute — those win over normal CSS inheritance.
+   Use !important so chart labels and axis ticks also render in DM Sans. */
+svg text, svg tspan { font-family: var(--font-sans) !important; }
+
+/* Form controls don't inherit body font in all browsers. */
+input, select, textarea, button { font-family: inherit; }
+
 [data-theme="light"] body {
   background-image:
     radial-gradient(800px 500px at 80% -10%, rgba(63, 142, 132, 0.06), transparent 60%),

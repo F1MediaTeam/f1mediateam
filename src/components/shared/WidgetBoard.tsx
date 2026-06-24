@@ -186,31 +186,42 @@ function SortableWidget({
     opacity: isDragging ? 0.85 : 1,
   };
 
+  // Hover-visible controls float just OUTSIDE the panel (negative offset)
+  // and are smaller + translucent so they don't visually erase the card's
+  // title when they appear. opacity-0 → 100 on hover means no layout shift.
+  const btnCls =
+    "absolute z-20 flex h-5 w-5 items-center justify-center rounded-md " +
+    "border border-[var(--color-border-strong)]/70 bg-[var(--color-bg-card)]/95 " +
+    "backdrop-blur text-[var(--color-text-muted)] shadow " +
+    "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 " +
+    "transition-opacity";
+
   return (
     <div ref={setNodeRef} style={style} className={`relative group ${fullWidth ? "lg:col-span-2" : ""}`}>
-      {/* Drag handle: top-left corner, only visible on hover/focus. Listeners
-          are attached here (not the whole tile) so clicking inside the panel
-          content doesn't trigger drag. */}
+      {/* Drag handle floats above the top-left corner of the panel — does not
+          overlap the title because of the negative top offset. */}
       <button
         type="button"
         aria-label="Drag to reorder"
+        title="Drag to reorder"
         {...attributes}
         {...listeners}
-        className="absolute left-1.5 top-1.5 z-20 hidden group-hover:flex group-focus-within:flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] cursor-grab active:cursor-grabbing touch-none"
+        className={btnCls + " -top-2 -left-2 hover:text-[var(--color-text)] cursor-grab active:cursor-grabbing touch-none"}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-          <circle cx="8" cy="6" r="1.5" /><circle cx="16" cy="6" r="1.5" />
-          <circle cx="8" cy="12" r="1.5" /><circle cx="16" cy="12" r="1.5" />
-          <circle cx="8" cy="18" r="1.5" /><circle cx="16" cy="18" r="1.5" />
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <circle cx="8" cy="6" r="1.6" /><circle cx="16" cy="6" r="1.6" />
+          <circle cx="8" cy="12" r="1.6" /><circle cx="16" cy="12" r="1.6" />
+          <circle cx="8" cy="18" r="1.6" /><circle cx="16" cy="18" r="1.6" />
         </svg>
       </button>
 
-      {/* Hide (×) button: top-right corner, also hover-only. */}
+      {/* Hide (×) button — also floats outside the corner. */}
       <button
         type="button"
         onClick={onHide}
         aria-label="Hide widget"
-        className="absolute right-1.5 top-1.5 z-20 hidden group-hover:flex group-focus-within:flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] text-[var(--color-text-muted)] hover:text-red-300 hover:border-red-500/40"
+        title="Hide widget"
+        className={btnCls + " -top-2 -right-2 hover:text-red-300 hover:border-red-500/40 text-sm leading-none"}
       >
         ×
       </button>

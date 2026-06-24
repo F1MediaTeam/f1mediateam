@@ -29,8 +29,16 @@
   --color-emerald-600: #2d6862;
   --color-emerald-700: #1f4d49;
 
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  /* DM Sans is the single typeface site-wide. Monospace falls back to system
+     fonts since the mono face has been retired with the brand consolidation. */
+  --font-sans: var(--font-dm-sans), "DM Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Only three real weights are loaded (400 / 700 / 800). Snap Tailwind's
+     intermediate weight utilities to 700 so existing font-medium / font-semibold
+     callsites render in a real loaded face instead of browser-faux-bold. */
+  --font-weight-medium: 700;
+  --font-weight-semibold: 700;
 }
 
 /* ── Themes ───────────────────────────────────────────────────────────────
@@ -64,12 +72,56 @@
 html, body { background: var(--color-bg); color: var(--color-text); }
 
 body {
-  font-feature-settings: "ss01", "cv11";
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.6;
+  letter-spacing: 0;
   background-image:
     radial-gradient(800px 500px at 80% -10%, rgba(63, 142, 132, 0.10), transparent 60%),
     radial-gradient(700px 400px at 0% 110%, rgba(63, 142, 132, 0.05), transparent 60%);
   background-attachment: fixed;
 }
+
+/* ── Type scale ───────────────────────────────────────────────────────────
+   Weight-to-role mapping (DM Sans only):
+     800 → h1 / hero display
+     700 → h2, h3, card titles, eyebrow labels, primary button labels
+     400 → all body, captions, inputs
+   Heavier weights use tighter line-height + slightly negative tracking;
+   body stays at normal tracking with looser leading for legibility. */
+h1 {
+  font-weight: 800;
+  font-size: clamp(2.75rem, 4vw + 1rem, 4rem);  /* 44–64px */
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+h2 {
+  font-weight: 700;
+  font-size: clamp(2rem, 1.5vw + 1rem, 2.5rem); /* 32–40px */
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+h3 {
+  font-weight: 700;
+  font-size: clamp(1.5rem, 0.5vw + 1rem, 1.75rem); /* 24–28px */
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+}
+p, li, dd {
+  font-weight: 400;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+small, caption, figcaption, .text-caption {
+  font-weight: 400;
+  font-size: 0.8125rem; /* 13px */
+  line-height: 1.5;
+}
+/* Tailwind's `font-mono` utility kept Geist Mono as a hard-coded family.
+   Force the same DM Sans face on those callsites so the single-typeface
+   rule holds — only weight/size/tracking communicate hierarchy now. */
+.font-mono, code, kbd, samp, pre { font-family: var(--font-sans); }
 
 [data-theme="light"] body {
   background-image:

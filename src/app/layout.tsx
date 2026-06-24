@@ -1,15 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { DM_Sans } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Single typeface site-wide. Three weights drive the whole hierarchy:
+//   800 → page titles / display headings (h1)
+//   700 → section headings, card titles, eyebrow labels, primary buttons
+//   400 → body, captions, inputs, anything not above
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: ["400", "700", "800"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -42,7 +43,7 @@ export default function RootLayout({
       lang="en"
       data-theme="dark"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${dmSans.variable} h-full antialiased`}
     >
       <head>
         {/* Apply the saved theme before paint to avoid a flash of the wrong theme. */}

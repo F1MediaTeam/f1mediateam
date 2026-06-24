@@ -1,26 +1,77 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* F1 Media brand tokens — swap these to rebrand the whole app */
+  --color-bg: #07090c;
+  --color-bg-elev: #0d1117;
+  --color-bg-card: #11161d;
+  --color-bg-hover: #161c25;
+  --color-border: #1f2630;
+  --color-border-strong: #2a3340;
+
+  --color-text: #f3f5f9;
+  --color-text-muted: #97a1b1;
+  --color-text-subtle: #5d6776;
+
+  --color-accent: #34d2bb;
+  --color-accent-dim: #267d70;
+
+  --color-up: #34d399;
+  --color-down: #f87171;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ── Themes ───────────────────────────────────────────────────────────────
+   Dark is the default (the @theme tokens above set :root). A light theme is
+   applied by setting data-theme="light" on <html> — it overrides the same
+   brand tokens, so every var(--color-*) consumer switches automatically. */
+:root { color-scheme: dark; --logo-img: url(/logo.png); }
+
+[data-theme="light"] {
+  color-scheme: light;
+  --logo-img: url(/logo-light.png);
+  --color-bg: #f6f8fb;
+  --color-bg-elev: #ffffff;
+  --color-bg-card: #ffffff;
+  --color-bg-hover: #eef2f7;
+  --color-border: #e3e8ef;
+  --color-border-strong: #cdd5e0;
+
+  --color-text: #0f172a;
+  --color-text-muted: #57636f;
+  --color-text-subtle: #8b96a5;
+
+  --color-accent: #0d9488;
+  --color-accent-dim: #0f766e;
+
+  --color-up: #16a34a;
+  --color-down: #dc2626;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+html, body { background: var(--color-bg); color: var(--color-text); }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+  background-image:
+    radial-gradient(800px 500px at 80% -10%, rgba(52, 210, 187, 0.07), transparent 60%),
+    radial-gradient(700px 400px at 0% 110%, rgba(34, 197, 94, 0.04), transparent 60%);
+  background-attachment: fixed;
 }
+
+[data-theme="light"] body {
+  background-image:
+    radial-gradient(800px 500px at 80% -10%, rgba(13, 148, 136, 0.06), transparent 60%),
+    radial-gradient(700px 400px at 0% 110%, rgba(16, 163, 74, 0.035), transparent 60%);
+}
+
+::selection { background: rgba(52, 210, 187, 0.30); color: white; }
+[data-theme="light"] ::selection { background: rgba(13, 148, 136, 0.22); color: #0f172a; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #1d2430; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #29313f; }
+::-webkit-scrollbar-track { background: transparent; }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: #cbd4df; }
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #b4bfcc; }

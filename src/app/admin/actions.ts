@@ -60,7 +60,11 @@ export async function createCalendarAction(formData: FormData) {
     | "meeting"
     | "deadline";
   const starts_at = String(formData.get("starts_at") ?? "");
-  const notes = String(formData.get("notes") ?? "").trim() || null;
+  const url = String(formData.get("url") ?? "").trim();
+  const rawNotes = String(formData.get("notes") ?? "").trim();
+  // Embed the URL as a sentinel-prefixed first line so the schema doesn't
+  // need a migration; the event card/popup picks the URL out for rendering.
+  const notes = composeEventNotes(url, rawNotes);
   if (!raw || !title || !starts_at) return;
   await data.createCalendarEvent({
     client_id,
@@ -70,7 +74,19 @@ export async function createCalendarAction(formData: FormData) {
     notes,
     created_by: session.user_id,
   });
+  revalidatePath("/admin");
   revalidatePath("/admin/calendar");
+}
+
+// Sentinel-encode the URL into the notes column so the calendar UI can
+// extract it later without a schema change. Format: "[URL] <link>\n\n<body>".
+function composeEventNotes(url: string, body: string): string | null {
+  const trimmedUrl = url.trim();
+  const trimmedBody = body.trim();
+  if (trimmedUrl && trimmedBody) return `[URL] ${trimmedUrl}\n\n${trimmedBody}`;
+  if (trimmedUrl) return `[URL] ${trimmedUrl}`;
+  if (trimmedBody) return trimmedBody;
+  return null;
 }
 
 export async function deleteCalendarAction(formData: FormData) {

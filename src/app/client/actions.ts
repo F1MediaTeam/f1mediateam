@@ -143,13 +143,27 @@ export async function addClientContentAction(formData: FormData) {
   revalidatePath("/admin/content");
 }
 
+// Sentinel-encode an optional URL into the notes column so the schema doesn't
+// need a migration; the calendar UI parses "[URL] <link>" out of the first
+// line for clickable rendering.
+function composeEventNotes(url: string, body: string): string | null {
+  const u = url.trim();
+  const b = body.trim();
+  if (u && b) return `[URL] ${u}\n\n${b}`;
+  if (u) return `[URL] ${u}`;
+  if (b) return b;
+  return null;
+}
+
 export async function createClientCalendarEventAction(formData: FormData) {
   const session = await requireClient();
   if (!session.client_id) return;
   const title = String(formData.get("title") ?? "").trim();
   const starts_at = String(formData.get("starts_at") ?? "").trim();
   const type = String(formData.get("type") ?? "meeting").trim() as "meeting" | "deadline";
-  const notes = String(formData.get("notes") ?? "").trim() || null;
+  const url = String(formData.get("url") ?? "").trim();
+  const rawNotes = String(formData.get("notes") ?? "").trim();
+  const notes = composeEventNotes(url, rawNotes);
   if (!title || !starts_at) return;
   const created = await data.createCalendarEvent({
     client_id: session.client_id,

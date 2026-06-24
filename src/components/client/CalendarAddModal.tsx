@@ -129,6 +129,12 @@ export default function CalendarAddModal({ action }: Props) {
                 <option value="deadline">Deadline</option>
               </select>
               <input name="starts_at" type="datetime-local" required className={field} />
+              <input
+                name="url"
+                type="url"
+                placeholder="Link (e.g. Google Meet, Zoom, or docs URL)"
+                className={field}
+              />
               <textarea name="notes" rows={3} placeholder="Notes (optional)" className={field} />
 
               {/* Attachments */}

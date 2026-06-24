@@ -6,6 +6,7 @@ import Time from "@/components/shared/Time";
 import { approveContentAction, requestChangesAction, addClientContentAction } from "../actions";
 import ContentCardControls from "@/components/shared/ContentCardControls";
 import ContentDetailModal from "@/components/shared/ContentDetailModal";
+import ClientAddContentModal from "@/components/client/ClientAddContentModal";
 import type { ContentStage } from "@/lib/types";
 
 const STAGES: { stage: ContentStage; label: string; tone: "warn" | "accent" | "ok" }[] = [
@@ -34,8 +35,16 @@ export default async function ClientContent() {
         </p>
       </div>
 
-      <div className="mb-4">
-        <AddContentLauncher />
+      {/* Accent + Add content button right-aligned above the Live column.
+          The 3-column grid alignment is replicated here so the button sits
+          directly above the rightmost stage on md+. On mobile it stays
+          right-aligned. */}
+      <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 items-end">
+        <div className="hidden md:block" />
+        <div className="hidden md:block" />
+        <div className="flex justify-end">
+          <ClientAddContentModal action={addClientContentAction} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 items-start">
@@ -109,25 +118,3 @@ export default async function ClientContent() {
   );
 }
 
-function AddContentLauncher() {
-  const inputCls =
-    "w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40";
-  return (
-    <details className="rounded-xl border border-dashed border-[var(--color-border-strong)] bg-[var(--color-bg-elev)]">
-      <summary className="cursor-pointer list-none select-none px-4 py-3 text-sm font-medium text-[var(--color-accent)] flex items-center gap-2">
-        <span className="text-lg leading-none">＋</span> Add content
-      </summary>
-      <form action={addClientContentAction} className="px-4 pb-4 pt-1 space-y-2">
-        <p className="text-[11px] text-[var(--color-text-muted)]">
-          Propose something for us to post or review. It goes to our team as a proposal.
-        </p>
-        <input name="title" required placeholder="Title" className={inputCls} />
-        <input name="link" type="url" placeholder="Optional link (https://…)" className={inputCls} />
-        <textarea name="body" rows={2} placeholder="Notes — what you'd like us to post or review" className={inputCls} />
-        <div className="flex justify-end">
-          <Button size="sm" type="submit">Submit for review</Button>
-        </div>
-      </form>
-    </details>
-  );
-}

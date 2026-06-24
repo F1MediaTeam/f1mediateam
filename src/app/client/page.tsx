@@ -18,6 +18,7 @@ import ContentDetailModal from "@/components/shared/ContentDetailModal";
 import CalendarAddModal from "@/components/client/CalendarAddModal";
 import Time from "@/components/shared/Time";
 import { approveContentAction, requestChangesAction } from "./actions";
+import { parseEventNotes } from "@/lib/calendar-event-url";
 import type { ContentCard } from "@/lib/types";
 
 export default async function ClientHome() {
@@ -152,14 +153,23 @@ export default async function ClientHome() {
                     <div className="space-y-1">
                       {dayEvents.slice(0, 2).map((e) => {
                         const n = attCount.get(e.id) ?? 0;
-                        return (
-                          <div
-                            key={e.id}
-                            title={`${e.title} — ${formatDateTime(e.starts_at)}${n ? ` · ${n} attachment${n === 1 ? "" : "s"}` : ""}`}
-                            className="truncate text-[11px] rounded px-1.5 py-0.5 bg-emerald-500/10 text-emerald-300 flex items-center gap-1"
-                          >
+                        const { url } = parseEventNotes(e.notes);
+                        const cls = "truncate text-[11px] rounded px-1.5 py-0.5 bg-emerald-500/10 text-emerald-300 flex items-center gap-1";
+                        const title = `${e.title} — ${formatDateTime(e.starts_at)}${n ? ` · ${n} attachment${n === 1 ? "" : "s"}` : ""}${url ? ` · ${url}` : ""}`;
+                        const inner = (
+                          <>
                             <span className="truncate flex-1">{e.type === "deadline" ? "◆ " : "● "}{e.title}</span>
+                            {url ? <span className="opacity-80 text-[9px]">↗</span> : null}
                             {n > 0 ? <span className="font-mono text-[9px] opacity-90">📎{n}</span> : null}
+                          </>
+                        );
+                        return url ? (
+                          <a key={e.id} href={url} target="_blank" rel="noopener noreferrer" title={title} className={cls + " hover:brightness-110"}>
+                            {inner}
+                          </a>
+                        ) : (
+                          <div key={e.id} title={title} className={cls}>
+                            {inner}
                           </div>
                         );
                       })}

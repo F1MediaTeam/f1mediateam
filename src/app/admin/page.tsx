@@ -18,6 +18,7 @@ import AdminTaskAddModal from "@/components/admin/AdminTaskAddModal";
 import AdminCalendarAddModal from "@/components/admin/AdminCalendarAddModal";
 import CalendarDayHeader from "@/components/admin/CalendarDayHeader";
 import Greeting from "@/components/admin/Greeting";
+import { parseEventNotes } from "@/lib/calendar-event-url";
 
 function dayBucket(due: string | null, today: string, tomorrow: string, weekEnd: string) {
   if (!due) return "later";
@@ -178,6 +179,7 @@ export default async function AdminDashboard() {
                   const clientLabel = e.client_id
                     ? (clients.find((c) => c.id === e.client_id)?.company_name ?? "—")
                     : "F1 Media (internal)";
+                  const { url } = parseEventNotes(e.notes);
                   return (
                     <div
                       key={e.id}
@@ -192,6 +194,16 @@ export default async function AdminDashboard() {
                           <span className="truncate">{clientLabel}</span>
                           <Pill tone={e.type === "deadline" ? "warn" : "accent"}>{e.type}</Pill>
                         </div>
+                        {url ? (
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-1 inline-block text-[11px] text-[var(--color-accent)] hover:underline truncate max-w-full"
+                          >
+                            {url.replace(/^https?:\/\//, "")} ↗
+                          </a>
+                        ) : null}
                       </div>
                       <form action={deleteCalendarAction}>
                         <input type="hidden" name="id" value={e.id} />
@@ -246,15 +258,33 @@ export default async function AdminDashboard() {
                         <div className="space-y-1 mt-1 flex-1 overflow-hidden">
                           {dayEvents.slice(0, 5).map((e) => {
                             const p = colorForClient(e.client_id);
-                            return (
+                            const { url } = parseEventNotes(e.notes);
+                            const inner = (
+                              <>
+                                <div className="font-medium truncate">
+                                  {e.type === "deadline" ? "◆" : "●"} {e.title}
+                                  {url ? <span className="ml-1 opacity-70">↗</span> : null}
+                                </div>
+                              </>
+                            );
+                            return url ? (
+                              <a
+                                key={e.id}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`block text-[11px] rounded px-1.5 py-1 ${p.bg} ${p.text} leading-tight hover:brightness-110`}
+                                title={`${e.title} — ${formatDateTime(e.starts_at)} · ${url}`}
+                              >
+                                {inner}
+                              </a>
+                            ) : (
                               <div
                                 key={e.id}
                                 className={`text-[11px] rounded px-1.5 py-1 ${p.bg} ${p.text} leading-tight`}
                                 title={`${e.title} — ${formatDateTime(e.starts_at)}`}
                               >
-                                <div className="font-medium truncate">
-                                  {e.type === "deadline" ? "◆" : "●"} {e.title}
-                                </div>
+                                {inner}
                               </div>
                             );
                           })}

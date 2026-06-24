@@ -430,3 +430,32 @@ export async function semrushDeepPullForClient(clientId: string): Promise<{ doma
   const reports = await semrushDeepPull(creds.access_token, domain);
   return { domain, reports };
 }
+
+/**
+ * Run a deep pull for one client AND persist every report. Shared by the admin
+ * "Run deep pull" button and the monthly cron. Returns null if the client has
+ * no Semrush connector. Estimated units are summed across reports.
+ */
+export async function syncSemrushDeepPull(
+  clientId: string,
+): Promise<{ domain: string; reports: number; units: number } | null> {
+  const result = await semrushDeepPullForClient(clientId);
+  if (!result) return null;
+  let units = 0;
+  for (const r of result.reports) {
+    units += r.units_estimate;
+    await data.upsertSemrushReport({
+      client_id: clientId,
+      report_type: r.report_type,
+      rows: r.rows,
+      meta: {
+        label: r.label,
+        domain: result.domain,
+        row_count: r.row_count,
+        units_estimate: r.units_estimate,
+        error: r.error,
+      },
+    });
+  }
+  return { domain: result.domain, reports: result.reports.length, units };
+}

@@ -71,7 +71,7 @@ export default function NotificationDropdown({ items }: Props) {
       >
         <span className="text-xl leading-none" aria-hidden>🔔</span>
         {count > 0 ? (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold leading-none flex items-center justify-center tabular-nums shadow-sm ring-2 ring-[var(--color-bg-elev)]">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-[var(--color-text)] text-[10px] font-semibold leading-none flex items-center justify-center tabular-nums shadow-sm ring-2 ring-[var(--color-bg-elev)]">
             {count > 99 ? "99+" : count}
           </span>
         ) : null}

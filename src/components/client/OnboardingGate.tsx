@@ -51,7 +51,7 @@ function YesNo({
             className={
               "px-3 py-1 rounded-md text-xs border " +
               (value === v
-                ? "border-black bg-black text-white"
+                ? "border-black bg-black text-[var(--color-text)]"
                 : "border-black/30 text-black/60 hover:border-black/60")
             }
           >
@@ -422,7 +422,7 @@ export default function OnboardingGate({ version, userName }: Props) {
           <button
             type="submit"
             disabled={!accepted || pending}
-            className="mt-5 w-full rounded-md bg-black py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="mt-5 w-full rounded-md bg-black py-3 text-sm font-semibold text-[var(--color-text)] transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {pending ? "Saving…" : "Submit & enter dashboard"}
           </button>

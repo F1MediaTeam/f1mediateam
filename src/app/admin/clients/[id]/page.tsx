@@ -54,7 +54,7 @@ export default async function ClientProfile({
     <AdminShell session={session} active="/admin/clients">
       <LiveSyncTrigger clientId={id} />
       <div className="px-8 py-8 max-w-[1600px]">
-        <Link href="/admin/clients" className="text-xs text-[var(--color-text-muted)] hover:text-white">
+        <Link href="/admin/clients" className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
           ← All clients
         </Link>
         <div className="mt-2 mb-8 flex items-end justify-between">

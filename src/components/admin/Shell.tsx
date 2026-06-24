@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Logo from "@/components/shared/Logo";
 import MobileNavMenu from "@/components/shared/MobileNavMenu";
+import ThemeToggle from "@/components/shared/ThemeToggle";
 import type { Session } from "@/lib/data";
 
 const NAV = [
@@ -29,7 +30,10 @@ export default function AdminShell({
         <Link href="/admin" className="flex items-center gap-2">
           <Logo compact width={140} height={40} />
         </Link>
-        <MobileNavMenu items={NAV} active={active} heading="Admin console" />
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <MobileNavMenu items={NAV} active={active} heading="Admin console" />
+        </div>
       </header>
 
       {/* Desktop sidebar — hidden on mobile. */}
@@ -53,8 +57,8 @@ export default function AdminShell({
                 className={
                   "px-3 py-2 rounded-lg text-sm transition " +
                   (isActive
-                    ? "bg-[var(--color-bg-hover)] text-white"
-                    : "text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-white")
+                    ? "bg-[var(--color-bg-hover)] text-[var(--color-text)]"
+                    : "text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)]")
                 }
               >
                 {item.label}
@@ -62,6 +66,11 @@ export default function AdminShell({
             );
           })}
         </nav>
+
+        <div className="mt-auto flex items-center justify-between gap-2 border-t border-[var(--color-border)] p-3">
+          <span className="truncate text-[11px] text-[var(--color-text-subtle)]">{session.email}</span>
+          <ThemeToggle />
+        </div>
       </aside>
 
       <main className="flex-1 min-w-0">{children}</main>

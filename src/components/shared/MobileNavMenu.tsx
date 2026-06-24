@@ -73,7 +73,7 @@ export default function MobileNavMenu({ items, active, heading, ariaLabel = "Ope
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close menu"
-                className="text-2xl leading-none text-[var(--color-text-muted)] hover:text-white"
+                className="text-2xl leading-none text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
               >
                 ×
               </button>
@@ -89,8 +89,8 @@ export default function MobileNavMenu({ items, active, heading, ariaLabel = "Ope
                     className={
                       "px-3 py-3 rounded-lg text-base transition " +
                       (isActive
-                        ? "bg-[var(--color-bg-hover)] text-white"
-                        : "text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-white")
+                        ? "bg-[var(--color-bg-hover)] text-[var(--color-text)]"
+                        : "text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)]")
                     }
                   >
                     {item.label}

@@ -357,7 +357,7 @@ function TaskColumn({
                       <input type="hidden" name="status" value={t.status} />
                       <button
                         title="Mark done"
-                        className="h-7 w-7 grid place-items-center rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-white hover:border-[var(--color-accent)]"
+                        className="h-7 w-7 grid place-items-center rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-accent)]"
                       >
                         ✓
                       </button>

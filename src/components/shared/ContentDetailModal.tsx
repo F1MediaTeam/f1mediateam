@@ -123,7 +123,7 @@ export default function ContentDetailModal(props: ContentDetailModalProps) {
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close"
-                className="text-2xl leading-none text-[var(--color-text-muted)] hover:text-white transition shrink-0"
+                className="text-2xl leading-none text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition shrink-0"
               >
                 ×
               </button>

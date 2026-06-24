@@ -22,8 +22,8 @@ export default function LoginForm({ allowSignup = true }: { allowSignup?: boolea
             className={cn(
               "flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition",
               mode === "signin"
-                ? "bg-[var(--color-bg-hover)] text-white"
-                : "text-[var(--color-text-muted)] hover:text-white",
+                ? "bg-[var(--color-bg-hover)] text-[var(--color-text)]"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]",
             )}
           >
             Sign in
@@ -34,8 +34,8 @@ export default function LoginForm({ allowSignup = true }: { allowSignup?: boolea
             className={cn(
               "flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition",
               mode === "signup"
-                ? "bg-[var(--color-bg-hover)] text-white"
-                : "text-[var(--color-text-muted)] hover:text-white",
+                ? "bg-[var(--color-bg-hover)] text-[var(--color-text)]"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]",
             )}
           >
             Create account

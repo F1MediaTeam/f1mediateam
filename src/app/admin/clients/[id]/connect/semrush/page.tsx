@@ -21,7 +21,7 @@ export default async function ConnectSemrushPage({
       <div className="px-8 py-8 max-w-2xl">
         <Link
           href={`/admin/clients/${id}`}
-          className="text-xs text-[var(--color-text-muted)] hover:text-white"
+          className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
         >
           ← Back to {client.company_name}
         </Link>
@@ -68,7 +68,7 @@ export default async function ConnectSemrushPage({
                 <Button type="submit">Connect</Button>
                 <Link
                   href={`/admin/clients/${id}`}
-                  className="text-xs text-[var(--color-text-muted)] hover:text-white px-3 py-2"
+                  className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] px-3 py-2"
                 >
                   Cancel
                 </Link>

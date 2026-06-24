@@ -53,7 +53,7 @@ export default function AdminClientAddModal({ action }: Props) {
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close"
-                className="text-2xl leading-none text-[var(--color-text-muted)] hover:text-white transition"
+                className="text-2xl leading-none text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition"
               >
                 ×
               </button>

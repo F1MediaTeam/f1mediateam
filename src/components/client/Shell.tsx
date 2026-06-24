@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { signOutAction } from "@/app/login/actions";
 import Logo from "@/components/shared/Logo";
 import MobileNavMenu from "@/components/shared/MobileNavMenu";
+import ThemeToggle from "@/components/shared/ThemeToggle";
 import ImpersonationBanner from "@/components/client/ImpersonationBanner";
 import NotificationBell from "@/components/client/NotificationBell";
 import type { Session } from "@/lib/data";
@@ -46,8 +47,8 @@ export default function ClientShell({
                 className={
                   "px-3 py-1.5 rounded-lg text-sm transition " +
                   (active === item.href
-                    ? "bg-[var(--color-bg-hover)] text-white"
-                    : "text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-white")
+                    ? "bg-[var(--color-bg-hover)] text-[var(--color-text)]"
+                    : "text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)]")
                 }
               >
                 {item.label}
@@ -59,8 +60,9 @@ export default function ClientShell({
             <Suspense fallback={<div className="w-9 h-9" />}>
               <NotificationBell clientId={client.id} />
             </Suspense>
+            <ThemeToggle />
             <form action={signOutAction}>
-              <button className="text-[var(--color-text-muted)] hover:text-white px-2 py-1">Sign out</button>
+              <button className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] px-2 py-1">Sign out</button>
             </form>
             {/* Mobile hamburger — shows the same nav items as desktop. */}
             <MobileNavMenu items={NAV} active={active} heading={client.company_name} />

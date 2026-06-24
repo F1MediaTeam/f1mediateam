@@ -27,7 +27,7 @@ export default async function ClientLayout({ children }: { children: React.React
             Once that's done, refresh this page to see your dashboard.
           </p>
           <form action={signOutAction} className="mt-6">
-            <button className="text-xs text-[var(--color-text-muted)] hover:text-white">
+            <button className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
               Sign out
             </button>
           </form>

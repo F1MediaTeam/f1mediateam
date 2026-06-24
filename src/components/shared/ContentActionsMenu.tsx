@@ -49,7 +49,7 @@ export default function ContentActionsMenu({ items, ariaLabel = "Card actions" }
         }}
         aria-label={ariaLabel}
         aria-expanded={open}
-        className="h-7 w-7 grid place-items-center rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-white hover:bg-[var(--color-bg-hover)]"
+        className="h-7 w-7 grid place-items-center rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)]"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
           <circle cx="5" cy="12" r="2" />

@@ -123,7 +123,7 @@ function EditModal({
       >
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-lg font-semibold">Edit content</h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-2xl leading-none text-[var(--color-text-muted)] hover:text-white">×</button>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-2xl leading-none text-[var(--color-text-muted)] hover:text-[var(--color-text)]">×</button>
         </div>
         <form action={action} onSubmit={onClose} className="space-y-3.5">
           <input type="hidden" name="id" value={card.id} />
@@ -214,7 +214,7 @@ function RequestChangesModal({
       >
         <div className="flex items-start justify-between mb-2">
           <h3 className="text-2xl font-semibold tracking-tight">Request changes</h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-3xl leading-none text-[var(--color-text-muted)] hover:text-white -mt-2">×</button>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-3xl leading-none text-[var(--color-text-muted)] hover:text-[var(--color-text)] -mt-2">×</button>
         </div>
         <p className="text-sm text-[var(--color-text-muted)] mb-6 truncate">On: {cardTitle}</p>
 

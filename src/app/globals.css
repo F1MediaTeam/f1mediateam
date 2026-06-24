@@ -33,9 +33,9 @@
   color-scheme: light;
   --logo-img: url(/logo-light.png);
   --color-bg: #ffffff;        /* page = pure white */
-  --color-bg-elev: #f1f4f8;   /* cards = light grey on white */
-  --color-bg-card: #f1f4f8;
-  --color-bg-hover: #e6eaf0;
+  --color-bg-elev: #e8ecf2;   /* cards = light grey on white */
+  --color-bg-card: #e8ecf2;
+  --color-bg-hover: #dde2e9;
   --color-border: #e3e8ef;
   --color-border-strong: #cdd5e0;
 

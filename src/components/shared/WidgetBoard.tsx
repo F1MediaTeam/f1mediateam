@@ -1,0 +1,221 @@
+"use client";
+
+// Drag-and-drop widget board. Wraps a set of children, each tagged with a
+// stable widgetId, and lets the user reorder them via drag + hide individual
+// ones via an × button in each tile's top-right. A hidden-widget list lives
+// in the footer with click-to-restore. Layout (order + hidden set) is
+// persisted to localStorage under a caller-provided storageKey.
+//
+// Lightweight: uses @dnd-kit/sortable with a horizontal-and-vertical grid
+// strategy, so it works inside a CSS grid that has multiple columns and
+// rows.
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+export interface WidgetSlot {
+  id: string;
+  label: string;            // shown in the +Add widget menu
+  fullWidth?: boolean;      // span all columns
+  node: React.ReactNode;    // pre-rendered panel content
+}
+
+interface Props {
+  storageKey: string;
+  widgets: WidgetSlot[];
+  /** Tailwind grid classes for the inner container — caller controls cols/gap. */
+  gridClassName?: string;
+}
+
+interface PersistedLayout {
+  order: string[];
+  hidden: string[];
+}
+
+function loadLayout(key: string): PersistedLayout {
+  if (typeof window === "undefined") return { order: [], hidden: [] };
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return { order: [], hidden: [] };
+    const parsed = JSON.parse(raw) as PersistedLayout;
+    return {
+      order: Array.isArray(parsed.order) ? parsed.order : [],
+      hidden: Array.isArray(parsed.hidden) ? parsed.hidden : [],
+    };
+  } catch {
+    return { order: [], hidden: [] };
+  }
+}
+
+function saveLayout(key: string, layout: PersistedLayout) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(layout));
+  } catch {
+    /* localStorage full / disabled — ignore */
+  }
+}
+
+export default function WidgetBoard({ storageKey, widgets, gridClassName }: Props) {
+  // Server render uses the natural order; client hydrates with persisted
+  // layout via the useEffect below so we don't mismatch SSR markup.
+  const [order, setOrder] = useState<string[]>(() => widgets.map((w) => w.id));
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    const saved = loadLayout(storageKey);
+    const known = new Set(widgets.map((w) => w.id));
+    const ordered = saved.order.filter((id) => known.has(id));
+    const missing = widgets.map((w) => w.id).filter((id) => !ordered.includes(id));
+    setOrder([...ordered, ...missing]);
+    setHidden(new Set(saved.hidden.filter((id) => known.has(id))));
+    setHydrated(true);
+  }, [storageKey, widgets]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    saveLayout(storageKey, { order, hidden: Array.from(hidden) });
+  }, [order, hidden, hydrated, storageKey]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setOrder((cur) => {
+      const fromIdx = cur.indexOf(active.id as string);
+      const toIdx = cur.indexOf(over.id as string);
+      if (fromIdx < 0 || toIdx < 0) return cur;
+      const next = cur.slice();
+      next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, active.id as string);
+      return next;
+    });
+  }
+
+  const byId = useMemo(() => new Map(widgets.map((w) => [w.id, w] as const)), [widgets]);
+  const visibleIds = order.filter((id) => !hidden.has(id));
+  const hiddenList = widgets.filter((w) => hidden.has(w.id));
+
+  return (
+    <div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={visibleIds} strategy={rectSortingStrategy}>
+          <div className={gridClassName ?? "grid grid-cols-1 lg:grid-cols-2 gap-4"}>
+            {visibleIds.map((id) => {
+              const w = byId.get(id);
+              if (!w) return null;
+              return (
+                <SortableWidget
+                  key={id}
+                  id={id}
+                  fullWidth={w.fullWidth}
+                  onHide={() => setHidden((cur) => new Set(cur).add(id))}
+                >
+                  {w.node}
+                </SortableWidget>
+              );
+            })}
+          </div>
+        </SortableContext>
+      </DndContext>
+
+      {hiddenList.length > 0 ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mr-1">
+            + Add widget
+          </span>
+          {hiddenList.map((w) => (
+            <button
+              key={w.id}
+              type="button"
+              onClick={() => {
+                setHidden((cur) => {
+                  const next = new Set(cur);
+                  next.delete(w.id);
+                  return next;
+                });
+                setOrder((cur) => (cur.includes(w.id) ? cur : [...cur, w.id]));
+              }}
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] hover:bg-[var(--color-bg-hover)] px-2.5 py-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            >
+              <span className="leading-none">＋</span> {w.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SortableWidget({
+  id,
+  fullWidth,
+  onHide,
+  children,
+}: {
+  id: string;
+  fullWidth?: boolean;
+  onHide: () => void;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 30 : undefined,
+    opacity: isDragging ? 0.85 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className={`relative group ${fullWidth ? "lg:col-span-2" : ""}`}>
+      {/* Drag handle: top-left corner, only visible on hover/focus. Listeners
+          are attached here (not the whole tile) so clicking inside the panel
+          content doesn't trigger drag. */}
+      <button
+        type="button"
+        aria-label="Drag to reorder"
+        {...attributes}
+        {...listeners}
+        className="absolute left-1.5 top-1.5 z-20 hidden group-hover:flex group-focus-within:flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] cursor-grab active:cursor-grabbing touch-none"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <circle cx="8" cy="6" r="1.5" /><circle cx="16" cy="6" r="1.5" />
+          <circle cx="8" cy="12" r="1.5" /><circle cx="16" cy="12" r="1.5" />
+          <circle cx="8" cy="18" r="1.5" /><circle cx="16" cy="18" r="1.5" />
+        </svg>
+      </button>
+
+      {/* Hide (×) button: top-right corner, also hover-only. */}
+      <button
+        type="button"
+        onClick={onHide}
+        aria-label="Hide widget"
+        className="absolute right-1.5 top-1.5 z-20 hidden group-hover:flex group-focus-within:flex h-7 w-7 items-center justify-center rounded-md border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] text-[var(--color-text-muted)] hover:text-red-300 hover:border-red-500/40"
+      >
+        ×
+      </button>
+
+      {children}
+    </div>
+  );
+}

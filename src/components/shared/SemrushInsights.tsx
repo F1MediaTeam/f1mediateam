@@ -7,6 +7,7 @@
 "use client";
 
 import TrendChart from "@/components/shared/TrendChart";
+import WidgetBoard, { type WidgetSlot } from "@/components/shared/WidgetBoard";
 import type { SemrushChartData, ChartSeries } from "@/lib/semrush-charts";
 
 function fmt(n: number): string {
@@ -101,49 +102,85 @@ export default function SemrushInsights({ data }: { data: SemrushChartData }) {
     );
   }
 
-  return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {data.authority ? (
-        <div className="lg:col-span-2">
-          <Panel title="Authority Score" subtitle="Backlink authority over time">
-            <TrendChart
-              points={data.authority}
-              height={220}
-              formatter={(v) => String(Math.round(v))}
-            />
-          </Panel>
-        </div>
-      ) : null}
-
-      {data.positions ? (
+  // Each panel becomes a widget slot. The WidgetBoard wrapper gives every
+  // tile a hover-revealed drag handle + × button and persists the order /
+  // hidden set to localStorage. We only include panels that have data — the
+  // user can still hide ones they don't care about and bring them back via
+  // the + Add widget pills.
+  const widgets: WidgetSlot[] = [];
+  if (data.authority) {
+    widgets.push({
+      id: "authority",
+      label: "Authority Score",
+      fullWidth: true,
+      node: (
+        <Panel title="Authority Score" subtitle="Backlink authority over time">
+          <TrendChart points={data.authority} height={220} formatter={(v) => String(Math.round(v))} />
+        </Panel>
+      ),
+    });
+  }
+  if (data.positions) {
+    widgets.push({
+      id: "positions",
+      label: "Keyword positions",
+      node: (
         <Panel title="Keyword positions" subtitle="Organic keywords by ranking bucket">
           <HBars series={data.positions} />
         </Panel>
-      ) : null}
-
-      {data.topKeywords ? (
+      ),
+    });
+  }
+  if (data.topKeywords) {
+    widgets.push({
+      id: "top-keywords",
+      label: "Top keywords",
+      node: (
         <Panel title="Top keywords" subtitle="By share of organic traffic">
           <HBars series={data.topKeywords} />
         </Panel>
-      ) : null}
-
-      {data.backlinkProfile ? (
+      ),
+    });
+  }
+  if (data.backlinkProfile) {
+    widgets.push({
+      id: "backlink-profile",
+      label: "Backlink profile",
+      node: (
         <Panel title="Backlink profile" subtitle="Follow vs nofollow">
           <Donut follow={data.backlinkProfile.follow} nofollow={data.backlinkProfile.nofollow} />
         </Panel>
-      ) : null}
-
-      {data.refDomains ? (
+      ),
+    });
+  }
+  if (data.refDomains) {
+    widgets.push({
+      id: "ref-domains",
+      label: "Top referring domains",
+      node: (
         <Panel title="Top referring domains" subtitle="By number of backlinks">
           <HBars series={data.refDomains} accent="var(--color-up)" />
         </Panel>
-      ) : null}
-
-      {data.competitors ? (
+      ),
+    });
+  }
+  if (data.competitors) {
+    widgets.push({
+      id: "competitors",
+      label: "Organic competitors",
+      node: (
         <Panel title="Organic competitors" subtitle="By shared keywords">
           <HBars series={data.competitors} accent="var(--color-up)" />
         </Panel>
-      ) : null}
-    </div>
+      ),
+    });
+  }
+
+  return (
+    <WidgetBoard
+      storageKey="f1.semrush-insights.layout.v1"
+      widgets={widgets}
+      gridClassName="grid grid-cols-1 gap-4 lg:grid-cols-2"
+    />
   );
 }

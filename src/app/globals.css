@@ -50,11 +50,11 @@
 [data-theme="light"] {
   color-scheme: light;
   --logo-img: url(/logo-light.png);
-  --color-bg: #ffffff;        /* page = pure white */
-  --color-bg-card: #e8ecf2;   /* outer container = light grey "tray" */
-  --color-bg-elev: #ffffff;   /* inner cards = white, pop on the tray */
-  --color-bg-hover: #f1f4f8;
-  --color-border: #cdd5e0;        /* sharper borders so white-on-grey reads cleanly */
+  --color-bg: #e8ecf2;        /* page = light grey "canvas" */
+  --color-bg-card: #ffffff;   /* cards / panels = white, pop above the grey page */
+  --color-bg-elev: #e8ecf2;   /* nested items "recess" back to the canvas grey */
+  --color-bg-hover: #d8dde5;
+  --color-border: #cdd5e0;        /* keeps a clean edge where two whites meet */
   --color-border-strong: #aab4c2;
 
   --color-text: #0f172a;

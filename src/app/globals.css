@@ -13,11 +13,21 @@
   --color-text-muted: #97a1b1;
   --color-text-subtle: #5d6776;
 
-  --color-accent: #34d2bb;
-  --color-accent-dim: #267d70;
+  --color-accent: #3f8e84;        /* unified brand teal — used everywhere a "green" appears */
+  --color-accent-dim: #2d6862;
+  --color-accent-soft: rgba(63, 142, 132, 0.18);
 
-  --color-up: #34d399;
-  --color-down: #f87171;
+  --color-up: #3f8e84;             /* "good" deltas use the same brand teal */
+  --color-down: #dc2626;
+
+  /* Override Tailwind's emerald palette so every inline emerald-* class
+     resolves to the brand teal — keeps shade gradation for opacity/hierarchy
+     without scattering the literal hex across components. */
+  --color-emerald-300: #5fa89f;
+  --color-emerald-400: #4f9a8f;
+  --color-emerald-500: #3f8e84;
+  --color-emerald-600: #2d6862;
+  --color-emerald-700: #1f4d49;
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
@@ -43,10 +53,11 @@
   --color-text-muted: #3f4a57;    /* darker for ~7:1 contrast on grey */
   --color-text-subtle: #5a6573;   /* darker for readability of timestamps */
 
-  --color-accent: #0d9488;
-  --color-accent-dim: #0f766e;
+  --color-accent: #3f8e84;
+  --color-accent-dim: #2d6862;
+  --color-accent-soft: rgba(63, 142, 132, 0.14);
 
-  --color-up: #16a34a;
+  --color-up: #3f8e84;
   --color-down: #dc2626;
 }
 
@@ -55,19 +66,19 @@ html, body { background: var(--color-bg); color: var(--color-text); }
 body {
   font-feature-settings: "ss01", "cv11";
   background-image:
-    radial-gradient(800px 500px at 80% -10%, rgba(52, 210, 187, 0.07), transparent 60%),
-    radial-gradient(700px 400px at 0% 110%, rgba(34, 197, 94, 0.04), transparent 60%);
+    radial-gradient(800px 500px at 80% -10%, rgba(63, 142, 132, 0.10), transparent 60%),
+    radial-gradient(700px 400px at 0% 110%, rgba(63, 142, 132, 0.05), transparent 60%);
   background-attachment: fixed;
 }
 
 [data-theme="light"] body {
   background-image:
-    radial-gradient(800px 500px at 80% -10%, rgba(13, 148, 136, 0.06), transparent 60%),
-    radial-gradient(700px 400px at 0% 110%, rgba(16, 163, 74, 0.035), transparent 60%);
+    radial-gradient(800px 500px at 80% -10%, rgba(63, 142, 132, 0.06), transparent 60%),
+    radial-gradient(700px 400px at 0% 110%, rgba(63, 142, 132, 0.035), transparent 60%);
 }
 
-::selection { background: rgba(52, 210, 187, 0.30); color: white; }
-[data-theme="light"] ::selection { background: rgba(13, 148, 136, 0.22); color: #0f172a; }
+::selection { background: rgba(63, 142, 132, 0.30); color: white; }
+[data-theme="light"] ::selection { background: rgba(63, 142, 132, 0.22); color: #0f172a; }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #1d2430; border-radius: 999px; }

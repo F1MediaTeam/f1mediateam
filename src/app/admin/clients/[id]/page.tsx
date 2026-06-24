@@ -58,10 +58,10 @@ export default async function ClientProfile({
         <Link href="/admin/clients" className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
           ← All clients
         </Link>
-        <div className="mt-2 mb-8 flex items-end justify-between">
-          <div>
+        <div className="mt-2 mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
             <h1 className="text-3xl font-semibold tracking-tight">{client.company_name}</h1>
-            <div className="mt-1 text-sm text-[var(--color-text-muted)] flex items-center gap-3">
+            <div className="mt-1 text-sm text-[var(--color-text-muted)] flex flex-wrap items-center gap-x-3 gap-y-1">
               <span>Joined <Time iso={client.join_date} dateOnly /></span>
               {client.websites.map((w) => (
                 <a
@@ -76,17 +76,17 @@ export default async function ClientProfile({
               ))}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 sm:shrink-0">
             <ImpersonateButton clientId={client.id} clientName={client.company_name} />
             <Link
               href={`/admin/reports?client=${client.id}`}
-              className="rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] hover:bg-[var(--color-bg-hover)] px-4 py-2 text-sm"
+              className="rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] hover:bg-[var(--color-bg-hover)] px-4 py-2 text-sm whitespace-nowrap"
             >
               Build report
             </Link>
             <Link
               href={`/admin/meeting-deck?client=${client.id}`}
-              className="rounded-lg bg-[var(--color-accent)] text-black hover:opacity-90 px-4 py-2 text-sm font-medium"
+              className="rounded-lg bg-[var(--color-accent)] text-black hover:opacity-90 px-4 py-2 text-sm font-medium whitespace-nowrap"
             >
               Meeting deck
             </Link>

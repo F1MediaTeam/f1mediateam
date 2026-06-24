@@ -1,12 +1,12 @@
-// Site logo. Source is /public/logo.png — a square image with the F1 Media
-// Team mark glowing on a soft gray field.
+// Site logo. Theme-aware via the --logo-img CSS variable (see globals.css):
+//   dark theme  → /logo.png       (light mark on a soft gray field)
+//   light theme → /logo-light.png (dark mark, reads on light backgrounds)
 //
 // Two presentations:
-//   <Logo />          — full square art (use on login + splash surfaces)
-//   <Logo compact />  — bg-image with center-crop so only the horizontal
-//                       logo band shows. Good for headers/sidebars.
+//   <Logo />          — full square art (login + splash surfaces)
+//   <Logo compact />  — center-cropped so only the horizontal logo band shows
+//                       (headers / sidebars).
 
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -19,9 +19,9 @@ interface Props {
 
 export default function Logo({ compact, className, size = 360, height = 52, width = 200 }: Props) {
   if (compact) {
-    // background-image with bg-size > container height lets us crop the
-    // empty top/bottom of the square art and show only the logo band.
-    const bgScale = Math.round(width * 1.0); // image width when scaled
+    // background-image with bg-size > container height crops the empty
+    // top/bottom of the square art so only the logo band shows.
+    const bgScale = Math.round(width * 1.0);
     return (
       <div
         role="img"
@@ -30,7 +30,7 @@ export default function Logo({ compact, className, size = 360, height = 52, widt
         style={{
           width,
           height,
-          backgroundImage: "url(/logo.png)",
+          backgroundImage: "var(--logo-img)",
           backgroundSize: `${bgScale}px auto`,
         }}
       />
@@ -38,13 +38,16 @@ export default function Logo({ compact, className, size = 360, height = 52, widt
   }
 
   return (
-    <Image
-      src="/logo.png"
-      alt="F1 Media Team"
-      width={size}
-      height={size}
-      priority
-      className={cn("select-none", className)}
+    <div
+      role="img"
+      aria-label="F1 Media Team"
+      className={cn("select-none bg-center bg-no-repeat", className)}
+      style={{
+        width: size,
+        height: size,
+        backgroundImage: "var(--logo-img)",
+        backgroundSize: "contain",
+      }}
     />
   );
 }

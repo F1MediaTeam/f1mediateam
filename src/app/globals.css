@@ -27,10 +27,11 @@
    Dark is the default (the @theme tokens above set :root). A light theme is
    applied by setting data-theme="light" on <html> — it overrides the same
    brand tokens, so every var(--color-*) consumer switches automatically. */
-:root { color-scheme: dark; }
+:root { color-scheme: dark; --logo-img: url(/logo.png); }
 
 [data-theme="light"] {
   color-scheme: light;
+  --logo-img: url(/logo-light.png);
   --color-bg: #f6f8fb;
   --color-bg-elev: #ffffff;
   --color-bg-card: #ffffff;

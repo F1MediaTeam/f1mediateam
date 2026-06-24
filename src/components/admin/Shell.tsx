@@ -73,7 +73,7 @@ export default function AdminShell({
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0">{children}</main>
+      <main className="flex-1 min-w-0 overflow-x-clip">{children}</main>
     </div>
   );
 }

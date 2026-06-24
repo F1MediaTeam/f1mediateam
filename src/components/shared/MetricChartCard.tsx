@@ -75,8 +75,8 @@ export default function MetricChartCard({
         title={label}
         subtitle={hint}
         right={
-          <div className="flex items-center gap-3">
-            <div className="inline-flex rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] p-1 gap-1">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {RANGES.map((r) => {
                 const active = range === r.value;
                 return (
@@ -85,7 +85,7 @@ export default function MetricChartCard({
                     type="button"
                     onClick={() => setRange(r.value)}
                     className={
-                      "px-2.5 py-1 text-[11px] font-medium rounded-md transition " +
+                      "shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-medium transition " +
                       (active
                         ? "bg-[var(--color-accent)] text-black"
                         : "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)]")
@@ -103,35 +103,35 @@ export default function MetricChartCard({
         }
       />
       <CardBody>
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/5 px-4 py-3">
-            <div className="text-[10px] uppercase tracking-widest text-[var(--color-accent)]">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+          <div className="min-w-0 rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/5 px-3 py-2.5 sm:px-4 sm:py-3">
+            <div className="text-[10px] uppercase tracking-widest text-[var(--color-accent)] truncate">
               {aggregateLabel}
             </div>
-            <div className="mt-1 text-xl font-semibold tabular-nums tracking-tight">
+            <div className="mt-1 text-base sm:text-xl font-semibold tabular-nums tracking-tight">
               {fmtBig(aggregated)}{unit}
             </div>
           </div>
-          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-4 py-3">
+          <div className="min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2.5 sm:px-4 sm:py-3">
             <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
               Baseline
             </div>
-            <div className="mt-1 text-xl font-semibold tabular-nums">{fmt(first.value)}{unit}</div>
-            <div className="text-[10px] text-[var(--color-text-subtle)] mt-0.5">
+            <div className="mt-1 text-base sm:text-xl font-semibold tabular-nums">{fmt(first.value)}{unit}</div>
+            <div className="text-[10px] text-[var(--color-text-subtle)] mt-0.5 truncate">
               {formatDate(first.captured_at)}
             </div>
           </div>
-          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-4 py-3">
+          <div className="min-w-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2.5 sm:px-4 sm:py-3">
             <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
               Current
             </div>
-            <div className="mt-1 text-xl font-semibold tabular-nums">{fmt(last.value)}{unit}</div>
-            <div className="text-[10px] text-[var(--color-text-subtle)] mt-0.5">
+            <div className="mt-1 text-base sm:text-xl font-semibold tabular-nums">{fmt(last.value)}{unit}</div>
+            <div className="text-[10px] text-[var(--color-text-subtle)] mt-0.5 truncate">
               {formatDate(last.captured_at)}
             </div>
           </div>
         </div>
-        <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-4">
+        <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-2 sm:p-4">
           <TrendChart
             points={windowed.map((s) => ({ date: s.captured_at, value: s.value }))}
             baseline={first.value}

@@ -32,14 +32,14 @@ export function CardHeader({
   right?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-3">
-      <div>
+    <div className="flex flex-col gap-3 px-4 pt-5 pb-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-6">
+      <div className="min-w-0">
         <div className="text-base font-semibold tracking-tight">{title}</div>
         {subtitle ? (
           <div className="text-xs text-[var(--color-text-muted)] mt-0.5">{subtitle}</div>
         ) : null}
       </div>
-      {right ? <div className="shrink-0">{right}</div> : null}
+      {right ? <div className="min-w-0 max-w-full sm:shrink-0">{right}</div> : null}
     </div>
   );
 }
@@ -51,7 +51,7 @@ export function CardBody({
   className?: string;
   children: React.ReactNode;
 }) {
-  return <div className={cn("px-6 pb-6", className)}>{children}</div>;
+  return <div className={cn("px-4 pb-6 sm:px-6", className)}>{children}</div>;
 }
 
 export function Stat({

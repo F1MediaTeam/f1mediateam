@@ -210,8 +210,8 @@ export default function GscDashboard(props: Props) {
   return (
     <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-elev)]/60 overflow-hidden">
       {/* Range pills row */}
-      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--color-border)]">
-        <div className="inline-flex rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg)] p-1 gap-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 px-4 py-3 border-b border-[var(--color-border)]">
+        <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg)] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {RANGES.map((r) => {
             const active = range === r.value;
             return (
@@ -220,7 +220,7 @@ export default function GscDashboard(props: Props) {
                 type="button"
                 onClick={() => setRange(r.value)}
                 className={
-                  "px-3 py-1 text-xs font-medium rounded-md transition " +
+                  "shrink-0 whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium transition " +
                   (active
                     ? "bg-[var(--color-accent)] text-black"
                     : "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)]")

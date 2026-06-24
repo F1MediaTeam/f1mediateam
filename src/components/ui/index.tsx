@@ -99,11 +99,16 @@ export function Pill({
   tone?: "default" | "accent" | "warn" | "danger" | "ok";
   className?: string;
 }) {
+  // All status pills collapse to the brand teal — the label text communicates
+  // the stage, the color stays consistent so the dashboard reads as one
+  // palette. Danger keeps the red treatment so destructive states stay legible.
+  const brand =
+    "border-[var(--color-accent)]/40 text-[var(--color-accent)] bg-[var(--color-accent)]/10";
   const tones: Record<string, string> = {
     default: "border-[var(--color-border)] text-[var(--color-text-muted)]",
-    accent: "border-[var(--color-accent)]/40 text-[var(--color-accent)] bg-[var(--color-accent)]/10",
-    ok: "border-emerald-500/30 text-emerald-300 bg-emerald-500/10",
-    warn: "border-amber-500/30 text-amber-300 bg-amber-500/10",
+    accent: brand,
+    ok: brand,
+    warn: brand,
     danger: "border-red-500/30 text-red-300 bg-red-500/10",
   };
   return (

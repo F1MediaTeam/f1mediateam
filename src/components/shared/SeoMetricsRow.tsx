@@ -59,7 +59,7 @@ export default async function SeoMetricsRow({ clientId }: { clientId: string }) 
   );
 
   return (
-    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-elev)]/60 p-4">
+    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
           SEO snapshot

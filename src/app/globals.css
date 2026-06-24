@@ -33,15 +33,15 @@
   color-scheme: light;
   --logo-img: url(/logo-light.png);
   --color-bg: #ffffff;        /* page = pure white */
-  --color-bg-elev: #e8ecf2;   /* cards = light grey on white */
-  --color-bg-card: #e8ecf2;
-  --color-bg-hover: #dde2e9;
-  --color-border: #e3e8ef;
-  --color-border-strong: #cdd5e0;
+  --color-bg-card: #e8ecf2;   /* outer container = light grey "tray" */
+  --color-bg-elev: #ffffff;   /* inner cards = white, pop on the tray */
+  --color-bg-hover: #f1f4f8;
+  --color-border: #cdd5e0;        /* sharper borders so white-on-grey reads cleanly */
+  --color-border-strong: #aab4c2;
 
   --color-text: #0f172a;
-  --color-text-muted: #57636f;
-  --color-text-subtle: #8b96a5;
+  --color-text-muted: #3f4a57;    /* darker for ~7:1 contrast on grey */
+  --color-text-subtle: #5a6573;   /* darker for readability of timestamps */
 
   --color-accent: #0d9488;
   --color-accent-dim: #0f766e;

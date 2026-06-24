@@ -8,6 +8,7 @@ import MetricCompare from "@/components/shared/MetricCompare";
 import SemrushGauges from "@/components/shared/SemrushGauges";
 import OrganicKeywordsPanel from "@/components/shared/OrganicKeywordsPanel";
 import SemrushInsights from "@/components/shared/SemrushInsights";
+import WidgetBoard, { type WidgetSlot } from "@/components/shared/WidgetBoard";
 import { buildSemrushChartData } from "@/lib/semrush-charts";
 import { formatBytes, formatLocation } from "@/lib/utils";
 import Time from "@/components/shared/Time";
@@ -395,11 +396,19 @@ export default async function ClientProfile({
                 <div className="mt-6 mb-2 text-[11px] uppercase tracking-widest text-[var(--color-text-muted)]">
                   Raw reports
                 </div>
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  {semrushReports.map((r) => (
-                    <SemrushReportCard key={r.id} r={r} />
-                  ))}
-                </div>
+                <WidgetBoard
+                  storageKey={`f1.semrush-raw-reports.layout.v1.${id}`}
+                  gridClassName="grid grid-cols-1 gap-3 lg:grid-cols-2"
+                  widgets={semrushReports.map((r) => {
+                    const meta = (r.meta ?? {}) as Record<string, unknown>;
+                    const label = (meta.label as string) ?? r.report_type;
+                    return {
+                      id: r.report_type,
+                      label,
+                      node: <SemrushReportCard r={r} />,
+                    } satisfies WidgetSlot;
+                  })}
+                />
               </>
             )}
           </CardBody>

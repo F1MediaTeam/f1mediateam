@@ -92,7 +92,7 @@ export default function ReportFilters({
                   className={cn(
                     "px-3.5 py-1.5 text-xs font-medium rounded-md transition tracking-wide whitespace-nowrap",
                     active
-                      ? "bg-[var(--color-accent)] text-black shadow-sm"
+                      ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] shadow-sm"
                       : "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)]",
                   )}
                 >

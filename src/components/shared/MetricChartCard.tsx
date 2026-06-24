@@ -87,7 +87,7 @@ export default function MetricChartCard({
                     className={
                       "shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-medium transition " +
                       (active
-                        ? "bg-[var(--color-accent)] text-black"
+                        ? "bg-[var(--color-accent)] text-[var(--color-on-accent)]"
                         : "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)]")
                     }
                   >
@@ -131,7 +131,7 @@ export default function MetricChartCard({
             </div>
           </div>
         </div>
-        <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-2 sm:p-4">
+        <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-2 sm:p-4">
           <TrendChart
             points={windowed.map((s) => ({ date: s.captured_at, value: s.value }))}
             baseline={first.value}

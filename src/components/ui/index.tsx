@@ -139,7 +139,7 @@ export function Button({
   } as const;
   const variants = {
     primary:
-      "bg-[var(--color-accent)] text-black hover:brightness-110 disabled:opacity-60",
+      "bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:brightness-110 disabled:opacity-60",
     secondary:
       "border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] hover:bg-[var(--color-bg-hover)]",
     ghost:

@@ -141,7 +141,7 @@ function EditModal({
           </div>
           <button
             type="submit"
-            className="w-full rounded-lg bg-[var(--color-accent)] text-black hover:opacity-90 px-4 py-2.5 text-sm font-medium"
+            className="w-full rounded-lg bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:opacity-90 px-4 py-2.5 text-sm font-medium"
           >
             Save changes
           </button>

@@ -160,7 +160,7 @@ export default function MetricGaugeGroup({ title, hint, metrics, seriesByMetric 
                   className={
                     "px-2.5 py-1 text-[11px] font-medium rounded-md transition " +
                     (active
-                      ? "bg-[var(--color-accent)] text-black"
+                      ? "bg-[var(--color-accent)] text-[var(--color-on-accent)]"
                       : "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)]")
                   }
                 >

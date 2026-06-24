@@ -32,7 +32,7 @@ export default function ClientAddContentModal({ action }: Props) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] text-black px-4 h-9 text-sm font-semibold hover:opacity-90 transition"
+        className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] text-[var(--color-on-accent)] px-4 h-9 text-sm font-semibold hover:opacity-90 transition"
       >
         <span className="text-base leading-none">＋</span> Add content
       </button>

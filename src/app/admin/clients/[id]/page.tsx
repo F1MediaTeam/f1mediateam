@@ -86,7 +86,7 @@ export default async function ClientProfile({
             </Link>
             <Link
               href={`/admin/meeting-deck?client=${client.id}`}
-              className="rounded-lg bg-[var(--color-accent)] text-black hover:opacity-90 px-4 py-2 text-sm font-medium whitespace-nowrap"
+              className="rounded-lg bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:opacity-90 px-4 py-2 text-sm font-medium whitespace-nowrap"
             >
               Meeting deck
             </Link>
@@ -250,7 +250,7 @@ export default async function ClientProfile({
                       ) : (
                         <a
                           href={connectHref}
-                          className="rounded-lg bg-[var(--color-accent)] text-black hover:brightness-110 px-3 h-8 text-xs font-medium inline-flex items-center"
+                          className="rounded-lg bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:brightness-110 px-3 h-8 text-xs font-medium inline-flex items-center"
                         >
                           Connect
                         </a>

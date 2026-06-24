@@ -17,7 +17,7 @@ function fmt(n: number): string {
 
 function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-4">
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
       <div className="mb-3">
         <div className="text-sm font-medium">{title}</div>
         {subtitle ? <div className="text-[11px] text-[var(--color-text-muted)]">{subtitle}</div> : null}

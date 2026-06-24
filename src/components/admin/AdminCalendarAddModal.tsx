@@ -38,7 +38,7 @@ export default function AdminCalendarAddModal({ action, clients }: Props) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1 rounded-lg bg-[var(--color-accent)] text-black px-3 h-9 text-sm font-medium hover:opacity-90 transition"
+        className="inline-flex items-center gap-1 rounded-lg bg-[var(--color-accent)] text-[var(--color-on-accent)] px-3 h-9 text-sm font-medium hover:opacity-90 transition"
       >
         + Add
       </button>

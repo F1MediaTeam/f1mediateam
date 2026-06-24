@@ -16,6 +16,7 @@
   --color-accent: #3f8e84;        /* unified brand teal — used everywhere a "green" appears */
   --color-accent-dim: #2d6862;
   --color-accent-soft: rgba(63, 142, 132, 0.18);
+  --color-on-accent: #000000;     /* dark theme: black text on teal buttons */
 
   --color-up: #3f8e84;             /* "good" deltas use the same brand teal */
   --color-down: #dc2626;
@@ -64,6 +65,7 @@
   --color-accent: #3f8e84;
   --color-accent-dim: #2d6862;
   --color-accent-soft: rgba(63, 142, 132, 0.14);
+  --color-on-accent: #ffffff;     /* light theme: white text on teal buttons */
 
   --color-up: #3f8e84;
   --color-down: #dc2626;

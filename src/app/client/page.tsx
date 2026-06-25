@@ -216,17 +216,15 @@ export default async function ClientHome() {
               <div className="p-5">
                 <SeoMetricsRow clientId={client.id} embedded />
               </div>
+              <div className="border-t border-[var(--color-border)]">
+                <OrganicKeywordsPanel clientId={client.id} embedded />
+              </div>
             </div>
           ) : (
             <div className="mb-6 text-center">
               <h2 className="text-2xl font-semibold tracking-tight">SEO insights</h2>
             </div>
           )}
-          {widgets.rankings ? (
-            <div className="mb-6">
-              <OrganicKeywordsPanel clientId={client.id} />
-            </div>
-          ) : null}
           <div className="space-y-6">
             {widgets.rankings ? (
               <GscSearchSection clientId={client.id} />

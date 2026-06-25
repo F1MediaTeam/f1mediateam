@@ -19,7 +19,7 @@ interface Keyword {
 
 type SortKey = "position" | "volume" | "trafficPct";
 
-export default function OrganicKeywordsPanel({ clientId }: { clientId: string }) {
+export default function OrganicKeywordsPanel({ clientId, embedded = false }: { clientId: string; embedded?: boolean }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -63,8 +63,11 @@ export default function OrganicKeywordsPanel({ clientId }: { clientId: string })
 
   const arrow = (key: SortKey) => (sort === key ? (asc ? " ↑" : " ↓") : "");
 
+  const Wrap = embedded
+    ? ({ children }: { children: React.ReactNode }) => <div>{children}</div>
+    : Card;
   return (
-    <Card>
+    <Wrap>
       <CardHeader
         title="Organic keywords"
         subtitle="From SEMrush · top 250 by traffic share — live"
@@ -119,6 +122,6 @@ export default function OrganicKeywordsPanel({ clientId }: { clientId: string })
           )}
         </CardBody>
       ) : null}
-    </Card>
+    </Wrap>
   );
 }

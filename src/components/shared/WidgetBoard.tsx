@@ -40,6 +40,9 @@ interface Props {
   widgets: WidgetSlot[];
   /** Tailwind grid classes for the inner container — caller controls cols/gap. */
   gridClassName?: string;
+  /** When false (default), the board is view-only: no drag handles, no hide/×,
+      no +Add widget. Only the admin gets the editable controls. */
+  editable?: boolean;
 }
 
 interface PersistedLayout {
@@ -70,7 +73,25 @@ function saveLayout(key: string, layout: PersistedLayout) {
   }
 }
 
-export default function WidgetBoard({ storageKey, widgets, gridClassName }: Props) {
+export default function WidgetBoard({ storageKey, widgets, gridClassName, editable = false }: Props) {
+  // View-only (clients): render the tiles in their natural order with no
+  // drag/hide controls. The editable board (admin) is a separate component so
+  // its hooks aren't conditionally mounted.
+  if (!editable) {
+    return (
+      <div className={gridClassName ?? "grid grid-cols-1 lg:grid-cols-2 gap-4"}>
+        {widgets.map((w) => (
+          <div key={w.id} className={w.fullWidth ? "lg:col-span-2" : ""}>
+            {w.node}
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return <EditableBoard storageKey={storageKey} widgets={widgets} gridClassName={gridClassName} />;
+}
+
+function EditableBoard({ storageKey, widgets, gridClassName }: Props) {
   // Server render uses the natural order; client hydrates with persisted
   // layout via the useEffect below so we don't mismatch SSR markup.
   const [order, setOrder] = useState<string[]>(() => widgets.map((w) => w.id));

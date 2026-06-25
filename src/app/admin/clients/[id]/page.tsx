@@ -401,13 +401,27 @@ export default async function ClientProfile({
                 <div className="mb-3 font-mono text-[11px] text-[var(--color-text-subtle)]">
                   Last pulled <Time iso={semrushLastPulled!} /> · ~{semrushUnits.toLocaleString()} units
                 </div>
-                <SemrushInsights data={buildSemrushChartData(semrushReports)} />
+                <SemrushInsights data={buildSemrushChartData(semrushReports)} editable />
+                {organicKeywordsReport && organicKeywordsReport.rows.length ? (
+                  <div className="mt-6">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="text-[11px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                        Keyword rankings
+                      </div>
+                      <span className="text-[11px] text-[var(--color-text-muted)] font-mono">
+                        {organicKeywordsReport.row_count.toLocaleString()} keywords · updated <Time iso={organicKeywordsReport.pulled_at} />
+                      </span>
+                    </div>
+                    <SemrushKeywordsTable rows={organicKeywordsReport.rows} />
+                  </div>
+                ) : null}
                 <div className="mt-6 mb-2 text-[11px] uppercase tracking-widest text-[var(--color-text-muted)]">
                   Raw reports
                 </div>
                 <WidgetBoard
                   storageKey={`f1.semrush-raw-reports.layout.v1.${id}`}
                   gridClassName="grid grid-cols-1 gap-3 lg:grid-cols-2"
+                  editable
                   widgets={semrushReports.map((r) => {
                     const meta = (r.meta ?? {}) as Record<string, unknown>;
                     const label = (meta.label as string) ?? r.report_type;
@@ -443,23 +457,6 @@ export default async function ClientProfile({
             )}
           </CardBody>
         </Card>
-
-        {organicKeywordsReport && organicKeywordsReport.rows.length ? (
-          <Card className="mt-8">
-            <CardHeader
-              title="Keyword rankings"
-              subtitle={`${organicKeywordsReport.row_count.toLocaleString()} tracked organic keywords · SEMrush`}
-              right={
-                <span className="text-[11px] text-[var(--color-text-muted)] font-mono whitespace-nowrap">
-                  Updated <Time iso={organicKeywordsReport.pulled_at} />
-                </span>
-              }
-            />
-            <CardBody>
-              <SemrushKeywordsTable rows={organicKeywordsReport.rows} />
-            </CardBody>
-          </Card>
-        ) : null}
       </div>
     </AdminShell>
   );

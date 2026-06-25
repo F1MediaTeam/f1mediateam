@@ -70,7 +70,6 @@ export default function OrganicKeywordsPanel({ clientId, embedded = false }: { c
     <Wrap>
       <CardHeader
         title="Organic keywords"
-        subtitle="From SEMrush · top 250 by traffic share — live"
         right={
           <button
             type="button"

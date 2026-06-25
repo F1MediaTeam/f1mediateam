@@ -75,18 +75,18 @@ export default async function ClientHome() {
 
   return (
     <ClientShell session={session} client={client} active="/client">
-      {widgets.rankings ? (
-        <section className="mb-10">
-          <SeoMetricsRow clientId={client.id} />
-        </section>
-      ) : null}
-
       <div className="mb-10">
         <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
           Overview
         </div>
         <h1 className="mt-1 text-4xl font-semibold tracking-tight">Welcome back.</h1>
       </div>
+
+      {widgets.rankings ? (
+        <section className="mb-10">
+          <SeoMetricsRow clientId={client.id} />
+        </section>
+      ) : null}
 
       {widgets.content ? (
         <div className="mb-10 grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">

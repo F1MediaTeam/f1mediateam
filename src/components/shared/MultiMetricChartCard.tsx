@@ -87,7 +87,7 @@ export default function MultiMetricChartCard({ title, hint, metrics }: Props) {
   return (
     <Card>
       <CardHeader
-        title={title}
+        title={<span className="text-2xl font-semibold tracking-tight">{title}</span>}
         subtitle={hint}
         right={
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -178,6 +178,11 @@ export default function MultiMetricChartCard({ title, hint, metrics }: Props) {
                 >
                   {fmt(displayValue, m)}
                 </div>
+                {hoverDate ? (
+                  <div className="mt-0.5 text-[10px] font-mono text-[var(--color-text-subtle)]">
+                    {hoverDate}
+                  </div>
+                ) : null}
               </button>
             );
           })}

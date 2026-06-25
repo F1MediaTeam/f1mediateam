@@ -45,81 +45,12 @@ function AuthorityScoreCard({ points }: { points: { date: string; value: number 
   if (points.length === 0) {
     return <div className="text-xs text-[var(--color-text-muted)]">No data.</div>;
   }
-  const vals = points.map((p) => p.value);
-  const current = vals[vals.length - 1];
-  const min = Math.min(...vals);
-  const max = Math.max(...vals);
-  const first = vals[0];
-  const change = current - first;
-  const changePct = first !== 0 ? ((current - first) / first) * 100 : 0;
-  const trendUp = change >= 0;
+  const current = points[points.length - 1].value;
   const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-
-  // Daily bars — visually different from the line/gauge versions. Each day
-  // is a thin bar; the most recent N points fit the panel comfortably.
-  const visible = points.slice(-90);
-  const visMin = Math.min(...visible.map((p) => p.value));
-  const visMax = Math.max(...visible.map((p) => p.value));
-  const visSpan = visMax - visMin || 1;
-  const W = 600;
-  const H = 120;
-  const gap = 1;
-  const barW = Math.max(2, (W - (visible.length - 1) * gap) / visible.length);
-
   return (
-    <div className="h-full flex flex-col">
-      {/* Headline number + trend */}
-      <div className="flex items-end gap-3">
-        <div>
-          <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">Current</div>
-          <div className="mt-0.5 text-5xl font-semibold tabular-nums leading-none text-[var(--color-text)]">
-            {fmt(current)}
-          </div>
-        </div>
-        <span className={`mb-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-mono ${trendUp ? "bg-emerald-500/10 text-emerald-300" : "bg-red-500/10 text-red-300"}`}>
-          {trendUp ? "↑" : "↓"} {Math.abs(change).toFixed(1)} ({changePct >= 0 ? "+" : ""}{changePct.toFixed(1)}%)
-        </span>
-      </div>
-
-      {/* Range bar showing where current sits between min and max */}
-      <div className="mt-4">
-        <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1">
-          <span>Min {fmt(min)}</span>
-          <span>Max {fmt(max)}</span>
-        </div>
-        <div className="relative h-2 rounded-full bg-[var(--color-bg)] overflow-hidden">
-          <div
-            className="absolute inset-y-0 left-0 bg-[var(--color-accent)]"
-            style={{ width: `${Math.max(0, Math.min(100, ((current - min) / (max - min || 1)) * 100))}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Daily bar history */}
-      <div className="mt-4 flex-1 min-h-0 flex flex-col justify-end">
-        <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1.5">
-          Last {visible.length} day{visible.length === 1 ? "" : "s"}
-        </div>
-        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none">
-          {visible.map((p, i) => {
-            const x = i * (barW + gap);
-            const h = ((p.value - visMin) / visSpan) * (H - 4);
-            const y = H - h;
-            const isLast = i === visible.length - 1;
-            return (
-              <rect
-                key={p.date}
-                x={x}
-                y={y}
-                width={barW}
-                height={Math.max(2, h)}
-                fill={isLast ? "var(--color-accent)" : "var(--color-accent)"}
-                opacity={isLast ? 1 : 0.55}
-                rx={1}
-              />
-            );
-          })}
-        </svg>
+    <div className="h-full grid place-items-center">
+      <div className="text-7xl font-semibold tabular-nums text-[var(--color-accent)] leading-none">
+        {fmt(current)}
       </div>
     </div>
   );
@@ -232,7 +163,7 @@ export default function SemrushInsights({ data }: { data: SemrushChartData }) {
       id: "authority",
       label: "Authority Score",
       node: (
-        <Panel title="Authority Score" subtitle="Current vs range, plus daily history bars">
+        <Panel title="Authority Score" subtitle="Current score">
           <AuthorityScoreCard points={data.authority} />
         </Panel>
       ),

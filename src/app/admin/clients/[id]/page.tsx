@@ -5,6 +5,7 @@ import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import MultiMetricCard from "@/components/shared/MultiMetricCard";
+import SeoMetricsRow from "@/components/shared/SeoMetricsRow";
 import SemrushGauges from "@/components/shared/SemrushGauges";
 import OrganicKeywordsPanel from "@/components/shared/OrganicKeywordsPanel";
 import SemrushInsights from "@/components/shared/SemrushInsights";
@@ -235,21 +236,7 @@ export default async function ClientProfile({
               { metric: "bing_avg_impression_position", label: "Avg impr position",  color: "#fb7185", aggregation: "average", invert: true },
             ]}
           />
-          <MultiMetricCard
-            clientId={id}
-            title="Semrush"
-            hint="Authority, traffic, and rankings"
-            metrics={[
-              { metric: "semrush_organic_keywords",  label: "Organic keywords", color: "#34d399" },
-              { metric: "semrush_organic_traffic",   label: "Organic traffic",  color: "#22d3ee" },
-              { metric: "semrush_backlinks",         label: "Backlinks",        color: "#a78bfa" },
-              { metric: "semrush_referring_domains", label: "Referring domains", color: "#f472b6" },
-              { metric: "semrush_authority_score",   label: "Authority score",  color: "#f59e0b", aggregation: "average" },
-              { metric: "site_health",               label: "Site health",      color: "#84cc16", aggregation: "average", unit: "%" },
-              { metric: "visibility",                label: "Visibility",       color: "#fb7185", aggregation: "average", unit: "%" },
-              { metric: "ai_visibility",             label: "AI visibility",    color: "#c084fc", aggregation: "average" },
-            ]}
-          />
+          <SeoMetricsRow clientId={id} />
           <SemrushGauges clientId={id} />
           <OrganicKeywordsPanel clientId={id} />
         </div>

@@ -12,6 +12,7 @@ import MetricCompare from "@/components/shared/MetricCompare";
 import GscDashboard from "@/components/shared/GscDashboard";
 import SeoMetricsRow from "@/components/shared/SeoMetricsRow";
 import SemrushInsights from "@/components/shared/SemrushInsights";
+import BingSearchSection from "@/components/shared/BingSearchSection";
 import { buildSemrushChartData } from "@/lib/semrush-charts";
 import ContentCardControls from "@/components/shared/ContentCardControls";
 import ContentDetailModal from "@/components/shared/ContentDetailModal";
@@ -229,6 +230,13 @@ export default async function ClientHome() {
           </div>
           <GscSearchSection clientId={client.id} />
         </section>
+      ) : null}
+
+      {widgets.rankings ? (
+        <div className="mb-10">
+          {/* Combined Bing chart — renders only when Bing data exists. */}
+          <BingSearchSection clientId={client.id} />
+        </div>
       ) : null}
 
       {widgets.rankings ? (

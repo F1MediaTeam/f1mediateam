@@ -8,6 +8,7 @@
 
 import TrendChart from "@/components/shared/TrendChart";
 import WidgetBoard, { type WidgetSlot } from "@/components/shared/WidgetBoard";
+import SemrushKeywordsTable from "@/components/shared/SemrushKeywordsTable";
 import type { SemrushChartData, ChartSeries } from "@/lib/semrush-charts";
 
 function fmt(n: number): string {
@@ -93,7 +94,15 @@ function Donut({ follow, nofollow }: { follow: number; nofollow: number }) {
   );
 }
 
-export default function SemrushInsights({ data, editable = false }: { data: SemrushChartData; editable?: boolean }) {
+export default function SemrushInsights({
+  data,
+  editable = false,
+  keywordRows = [],
+}: {
+  data: SemrushChartData;
+  editable?: boolean;
+  keywordRows?: Record<string, string>[];
+}) {
   if (!data.hasAny) {
     return (
       <div className="text-xs text-[var(--color-text-muted)]">
@@ -116,6 +125,18 @@ export default function SemrushInsights({ data, editable = false }: { data: Semr
       node: (
         <Panel title="Authority Score" subtitle="Backlink authority over time">
           <TrendChart points={data.authority} height={220} formatter={(v) => String(Math.round(v))} />
+        </Panel>
+      ),
+    });
+  }
+  if (keywordRows.length) {
+    widgets.push({
+      id: "keyword-rankings",
+      label: "Keyword rankings",
+      fullWidth: true,
+      node: (
+        <Panel title="Keyword rankings" subtitle="Every ranked keyword — position, volume, and URL">
+          <SemrushKeywordsTable rows={keywordRows} />
         </Panel>
       ),
     });

@@ -34,6 +34,7 @@ export default async function ClientHome() {
     data.listSemrushReports(client.id),
   ]);
   const semrushChart = buildSemrushChartData(semrushReports);
+  const clientKeywordRows = (semrushReports.find((r) => r.report_type === "organic_keywords")?.rows ?? []) as Record<string, string>[];
 
   // Count attachments per event so the calendar grid can show a 📎 N badge.
   const attachments = await data.listAttachmentsForEvents(events.map((e) => e.id));
@@ -212,7 +213,7 @@ export default async function ClientHome() {
             <h2 className="text-lg font-semibold tracking-tight">SEO insights</h2>
             <Pill>F1 Media Team</Pill>
           </div>
-          <SemrushInsights data={semrushChart} />
+          <SemrushInsights data={semrushChart} keywordRows={clientKeywordRows} />
         </section>
       ) : null}
 

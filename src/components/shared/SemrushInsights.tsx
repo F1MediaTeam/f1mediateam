@@ -49,69 +49,77 @@ function AuthorityScoreCard({ points }: { points: { date: string; value: number 
   const current = vals[vals.length - 1];
   const min = Math.min(...vals);
   const max = Math.max(...vals);
-  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
   const first = vals[0];
   const change = current - first;
+  const changePct = first !== 0 ? ((current - first) / first) * 100 : 0;
   const trendUp = change >= 0;
   const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
-  // Half-circle gauge — 0..100 maps to angle -90deg..+90deg.
-  // Authority Score's 0-100 range makes this read as "X out of 100".
-  const pct = Math.max(0, Math.min(1, current / 100));
-  const gaugeRadius = 80;
-  const cx = 100;
-  const cy = 100;
-  // Path from left (-90deg from straight up = 180deg in SVG terms) to right.
-  function polar(angle: number, r: number) {
-    const a = (angle * Math.PI) / 180;
-    return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
-  }
-  const startA = 180;
-  const endA = 360;
-  const valueA = startA + pct * (endA - startA);
-  const trackStart = polar(startA, gaugeRadius);
-  const trackEnd = polar(endA, gaugeRadius);
-  const valueEnd = polar(valueA, gaugeRadius);
-  const trackPath = `M ${trackStart.x} ${trackStart.y} A ${gaugeRadius} ${gaugeRadius} 0 0 1 ${trackEnd.x} ${trackEnd.y}`;
-  const valuePath = `M ${trackStart.x} ${trackStart.y} A ${gaugeRadius} ${gaugeRadius} 0 0 1 ${valueEnd.x} ${valueEnd.y}`;
+  // Daily bars — visually different from the line/gauge versions. Each day
+  // is a thin bar; the most recent N points fit the panel comfortably.
+  const visible = points.slice(-90);
+  const visMin = Math.min(...visible.map((p) => p.value));
+  const visMax = Math.max(...visible.map((p) => p.value));
+  const visSpan = visMax - visMin || 1;
+  const W = 600;
+  const H = 120;
+  const gap = 1;
+  const barW = Math.max(2, (W - (visible.length - 1) * gap) / visible.length);
 
   return (
     <div className="h-full flex flex-col">
-      {/* Gauge dial */}
-      <div className="relative flex justify-center">
-        <svg viewBox="0 0 200 130" className="w-full max-w-[280px]">
-          <path d={trackPath} fill="none" stroke="var(--color-bg)" strokeWidth={16} strokeLinecap="round" />
-          <path d={valuePath} fill="none" stroke="var(--color-accent)" strokeWidth={16} strokeLinecap="round" />
-          <text x={cx} y={cy - 4} textAnchor="middle" fontSize={36} fontWeight={600} fill="var(--color-text)">
+      {/* Headline number + trend */}
+      <div className="flex items-end gap-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">Current</div>
+          <div className="mt-0.5 text-5xl font-semibold tabular-nums leading-none text-[var(--color-text)]">
             {fmt(current)}
-          </text>
-          <text x={cx} y={cy + 16} textAnchor="middle" fontSize={9} fill="var(--color-text-muted)" letterSpacing="2">
-            / 100
-          </text>
-        </svg>
-      </div>
-
-      {/* Trend pill */}
-      <div className="flex items-center justify-center -mt-2 mb-3">
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-mono ${trendUp ? "bg-emerald-500/10 text-emerald-300" : "bg-red-500/10 text-red-300"}`}>
-          {trendUp ? "▲" : "▼"} {Math.abs(change).toFixed(1)} since {points[0].date}
+          </div>
+        </div>
+        <span className={`mb-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-mono ${trendUp ? "bg-emerald-500/10 text-emerald-300" : "bg-red-500/10 text-red-300"}`}>
+          {trendUp ? "↑" : "↓"} {Math.abs(change).toFixed(1)} ({changePct >= 0 ? "+" : ""}{changePct.toFixed(1)}%)
         </span>
       </div>
 
-      {/* Min · Avg · Max strip */}
-      <div className="grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-2 py-2">
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Min</div>
-          <div className="mt-0.5 text-lg font-semibold tabular-nums">{fmt(min)}</div>
+      {/* Range bar showing where current sits between min and max */}
+      <div className="mt-4">
+        <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1">
+          <span>Min {fmt(min)}</span>
+          <span>Max {fmt(max)}</span>
         </div>
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-2 py-2">
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Avg</div>
-          <div className="mt-0.5 text-lg font-semibold tabular-nums">{fmt(avg)}</div>
+        <div className="relative h-2 rounded-full bg-[var(--color-bg)] overflow-hidden">
+          <div
+            className="absolute inset-y-0 left-0 bg-[var(--color-accent)]"
+            style={{ width: `${Math.max(0, Math.min(100, ((current - min) / (max - min || 1)) * 100))}%` }}
+          />
         </div>
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-2 py-2">
-          <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Max</div>
-          <div className="mt-0.5 text-lg font-semibold tabular-nums">{fmt(max)}</div>
+      </div>
+
+      {/* Daily bar history */}
+      <div className="mt-4 flex-1 min-h-0 flex flex-col justify-end">
+        <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1.5">
+          Last {visible.length} day{visible.length === 1 ? "" : "s"}
         </div>
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none">
+          {visible.map((p, i) => {
+            const x = i * (barW + gap);
+            const h = ((p.value - visMin) / visSpan) * (H - 4);
+            const y = H - h;
+            const isLast = i === visible.length - 1;
+            return (
+              <rect
+                key={p.date}
+                x={x}
+                y={y}
+                width={barW}
+                height={Math.max(2, h)}
+                fill={isLast ? "var(--color-accent)" : "var(--color-accent)"}
+                opacity={isLast ? 1 : 0.55}
+                rx={1}
+              />
+            );
+          })}
+        </svg>
       </div>
     </div>
   );
@@ -224,7 +232,7 @@ export default function SemrushInsights({ data }: { data: SemrushChartData }) {
       id: "authority",
       label: "Authority Score",
       node: (
-        <Panel title="Authority Score" subtitle="Out of 100, with min · avg · max">
+        <Panel title="Authority Score" subtitle="Current vs range, plus daily history bars">
           <AuthorityScoreCard points={data.authority} />
         </Panel>
       ),

@@ -42,7 +42,7 @@ const SLUGS: Record<string, SlugMeta> = {
     source: "available",
     metric: "semrush_organic_traffic",
     aggregation: "sum",
-    provider: "SEMrush",
+    provider: "F1 Media Team",
     hint: "Estimated monthly organic visits across all ranked keywords.",
   },
   "organic-keywords": {
@@ -50,28 +50,28 @@ const SLUGS: Record<string, SlugMeta> = {
     source: "available",
     metric: "semrush_organic_keywords",
     aggregation: "sum",
-    provider: "SEMrush",
+    provider: "F1 Media Team",
     hint: "Number of keyword phrases the domain ranks for in Google.",
   },
   "site-health": {
     label: "Site Health",
     source: "coming_soon",
-    pending: "SEMrush Site Audit sync (Site Audit Bot config + audit_id table).",
+    pending: "Site audit & technical health scoring — coming soon to your F1 Media Team analytics.",
   },
   "ai-visibility": {
     label: "AI Visibility",
     source: "coming_soon",
-    pending: "AI search-engine tracking (e.g. SEMrush AI Visibility, Profound, or Otterly). Not yet on the F1 Media data plan.",
+    pending: "AI search-engine visibility tracking — coming soon to your F1 Media Team analytics.",
   },
   mentions: {
     label: "Mentions",
     source: "coming_soon",
-    pending: "Brand monitoring sync (SEMrush Brand Monitoring or equivalent).",
+    pending: "Brand mention monitoring — coming soon to your F1 Media Team analytics.",
   },
   backlinks: {
     label: "Backlinks",
     source: "coming_soon",
-    pending: "SEMrush Backlinks API integration — adds new_backlinks / lost_backlinks / total_backlinks metrics.",
+    pending: "Backlink profile tracking — coming soon to your F1 Media Team analytics.",
   },
 };
 
@@ -135,9 +135,9 @@ export default async function SeoDrillIn({
 
           {slug === "organic-keywords" ? (
             <Card>
-              <CardHeader title="Top ranked keywords" subtitle="Live from SEMrush — sorted by traffic share" />
+              <CardHeader title="Top ranked keywords" subtitle="Sorted by traffic share — updated live" />
               <CardBody>
-                <OrganicKeywordsPanel clientId={client.id} />
+                <OrganicKeywordsPanel clientId={client.id} source="F1 Media Team" />
               </CardBody>
             </Card>
           ) : null}

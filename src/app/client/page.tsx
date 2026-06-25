@@ -210,7 +210,7 @@ export default async function ClientHome() {
         <section className="mb-10">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-semibold tracking-tight">SEO insights</h2>
-            <Pill>SEMrush</Pill>
+            <Pill>F1 Media Team</Pill>
           </div>
           <SemrushInsights data={semrushChart} />
         </section>
@@ -254,8 +254,8 @@ export default async function ClientHome() {
       {widgets.rankings ? (
         <section className="mb-10">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight">SEMrush trends</h2>
-            <Pill>SEMrush</Pill>
+            <h2 className="text-lg font-semibold tracking-tight">F1 Media Team Trends</h2>
+            <Pill>F1 Media Team</Pill>
           </div>
           <div className="grid grid-cols-1 gap-6">
             <MetricCompare clientId={client.id} metric="semrush_organic_traffic"  label="Organic traffic (est.)"   hint="Estimated organic visits across all ranked keywords" />

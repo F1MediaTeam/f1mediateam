@@ -19,7 +19,13 @@ interface Keyword {
 
 type SortKey = "position" | "volume" | "trafficPct";
 
-export default function OrganicKeywordsPanel({ clientId }: { clientId: string }) {
+export default function OrganicKeywordsPanel({
+  clientId,
+  source = "SEMrush", // client portal passes "F1 Media Team" to white-label
+}: {
+  clientId: string;
+  source?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -67,7 +73,7 @@ export default function OrganicKeywordsPanel({ clientId }: { clientId: string })
     <Card>
       <CardHeader
         title="Organic keywords"
-        subtitle="From SEMrush · top 250 by traffic share — live"
+        subtitle={`From ${source} · top 250 by traffic share — live`}
         right={
           <button
             type="button"
@@ -82,7 +88,7 @@ export default function OrganicKeywordsPanel({ clientId }: { clientId: string })
       {open ? (
         <CardBody>
           {loading ? (
-            <div className="py-10 text-center text-sm text-[var(--color-text-muted)]">Loading keywords from SEMrush…</div>
+            <div className="py-10 text-center text-sm text-[var(--color-text-muted)]">Loading keywords from {source}…</div>
           ) : error ? (
             <div className="py-6 text-center text-sm text-[var(--color-danger,#ef4444)]">{error}</div>
           ) : sorted.length === 0 ? (

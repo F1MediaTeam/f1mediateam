@@ -36,20 +36,24 @@ export default function ClientShell({
               <Logo compact width={110} height={32} />
             </Link>
             <span className="text-[var(--color-border-strong)] hidden sm:inline">/</span>
-            {client.company_name.toLowerCase().includes("buckets") ? (
-              <div
-                role="img"
-                aria-label={client.company_name}
-                className="hidden sm:block shrink-0 bg-no-repeat bg-left bg-contain"
-                style={{
-                  width: 110,
-                  height: 32,
-                  backgroundImage: "var(--buckets-logo-img)",
-                }}
-              />
-            ) : (
-              <span className="text-sm font-medium truncate hidden sm:inline">{client.company_name}</span>
-            )}
+            {(() => {
+              const name = client.company_name.toLowerCase();
+              const logoVar = name.includes("buckets")
+                ? "var(--buckets-logo-img)"
+                : name.includes("precision graphics")
+                ? "url(/precision-graphics-logo.svg)"
+                : null;
+              return logoVar ? (
+                <div
+                  role="img"
+                  aria-label={client.company_name}
+                  className="hidden sm:block shrink-0 bg-no-repeat bg-left bg-contain"
+                  style={{ width: 110, height: 32, backgroundImage: logoVar }}
+                />
+              ) : (
+                <span className="text-sm font-medium truncate hidden sm:inline">{client.company_name}</span>
+              );
+            })()}
           </div>
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1">

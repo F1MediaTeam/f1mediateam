@@ -9,6 +9,7 @@ import SemrushGauges from "@/components/shared/SemrushGauges";
 import OrganicKeywordsPanel from "@/components/shared/OrganicKeywordsPanel";
 import GscSearchSection from "@/components/shared/GscSearchSection";
 import BingSearchSection from "@/components/shared/BingSearchSection";
+import SemrushKeywordsTable from "@/components/shared/SemrushKeywordsTable";
 import SemrushInsights from "@/components/shared/SemrushInsights";
 import WidgetBoard, { type WidgetSlot } from "@/components/shared/WidgetBoard";
 import { buildSemrushChartData } from "@/lib/semrush-charts";
@@ -46,6 +47,7 @@ export default async function ClientProfile({
   const semrushConnected = connectors.some((c) => c.provider === "semrush");
   const semrushUnits = semrushReports.reduce((a, r) => a + (Number((r.meta as Record<string, unknown>)?.units_estimate) || 0), 0);
   const semrushLastPulled = semrushReports.reduce<string | null>((acc, r) => (!acc || r.pulled_at > acc ? r.pulled_at : acc), null);
+  const organicKeywordsReport = semrushReports.find((r) => r.report_type === "organic_keywords");
 
   const stageMeta: { stage: ContentStage; label: string; tone: "warn" | "accent" | "ok" }[] = [
     { stage: "proposed", label: "Proposed", tone: "warn" },
@@ -441,6 +443,23 @@ export default async function ClientProfile({
             )}
           </CardBody>
         </Card>
+
+        {organicKeywordsReport && organicKeywordsReport.rows.length ? (
+          <Card className="mt-8">
+            <CardHeader
+              title="Keyword rankings"
+              subtitle={`${organicKeywordsReport.row_count.toLocaleString()} tracked organic keywords · SEMrush`}
+              right={
+                <span className="text-[11px] text-[var(--color-text-muted)] font-mono whitespace-nowrap">
+                  Updated <Time iso={organicKeywordsReport.pulled_at} />
+                </span>
+              }
+            />
+            <CardBody>
+              <SemrushKeywordsTable rows={organicKeywordsReport.rows} />
+            </CardBody>
+          </Card>
+        ) : null}
       </div>
     </AdminShell>
   );

@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
+import FileDropZone from "@/components/shared/FileDropZone";
 
 interface Props {
   action: (formData: FormData) => void | Promise<void>;
@@ -59,7 +60,7 @@ export default function ClientAddContentModal({ action }: Props) {
             <p className="text-xs text-[var(--color-text-muted)] mb-4">
               Propose something for the F1 Media team to post or review. It lands in our queue for triage.
             </p>
-            <form action={action} onSubmit={() => setOpen(false)} className="space-y-3.5">
+            <form action={action} onSubmit={() => setOpen(false)} className="space-y-3.5" encType="multipart/form-data">
               <div>
                 <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
                   Title
@@ -77,6 +78,15 @@ export default function ClientAddContentModal({ action }: Props) {
                   Notes
                 </label>
                 <textarea name="body" rows={4} placeholder="What would you like us to post or review?" className={field} />
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
+                  Attachments
+                </label>
+                <FileDropZone
+                  label="Drag files or photos here, or click to browse"
+                  hint="Images, PDFs, docs — anything"
+                />
               </div>
               <Button type="submit" className="w-full">Submit for review</Button>
             </form>

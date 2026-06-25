@@ -139,8 +139,19 @@ export async function addClientContentAction(formData: FormData) {
     link,
     created_by: session.user_id,
   });
+  // Persist any dropped files alongside the content card. Best-effort: if any
+  // single file fails to upload, the card itself is still created.
+  const { persistAttachments } = await import("@/lib/attachments");
+  await persistAttachments({
+    formData,
+    client_id: session.client_id,
+    uploaded_by: session.user_id,
+    category: "content-submission",
+  });
   revalidatePath("/client/content");
   revalidatePath("/admin/content");
+  revalidatePath("/client/files");
+  revalidatePath(`/admin/clients/${session.client_id}`);
 }
 
 // Sentinel-encode an optional URL into the notes column so the schema doesn't

@@ -7,6 +7,7 @@ import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import MetricCompare from "@/components/shared/MetricCompare";
 import SemrushGauges from "@/components/shared/SemrushGauges";
 import OrganicKeywordsPanel from "@/components/shared/OrganicKeywordsPanel";
+import GscSearchSection from "@/components/shared/GscSearchSection";
 import SemrushInsights from "@/components/shared/SemrushInsights";
 import WidgetBoard, { type WidgetSlot } from "@/components/shared/WidgetBoard";
 import { buildSemrushChartData } from "@/lib/semrush-charts";
@@ -200,10 +201,13 @@ export default async function ClientProfile({
           </Card>
         )}
 
+        <div className="mb-8">
+          {/* Combined GSC chart (clicks + impressions + avg position on one
+              graph) — same view the client sees. */}
+          <GscSearchSection clientId={id} />
+        </div>
+
         <div className="grid grid-cols-1 gap-6 mb-8">
-          <MetricCompare clientId={id} metric="clicks"                        label="Organic clicks"      hint="From Google Search Console" />
-          <MetricCompare clientId={id} metric="impressions"                   label="Impressions"         hint="From Google Search Console" />
-          <MetricCompare clientId={id} metric="avg_position"                  label="Average position"    hint="From Google Search Console · lower is better" invert />
           <MetricCompare clientId={id} metric="sessions"                      label="Sessions"            hint="From Google Analytics 4" />
           <MetricCompare clientId={id} metric="bing_clicks"                   label="Bing organic clicks" hint="From Bing Webmaster Tools" />
           <MetricCompare clientId={id} metric="bing_impressions"              label="Bing impressions"    hint="From Bing Webmaster Tools" />

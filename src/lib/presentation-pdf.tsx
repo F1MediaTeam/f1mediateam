@@ -19,16 +19,18 @@ import React from "react";
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { LineChart, BarChart, type LineSeries, type BarDatum } from "@/lib/chart-pdf";
 
+// White-background / black-text theme. The accent color is per-client and
+// applied on top of this neutral base.
 const BASE = {
-  ink: "#0B0F19",
-  panel: "#0F1620",
-  border: "#1F2937",
-  text: "#F8FAFC",
-  body: "#CBD5E1",
-  muted: "#94A3B8",
+  ink: "#FFFFFF",        // page background
+  panel: "#F7F9FC",      // soft off-white card surface
+  border: "#E5E7EB",
+  text: "#0F172A",       // headlines / body
+  body: "#1F2937",
+  muted: "#475569",
   subtle: "#64748B",
-  up: "#34D399",
-  down: "#F87171",
+  up: "#15803D",
+  down: "#B91C1C",
 };
 
 export interface StatTile {

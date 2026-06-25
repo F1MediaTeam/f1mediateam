@@ -168,13 +168,13 @@ export function DashboardCard(props: DashboardCardProps) {
   const chartW = chartRight - chartLeft;
   const chartH = chartBottom - chartTop;
 
-  const cardBg = "#0F1620";
-  const cardBorder = "#1F2937";
-  const tileBorder = "#1F2937";
-  const textMain = "#F8FAFC";
-  const textMuted = "#94A3B8";
+  const cardBg = "#FFFFFF";
+  const cardBorder = "#E5E7EB";
+  const tileBorder = "#E5E7EB";
+  const textMain = "#0F172A";
+  const textMuted = "#475569";
   const textLabel = "#64748B";
-  const lineColor = "#22C55E";
+  const lineColor = "#15803D";
 
   // Empty
   if (props.series.length === 0) {
@@ -216,8 +216,8 @@ export function DashboardCard(props: DashboardCardProps) {
     const pct = props.deltaPct * 100;
     const sign = pct > 0 ? "+" : "";
     const txt = `${sign}${pct.toFixed(1)}%`;
-    const fill = signed > 0 ? "#1B3B2A" : signed < 0 ? "#3B1E1E" : "#1F2937";
-    const color = signed > 0 ? "#34D399" : signed < 0 ? "#F87171" : textMuted;
+    const fill = signed > 0 ? "#DCFCE7" : signed < 0 ? "#FEE2E2" : "#F3F4F6";
+    const color = signed > 0 ? "#15803D" : signed < 0 ? "#B91C1C" : textMuted;
     const w = 76; const h = 26;
     const x = width - padX - w;
     const y = padTop + 6;

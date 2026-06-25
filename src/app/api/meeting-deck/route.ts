@@ -184,9 +184,90 @@ export async function POST(request: NextRequest) {
     slides.push({
       kind: "content",
       kicker: "Performance",
-      title: `GSC — ${window.label}`,
+      title: `Search performance — ${window.label}`,
       paragraphs: paragraphs(s.gscNote),
       stats,
+    });
+  }
+
+  // Embed the actual GSC daily clicks + impressions chart for the same window
+  // so the slide carries the data, not just the narrative about it.
+  const [gscClicksSeries, gscImprSeries] = await Promise.all([
+    data.listSnapshots({ clientId, metric: "clicks" }),
+    data.listSnapshots({ clientId, metric: "impressions" }),
+  ]);
+  const inWindow = (s: { captured_at: string }) =>
+    s.captured_at >= window.fromIso && s.captured_at <= window.toIso;
+  const clicksPoints = gscClicksSeries.filter(inWindow);
+  const imprPoints = gscImprSeries.filter(inWindow);
+  if (clicksPoints.length > 1) {
+    slides.push({
+      kind: "line_chart",
+      kicker: "Performance",
+      title: `Search performance — ${window.label}`,
+      chartTitle: "Daily organic clicks",
+      chartSubtitle: `${window.fromIso} → ${window.toIso}`,
+      series: [
+        { label: "Clicks", points: clicksPoints.map((p) => ({ date: p.captured_at, value: p.value })) },
+      ],
+    });
+  }
+  if (imprPoints.length > 1) {
+    slides.push({
+      kind: "line_chart",
+      kicker: "Performance",
+      title: `Search performance — ${window.label}`,
+      chartTitle: "Daily impressions",
+      chartSubtitle: `${window.fromIso} → ${window.toIso}`,
+      series: [
+        { label: "Impressions", points: imprPoints.map((p) => ({ date: p.captured_at, value: p.value })) },
+      ],
+    });
+  }
+
+  // GA4 sessions chart, when we have data.
+  const sessionsSeries = (await data.listSnapshots({ clientId, metric: "sessions" })).filter(inWindow);
+  if (sessionsSeries.length > 1) {
+    slides.push({
+      kind: "line_chart",
+      kicker: "Traffic",
+      title: `Site traffic — ${window.label}`,
+      chartTitle: "Daily sessions",
+      chartSubtitle: `${window.fromIso} → ${window.toIso}`,
+      series: [
+        { label: "Sessions", points: sessionsSeries.map((p) => ({ date: p.captured_at, value: p.value })) },
+      ],
+    });
+  }
+
+  // Bing performance chart.
+  const bingClicks = (await data.listSnapshots({ clientId, metric: "bing_clicks" })).filter(inWindow);
+  if (bingClicks.length > 1) {
+    slides.push({
+      kind: "line_chart",
+      kicker: "Performance",
+      title: `Bing performance — ${window.label}`,
+      chartTitle: "Daily Bing organic clicks",
+      chartSubtitle: `${window.fromIso} → ${window.toIso}`,
+      series: [
+        { label: "Bing clicks", points: bingClicks.map((p) => ({ date: p.captured_at, value: p.value })) },
+      ],
+    });
+  }
+
+  // Semrush authority score history (uses the full series, not just the window —
+  // the trend is more useful at the multi-month scale).
+  const authority = await data.listSnapshots({ clientId, metric: "semrush_authority_score" });
+  if (authority.length > 1) {
+    slides.push({
+      kind: "line_chart",
+      kicker: "Authority",
+      title: "Authority Score over time",
+      chartTitle: "Domain Authority Score",
+      chartSubtitle: "Higher = stronger backlink profile",
+      series: [
+        { label: "Authority", points: authority.map((p) => ({ date: p.captured_at, value: p.value })) },
+      ],
     });
   }
 

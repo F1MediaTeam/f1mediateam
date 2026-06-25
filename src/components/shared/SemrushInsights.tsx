@@ -70,10 +70,10 @@ function AuthorityScoreCard({ points }: { points: { date: string; value: number 
         />
         <text
           x={50}
-          y={52}
+          y={49}
           textAnchor="middle"
           dominantBaseline="middle"
-          fontSize={24}
+          fontSize={22}
           fontWeight={600}
           fill="var(--color-text)"
         >
@@ -81,10 +81,10 @@ function AuthorityScoreCard({ points }: { points: { date: string; value: number 
         </text>
         <text
           x={50}
-          y={68}
+          y={62}
           textAnchor="middle"
-          fontSize={7}
-          letterSpacing="2"
+          fontSize={5}
+          letterSpacing="0.5"
           fill="var(--color-text-muted)"
         >
           OUT OF 100

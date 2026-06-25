@@ -27,7 +27,8 @@ export const ga4Connector: Connector = {
       prompt: "consent",
       scope: SCOPE,
       state: `${state}:${clientId}:ga4`,
-      include_granted_scopes: "true",
+      // NOTE: see gsc.ts — include_granted_scopes=true revokes the other
+      // provider's refresh token via incremental-authorization rotation.
     });
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   },

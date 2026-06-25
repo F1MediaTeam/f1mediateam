@@ -25,7 +25,10 @@ export const gscConnector: Connector = {
       prompt: "consent",
       scope: SCOPE,
       state: `${state}:${clientId}:gsc`,
-      include_granted_scopes: "true",
+      // NOTE: do NOT pass include_granted_scopes=true. Incremental authorization
+      // bundles old scopes into a new refresh token and revokes the prior one,
+      // which kills the OTHER provider's stored refresh token. We need each
+      // provider to hold an independent grant.
     });
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   },

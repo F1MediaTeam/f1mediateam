@@ -264,9 +264,9 @@ export async function connectSemrushAction(formData: FormData) {
   const client_id = String(formData.get("client_id") ?? "");
   const apikey = String(formData.get("apikey") ?? "").trim();
   const domain = String(formData.get("domain") ?? "").trim();
-  if (!client_id || !apikey || !domain) {
-    revalidatePath(`/admin/clients/${client_id}`);
-    return;
+  if (!client_id) return;
+  if (!apikey || !domain) {
+    redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent("API key and domain are required")}`);
   }
   try {
     const { testSemrushKey, normalizeDomain } = await import("@/lib/connectors/semrush");
@@ -282,10 +282,16 @@ export async function connectSemrushAction(formData: FormData) {
       scopes: [],
       meta: {},
     });
-  } catch {
-    // Silent — failed key leaves row "Not connected"
+  } catch (e) {
+    if (e && typeof e === "object" && "digest" in e && String((e as { digest: unknown }).digest).startsWith("NEXT_REDIRECT")) {
+      throw e;
+    }
+    const message = e instanceof Error ? e.message : String(e);
+    console.error("Semrush connect failed", e);
+    redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent(`Semrush: ${message}`)}`);
   }
   revalidatePath(`/admin/clients/${client_id}`);
+  redirect(`/admin/clients/${client_id}?oauth_connected=semrush`);
 }
 
 /**
@@ -326,17 +332,15 @@ export async function connectBingAction(formData: FormData) {
   await requireAdmin();
   const client_id = String(formData.get("client_id") ?? "");
   const apikey = String(formData.get("apikey") ?? "").trim();
-  if (!client_id || !apikey) {
-    revalidatePath(`/admin/clients/${client_id}`);
-    return;
+  if (!client_id) return;
+  if (!apikey) {
+    redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent("API key is required")}`);
   }
   try {
     const { listBingSites } = await import("@/lib/connectors/bing");
     const sites = await listBingSites(apikey);
     if (!sites.length) {
-      // No verified sites — record the attempt so the admin sees an error stamp.
-      revalidatePath(`/admin/clients/${client_id}`);
-      return;
+      redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent("No verified sites on this Bing Webmaster account")}`);
     }
     await data.upsertConnectorToken({
       client_id,
@@ -348,10 +352,17 @@ export async function connectBingAction(formData: FormData) {
       scopes: [],
       meta: {},
     });
-  } catch {
-    // swallow — the admin can retry; storing nothing means the row stays "Not connected"
+  } catch (e) {
+    // redirect() throws a NEXT_REDIRECT sentinel — let it propagate.
+    if (e && typeof e === "object" && "digest" in e && String((e as { digest: unknown }).digest).startsWith("NEXT_REDIRECT")) {
+      throw e;
+    }
+    const message = e instanceof Error ? e.message : String(e);
+    console.error("Bing connect failed", e);
+    redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent(`Bing: ${message}`)}`);
   }
   revalidatePath(`/admin/clients/${client_id}`);
+  redirect(`/admin/clients/${client_id}?oauth_connected=bing`);
 }
 
 export async function disconnectConnectorAction(formData: FormData) {

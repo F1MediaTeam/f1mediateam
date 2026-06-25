@@ -219,14 +219,24 @@ export async function deleteContentAction(formData: FormData) {
 }
 
 export async function updateContentAction(formData: FormData) {
-  await requireAdmin();
+  const session = await requireAdmin();
   const id = String(formData.get("id") ?? "");
   if (!id) return;
   const title = String(formData.get("title") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim() || null;
   const link = String(formData.get("link") ?? "").trim() || null;
   if (!title) return;
-  await data.updateContent(id, { title, body, link });
+  const updated = await data.updateContent(id, { title, body, link });
+  if (updated?.client_id) {
+    const { persistAttachments } = await import("@/lib/attachments");
+    await persistAttachments({
+      formData,
+      client_id: updated.client_id,
+      uploaded_by: session.user_id,
+      category: "content-edit",
+    });
+    revalidatePath(`/admin/clients/${updated.client_id}`);
+  }
   revalidatePath("/admin/content");
   revalidatePath("/client/content");
 }

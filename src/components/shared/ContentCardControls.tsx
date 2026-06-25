@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import ContentActionsMenu, { type ActionItem } from "./ContentActionsMenu";
+import FileDropZone from "@/components/shared/FileDropZone";
 
 interface CardLite {
   id: string;
@@ -125,7 +126,7 @@ function EditModal({
           <h3 className="text-lg font-semibold">Edit content</h3>
           <button type="button" onClick={onClose} aria-label="Close" className="text-2xl leading-none text-[var(--color-text-muted)] hover:text-[var(--color-text)]">×</button>
         </div>
-        <form action={action} onSubmit={onClose} className="space-y-3.5">
+        <form action={action} onSubmit={onClose} className="space-y-3.5" encType="multipart/form-data">
           <input type="hidden" name="id" value={card.id} />
           <div>
             <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">Title</label>
@@ -138,6 +139,10 @@ function EditModal({
           <div>
             <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">Body</label>
             <textarea name="body" rows={6} defaultValue={card.body ?? ""} className={field} />
+          </div>
+          <div>
+            <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">Attachments</label>
+            <FileDropZone label="Drag files or photos here, or click to browse" />
           </div>
           <button
             type="submit"

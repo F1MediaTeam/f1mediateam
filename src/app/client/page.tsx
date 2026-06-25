@@ -231,30 +231,6 @@ export default async function ClientHome() {
         </section>
       ) : null}
 
-      {widgets.rankings ? (
-        <section className="mb-10">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight">SEMrush trends</h2>
-            <Pill>SEMrush</Pill>
-          </div>
-          <MultiMetricCard
-            clientId={client.id}
-            title="Semrush"
-            hint="Authority, traffic, and rankings"
-            metrics={[
-              { metric: "semrush_organic_keywords",  label: "Organic keywords", color: "#34d399" },
-              { metric: "semrush_organic_traffic",   label: "Organic traffic",  color: "#22d3ee" },
-              { metric: "semrush_backlinks",         label: "Backlinks",        color: "#a78bfa" },
-              { metric: "semrush_referring_domains", label: "Referring domains", color: "#f472b6" },
-              { metric: "semrush_authority_score",   label: "Authority score",  color: "#f59e0b", aggregation: "average" },
-              { metric: "site_health",               label: "Site health",      color: "#84cc16", aggregation: "average", unit: "%" },
-              { metric: "visibility",                label: "Visibility",       color: "#fb7185", aggregation: "average", unit: "%" },
-              { metric: "ai_visibility",             label: "AI visibility",    color: "#c084fc", aggregation: "average" },
-            ]}
-          />
-        </section>
-      ) : null}
-
       {widgets.traffic ? (
         <section className="mb-10">
           <div className="mb-3 flex items-center justify-between">

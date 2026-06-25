@@ -37,12 +37,15 @@ export default function ClientShell({
             </Link>
             <span className="text-[var(--color-border-strong)] hidden sm:inline">/</span>
             {client.company_name.toLowerCase().includes("buckets") ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src="/buckets-logo.svg"
-                alt={client.company_name}
-                style={{ width: 110, height: 32, objectFit: "contain", objectPosition: "left center" }}
-                className="hidden sm:inline-block shrink-0"
+              <div
+                role="img"
+                aria-label={client.company_name}
+                className="hidden sm:block shrink-0 bg-no-repeat bg-left bg-contain"
+                style={{
+                  width: 110,
+                  height: 32,
+                  backgroundImage: "var(--buckets-logo-img)",
+                }}
               />
             ) : (
               <span className="text-sm font-medium truncate hidden sm:inline">{client.company_name}</span>

@@ -68,9 +68,9 @@ export const bingConnector: Connector = {
 
   async sync(ctx: SyncContext): Promise<SyncResult> {
     const creds = await data.getConnectorWithCredentials(ctx.token.id);
-    if (!creds?.access_token) throw new Error("Bing API key missing");
-    const apikey = creds.access_token;
-    let siteUrl = creds.account_label;
+    const apikey = process.env.BING_API_KEY ?? creds?.access_token;
+    if (!apikey) throw new Error("Bing API key missing — set BING_API_KEY env var or paste a per-client key");
+    let siteUrl = creds?.account_label ?? null;
     if (!siteUrl) {
       const sites = await listBingSites(apikey);
       siteUrl = sites[0] ?? null;

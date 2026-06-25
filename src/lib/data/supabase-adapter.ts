@@ -902,7 +902,10 @@ export async function upsertConnectorToken(input: {
   client_id: UUID;
   provider: string;
   account_label: string;
-  access_token: string;
+  // null = no per-client credential (e.g. Bing/Semrush where one agency-wide
+  // env key covers every client; we only need to remember which site/domain
+  // this client maps to).
+  access_token: string | null;
   refresh_token: string | null;
   expires_at: string | null;
   scopes: string[];
@@ -914,7 +917,7 @@ export async function upsertConnectorToken(input: {
     client_id: input.client_id,
     provider: input.provider,
     account_label: input.account_label,
-    access_token_ciphertext: encryptToken(input.access_token),
+    access_token_ciphertext: input.access_token ? encryptToken(input.access_token) : null,
     refresh_token_ciphertext: input.refresh_token ? encryptToken(input.refresh_token) : null,
     expires_at: input.expires_at,
     scopes: input.scopes,

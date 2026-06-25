@@ -90,9 +90,9 @@ export const semrushConnector: Connector = {
 
   async sync(ctx: SyncContext): Promise<SyncResult> {
     const creds = await data.getConnectorWithCredentials(ctx.token.id);
-    if (!creds?.access_token) throw new Error("Semrush API key missing");
-    const apikey = creds.access_token;
-    const domain = creds.account_label;
+    const apikey = process.env.SEMRUSH_API_KEY ?? creds?.access_token;
+    if (!apikey) throw new Error("Semrush API key missing — set SEMRUSH_API_KEY env var or paste a per-client key");
+    const domain = creds?.account_label;
     if (!domain) throw new Error("Semrush domain missing — reconnect with the client's domain");
 
     const snapshots: SyncResult["snapshots"] = [];
@@ -378,8 +378,9 @@ export async function fetchClientOrganicKeywords(clientId: string, limit = 250):
   const token = connectors.find((c) => c.provider === "semrush");
   if (!token) return [];
   const creds = await data.getConnectorWithCredentials(token.id);
-  if (!creds?.access_token || !creds.account_label) return [];
-  return fetchOrganicKeywords(creds.access_token, creds.account_label, limit);
+  const apikey = process.env.SEMRUSH_API_KEY ?? creds?.access_token;
+  if (!apikey || !creds?.account_label) return [];
+  return fetchOrganicKeywords(apikey, creds.account_label, limit);
 }
 
 // ===========================================================================
@@ -619,9 +620,10 @@ export async function semrushDeepPullForClient(clientId: string): Promise<{ doma
   const token = connectors.find((c) => c.provider === "semrush");
   if (!token) return null;
   const creds = await data.getConnectorWithCredentials(token.id);
-  if (!creds?.access_token || !creds.account_label) return null;
+  const apikey = process.env.SEMRUSH_API_KEY ?? creds?.access_token;
+  if (!apikey || !creds?.account_label) return null;
   const domain = normalizeDomain(creds.account_label);
-  const reports = await semrushDeepPull(creds.access_token, domain);
+  const reports = await semrushDeepPull(apikey, domain);
   return { domain, reports };
 }
 

@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Button } from "@/components/ui";
-import { connectSemrushAction, updateSemrushMetaAction } from "@/app/admin/actions";
+import { connectSemrushDomainAction, updateSemrushMetaAction } from "@/app/admin/actions";
 
 export default async function ConnectSemrushPage({
   params,
@@ -38,28 +38,15 @@ export default async function ConnectSemrushPage({
           Connect Semrush
         </h1>
         <p className="text-sm text-[var(--color-text-muted)] mb-8">
-          Paste your Semrush API key and confirm {client.company_name}&apos;s domain.
-          The key is encrypted at rest and only used for backend syncs.
+          Confirm {client.company_name}&apos;s domain. Your agency Semrush API key is
+          used automatically — no per-client paste.
         </p>
 
         <Card>
-          <CardHeader title="API key + domain" subtitle="Encrypted at rest, never displayed back." />
+          <CardHeader title="Domain" subtitle={process.env.SEMRUSH_API_KEY ? "Using your agency SEMRUSH_API_KEY" : "Missing SEMRUSH_API_KEY env var"} />
           <CardBody>
-            <form action={connectSemrushAction} className="space-y-3">
+            <form action={connectSemrushDomainAction} className="space-y-3">
               <input type="hidden" name="client_id" value={id} />
-              <div>
-                <label className="block text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
-                  API key
-                </label>
-                <input
-                  type="password"
-                  name="apikey"
-                  placeholder="32-character key from semrush.com → My Profile → API Units"
-                  autoComplete="off"
-                  required
-                  className="w-full rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] px-3.5 py-2.5 text-sm font-mono"
-                />
-              </div>
               <div>
                 <label className="block text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
                   Domain

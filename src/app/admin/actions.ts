@@ -259,6 +259,78 @@ export async function endImpersonateAction() {
 
 // --- connector sync ---
 
+// Agency-key flow: skip per-client API key. Uses BING_API_KEY env var,
+// stores just the site URL the client maps to.
+export async function connectBingSiteAction(formData: FormData) {
+  await requireAdmin();
+  const client_id = String(formData.get("client_id") ?? "");
+  const site_url = String(formData.get("site_url") ?? "").trim();
+  if (!client_id) return;
+  if (!site_url) {
+    redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent("Pick a verified Bing site to continue")}`);
+  }
+  if (!process.env.BING_API_KEY) {
+    redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent("BING_API_KEY env var is not set on the server")}`);
+  }
+  try {
+    await data.upsertConnectorToken({
+      client_id,
+      provider: "bing",
+      account_label: site_url,
+      access_token: null,
+      refresh_token: null,
+      expires_at: null,
+      scopes: [],
+      meta: {},
+    });
+  } catch (e) {
+    if (e && typeof e === "object" && "digest" in e && String((e as { digest: unknown }).digest).startsWith("NEXT_REDIRECT")) {
+      throw e;
+    }
+    const message = e instanceof Error ? e.message : String(e);
+    redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent(`Bing: ${message}`)}`);
+  }
+  revalidatePath(`/admin/clients/${client_id}`);
+  redirect(`/admin/clients/${client_id}?oauth_connected=bing`);
+}
+
+// Agency-key flow for Semrush. Uses SEMRUSH_API_KEY env var; per-client row
+// just records which domain to query against.
+export async function connectSemrushDomainAction(formData: FormData) {
+  await requireAdmin();
+  const client_id = String(formData.get("client_id") ?? "");
+  const domain = String(formData.get("domain") ?? "").trim();
+  if (!client_id) return;
+  if (!domain) {
+    redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent("Enter the client's domain to continue")}`);
+  }
+  if (!process.env.SEMRUSH_API_KEY) {
+    redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent("SEMRUSH_API_KEY env var is not set on the server")}`);
+  }
+  try {
+    const { normalizeDomain } = await import("@/lib/connectors/semrush");
+    const normalized = normalizeDomain(domain);
+    await data.upsertConnectorToken({
+      client_id,
+      provider: "semrush",
+      account_label: normalized,
+      access_token: null,
+      refresh_token: null,
+      expires_at: null,
+      scopes: [],
+      meta: {},
+    });
+  } catch (e) {
+    if (e && typeof e === "object" && "digest" in e && String((e as { digest: unknown }).digest).startsWith("NEXT_REDIRECT")) {
+      throw e;
+    }
+    const message = e instanceof Error ? e.message : String(e);
+    redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent(`Semrush: ${message}`)}`);
+  }
+  revalidatePath(`/admin/clients/${client_id}`);
+  redirect(`/admin/clients/${client_id}?oauth_connected=semrush`);
+}
+
 export async function connectSemrushAction(formData: FormData) {
   await requireAdmin();
   const client_id = String(formData.get("client_id") ?? "");

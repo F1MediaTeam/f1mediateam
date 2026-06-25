@@ -395,6 +395,10 @@ export async function updateSemrushMetaAction(formData: FormData) {
   if (av !== undefined) patch.ai_visibility_value = av;
   const mn = parseNum(formData.get("mentions_value"));
   if (mn !== undefined) patch.mentions_value = mn;
+  const sh = parseNum(formData.get("site_health_value"));
+  if (sh !== undefined) patch.site_health_value = sh;
+  const vs = parseNum(formData.get("visibility_value"));
+  if (vs !== undefined) patch.visibility_value = vs;
   await data.updateConnectorMeta(token_id, patch);
   revalidatePath(`/admin/clients/${client_id}`);
   revalidatePath(`/admin/clients/${client_id}/connect/semrush`);

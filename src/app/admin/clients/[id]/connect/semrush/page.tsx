@@ -23,6 +23,8 @@ export default async function ConnectSemrushPage({
     position_tracking_campaign_id: meta.position_tracking_campaign_id == null ? "" : String(meta.position_tracking_campaign_id),
     ai_visibility_value: meta.ai_visibility_value == null ? "" : String(meta.ai_visibility_value),
     mentions_value: meta.mentions_value == null ? "" : String(meta.mentions_value),
+    site_health_value: meta.site_health_value == null ? "" : String(meta.site_health_value),
+    visibility_value: meta.visibility_value == null ? "" : String(meta.visibility_value),
   };
 
   return (
@@ -118,9 +120,10 @@ export default async function ConnectSemrushPage({
 
                 <div className="border-t border-[var(--color-border)] pt-4">
                   <p className="text-[11px] text-[var(--color-text-subtle)] mb-3">
-                    AI Visibility and Mentions have no SEMrush API. Copy the
-                    numbers from the SEMrush One UI snapshot for {client.company_name}.
-                    The next sync writes them as today&apos;s value.
+                    Manual snapshot overrides. Copy the numbers straight from the
+                    SEMrush One UI for {client.company_name}. The next sync writes
+                    each as today&apos;s value. Use these when the corresponding
+                    project / campaign ID above isn&apos;t set.
                   </p>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -147,6 +150,32 @@ export default async function ConnectSemrushPage({
                         name="mentions_value"
                         defaultValue={m.mentions_value}
                         placeholder="e.g. 51"
+                        className="w-full rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] px-3.5 py-2.5 text-sm font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
+                        Site Health (%)
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        name="site_health_value"
+                        defaultValue={m.site_health_value}
+                        placeholder="e.g. 80"
+                        className="w-full rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] px-3.5 py-2.5 text-sm font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
+                        Visibility (%)
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        name="visibility_value"
+                        defaultValue={m.visibility_value}
+                        placeholder="e.g. 3.32"
                         className="w-full rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] px-3.5 py-2.5 text-sm font-mono"
                       />
                     </div>

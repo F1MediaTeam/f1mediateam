@@ -150,21 +150,33 @@ export const semrushConnector: Connector = {
 
     // --- Site Audit health score — requires per-client Site Audit project.
     //     Project ID is stored on the token's meta.site_audit_project_id.
+    //     If no project ID, fall back to a manual override value.
     const siteAuditId = readNumericMeta(ctx.token.meta, "site_audit_project_id");
     if (siteAuditId) {
       const sa = await fetchSiteAuditScore(siteAuditId, apikey);
       if (sa != null) {
         snapshots.push({ source: "semrush", metric: "site_health", value: sa, captured_at: today, is_baseline: false, meta });
       }
+    } else {
+      const sh = readNumericMeta(ctx.token.meta, "site_health_value");
+      if (sh != null) {
+        snapshots.push({ source: "semrush", metric: "site_health", value: sh, captured_at: today, is_baseline: false, meta: { ...meta, manual: true } });
+      }
     }
 
     // --- Position Tracking visibility — requires per-client tracking campaign.
     //     Campaign ID stored on token.meta.position_tracking_campaign_id.
+    //     If no campaign ID, fall back to a manual override value.
     const trackId = readNumericMeta(ctx.token.meta, "position_tracking_campaign_id");
     if (trackId) {
       const vis = await fetchPositionTrackingVisibility(trackId, apikey);
       if (vis != null) {
         snapshots.push({ source: "semrush", metric: "visibility", value: vis, captured_at: today, is_baseline: false, meta });
+      }
+    } else {
+      const vis = readNumericMeta(ctx.token.meta, "visibility_value");
+      if (vis != null) {
+        snapshots.push({ source: "semrush", metric: "visibility", value: vis, captured_at: today, is_baseline: false, meta: { ...meta, manual: true } });
       }
     }
 

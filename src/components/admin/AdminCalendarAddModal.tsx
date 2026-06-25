@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
+import FileDropZone from "@/components/shared/FileDropZone";
 
 interface ClientOption {
   id: string;
@@ -67,7 +68,7 @@ export default function AdminCalendarAddModal({ action, clients }: Props) {
               </button>
             </div>
 
-            <form action={action} onSubmit={() => setOpen(false)} className="space-y-3.5">
+            <form action={action} onSubmit={() => setOpen(false)} className="space-y-3.5" encType="multipart/form-data">
               <select name="client_id" defaultValue="internal" className={field} required>
                 <option value="internal">F1 Media (internal)</option>
                 {clients.map((c) => (
@@ -87,6 +88,12 @@ export default function AdminCalendarAddModal({ action, clients }: Props) {
                 className={field}
               />
               <textarea name="notes" rows={3} placeholder="Notes (optional)" className={field} />
+              <div>
+                <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
+                  Attachments (optional)
+                </label>
+                <FileDropZone label="Drag files or photos here, or click to browse" />
+              </div>
               <Button type="submit" className="w-full">Add to calendar</Button>
             </form>
           </div>

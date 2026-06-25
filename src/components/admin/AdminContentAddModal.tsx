@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
+import FileDropZone from "@/components/shared/FileDropZone";
 
 interface ClientOption {
   id: string;
@@ -71,7 +72,7 @@ export default function AdminContentAddModal({ action, clients, lockedClient }: 
                 ? <>Drafted by you, sent to <strong>{lockedClient.company_name}</strong> as <strong>Proposed</strong>.</>
                 : <>Drafted by you, sent to the client as <strong>Proposed</strong>.</>}
             </p>
-            <form action={action} onSubmit={() => setOpen(false)} className="space-y-3.5">
+            <form action={action} onSubmit={() => setOpen(false)} className="space-y-3.5" encType="multipart/form-data">
               {lockedClient ? (
                 <input type="hidden" name="client_id" value={lockedClient.id} />
               ) : (
@@ -103,6 +104,12 @@ export default function AdminContentAddModal({ action, clients, lockedClient }: 
                   Notes / body
                 </label>
                 <textarea name="body" rows={4} placeholder="What's in this card? What should the client see?" className={field} />
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
+                  Attachments
+                </label>
+                <FileDropZone label="Drag files or photos here, or click to browse" />
               </div>
               <Button type="submit" className="w-full">Add content</Button>
             </form>

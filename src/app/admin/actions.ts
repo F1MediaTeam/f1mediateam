@@ -29,8 +29,11 @@ export async function createTaskAction(formData: FormData) {
     due_date,
     assigned_by: session.user_id,
   });
+  const { persistAttachments } = await import("@/lib/attachments");
+  await persistAttachments({ formData, client_id, uploaded_by: session.user_id, category: "task" });
   revalidatePath("/admin");
   revalidatePath("/admin/calendar");
+  revalidatePath(`/admin/clients/${client_id}`);
 }
 
 export async function toggleTaskAction(formData: FormData) {
@@ -74,6 +77,11 @@ export async function createCalendarAction(formData: FormData) {
     notes,
     created_by: session.user_id,
   });
+  if (client_id) {
+    const { persistAttachments } = await import("@/lib/attachments");
+    await persistAttachments({ formData, client_id, uploaded_by: session.user_id, category: "calendar" });
+    revalidatePath(`/admin/clients/${client_id}`);
+  }
   revalidatePath("/admin");
   revalidatePath("/admin/calendar");
 }
@@ -99,13 +107,17 @@ export async function deleteCalendarAction(formData: FormData) {
 // --- clients ---
 
 export async function createClientAction(formData: FormData) {
-  await requireAdmin();
+  const session = await requireAdmin();
   const company_name = String(formData.get("company_name") ?? "").trim();
   const join_date = String(formData.get("join_date") ?? "").trim() || undefined;
   const websitesRaw = String(formData.get("websites") ?? "").trim();
   const websites = websitesRaw ? websitesRaw.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean) : [];
   if (!company_name) return;
-  await data.createClientRow({ company_name, join_date, websites });
+  const created = await data.createClientRow({ company_name, join_date, websites });
+  if (created?.id) {
+    const { persistAttachments } = await import("@/lib/attachments");
+    await persistAttachments({ formData, client_id: created.id, uploaded_by: session.user_id, category: "onboarding" });
+  }
   revalidatePath("/admin/clients");
 }
 
@@ -191,7 +203,10 @@ export async function createContentAction(formData: FormData) {
   const link = String(formData.get("link") ?? "").trim() || null;
   if (!client_id || !title) return;
   await data.createContent({ client_id, title, body, link, created_by: session.user_id });
+  const { persistAttachments } = await import("@/lib/attachments");
+  await persistAttachments({ formData, client_id, uploaded_by: session.user_id, category: "content-card" });
   revalidatePath("/admin/content");
+  revalidatePath(`/admin/clients/${client_id}`);
 }
 
 export async function deleteContentAction(formData: FormData) {

@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui";
+import FileDropZone from "@/components/shared/FileDropZone";
 
 interface Props {
   action: (formData: FormData) => void | Promise<void>;
@@ -139,68 +140,10 @@ export default function CalendarAddModal({ action }: Props) {
 
               {/* Attachments */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] uppercase tracking-widest text-[var(--color-text-muted)]">
-                    Attachments
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-1 rounded-md border border-dashed border-[var(--color-border-strong)] bg-[var(--color-bg)] hover:bg-[var(--color-bg-hover)] px-2.5 py-1 text-xs"
-                  >
-                    <span className="text-base leading-none">+</span> Upload file
-                  </button>
-                </div>
-
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  name="attachments"
-                  multiple
-                  accept="*/*"
-                  className="hidden"
-                  onChange={(e) => handlePickedFiles(e.target.files)}
-                />
-
-                {files.length === 0 ? (
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      handlePickedFiles(e.dataTransfer.files);
-                    }}
-                    className="rounded-lg border border-dashed border-[var(--color-border)] px-3 py-4 text-xs text-[var(--color-text-muted)] text-center cursor-pointer hover:bg-[var(--color-bg-hover)]"
-                  >
-                    Click the +, or drag files here. PDFs, spreadsheets, images, any file type · up to 25 MB each.
-                  </div>
-                ) : (
-                  <ul className="space-y-1.5">
-                    {files.map((f, i) => (
-                      <li
-                        key={i}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-xs"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate">{f.name}</div>
-                          <div className="text-[10px] text-[var(--color-text-muted)] font-mono">
-                            {fmtBytes(f.size)} · {f.type || "application/octet-stream"}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeFile(i)}
-                          aria-label={`Remove ${f.name}`}
-                          className="text-[var(--color-text-muted)] hover:text-red-300 text-base leading-none"
-                        >
-                          ×
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                {error ? <div className="mt-2 text-xs text-red-300">{error}</div> : null}
+                <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
+                  Attachments
+                </label>
+                <FileDropZone label="Drag files or photos here, or click to browse" />
               </div>
 
               <Button type="submit" className="w-full">Add to calendar</Button>

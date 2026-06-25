@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
+import FileDropZone from "@/components/shared/FileDropZone";
 
 interface Props {
   action: (formData: FormData) => void | Promise<void>;
@@ -61,7 +62,7 @@ export default function AdminClientAddModal({ action }: Props) {
             <p className="text-xs text-[var(--color-text-muted)] mb-4">
               Creates a new tenant. You can assign portal users to it from the client&apos;s profile page.
             </p>
-            <form action={action} onSubmit={() => setOpen(false)} className="space-y-3.5">
+            <form action={action} onSubmit={() => setOpen(false)} className="space-y-3.5" encType="multipart/form-data">
               <div>
                 <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
                   Company name
@@ -80,6 +81,12 @@ export default function AdminClientAddModal({ action }: Props) {
                 </label>
                 <input name="websites" placeholder="northwind.com, blog.northwind.com" className={field} />
                 <p className="mt-1 text-[10px] text-[var(--color-text-subtle)]">Comma-separated. Used by GSC + SEMrush connectors.</p>
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
+                  Attachments (optional)
+                </label>
+                <FileDropZone label="Drag files or photos here, or click to browse" />
               </div>
               <Button type="submit" className="w-full">Add client</Button>
             </form>

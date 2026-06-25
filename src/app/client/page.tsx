@@ -193,16 +193,6 @@ export default async function ClientHome() {
         </Card>
       ) : null}
 
-      {widgets.rankings && semrushChart.hasAny ? (
-        <section className="mb-10">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight">SEO insights</h2>
-            <Pill>SEMrush</Pill>
-          </div>
-          <SemrushInsights data={semrushChart} />
-        </section>
-      ) : null}
-
       {widgets.calendar && upcomingMeetings.length > 0 ? (
         <Card className="mb-10">
           <CardHeader title="Meetings" />
@@ -221,52 +211,44 @@ export default async function ClientHome() {
         </Card>
       ) : null}
 
-      {widgets.rankings ? (
+      {(widgets.rankings || widgets.traffic) ? (
         <section className="mb-10">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight">Search performance</h2>
-            <Pill>Google Search Console</Pill>
+          <div className="mb-4">
+            <h2 className="text-2xl font-semibold tracking-tight">SEO insights</h2>
           </div>
-          <GscSearchSection clientId={client.id} />
-        </section>
-      ) : null}
-
-      {widgets.traffic ? (
-        <section className="mb-10">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight">Site traffic</h2>
-            <Pill>Google Analytics 4</Pill>
+          <div className="space-y-6">
+            {widgets.rankings ? (
+              <GscSearchSection clientId={client.id} />
+            ) : null}
+            {widgets.traffic ? (
+              <MultiMetricCard
+                clientId={client.id}
+                title="Google Analytics 4"
+                hint="Site traffic"
+                metrics={[
+                  { metric: "sessions",     label: "Sessions",     color: "#22d3ee" },
+                  { metric: "active_users", label: "Active users", color: "#f472b6" },
+                  { metric: "conversions",  label: "Conversions",  color: "#facc15" },
+                ]}
+              />
+            ) : null}
+            {widgets.rankings ? (
+              <MultiMetricCard
+                clientId={client.id}
+                title="Bing Webmaster Tools"
+                hint="Bing organic performance"
+                metrics={[
+                  { metric: "bing_clicks",                  label: "Clicks",             color: "#60a5fa" },
+                  { metric: "bing_impressions",             label: "Impressions",        color: "#a78bfa" },
+                  { metric: "bing_avg_click_position",      label: "Avg click position", color: "#f59e0b", aggregation: "average", invert: true },
+                  { metric: "bing_avg_impression_position", label: "Avg impr position",  color: "#fb7185", aggregation: "average", invert: true },
+                ]}
+              />
+            ) : null}
+            {widgets.rankings && semrushChart.hasAny ? (
+              <SemrushInsights data={semrushChart} />
+            ) : null}
           </div>
-          <MultiMetricCard
-            clientId={client.id}
-            title="Google Analytics 4"
-            hint="Site traffic"
-            metrics={[
-              { metric: "sessions",     label: "Sessions",     color: "#22d3ee" },
-              { metric: "active_users", label: "Active users", color: "#f472b6" },
-              { metric: "conversions",  label: "Conversions",  color: "#facc15" },
-            ]}
-          />
-        </section>
-      ) : null}
-
-      {widgets.rankings ? (
-        <section className="mb-10">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight">Bing search performance</h2>
-            <Pill>Bing Webmaster Tools</Pill>
-          </div>
-          <MultiMetricCard
-            clientId={client.id}
-            title="Bing Webmaster Tools"
-            hint="Bing organic performance"
-            metrics={[
-              { metric: "bing_clicks",                  label: "Clicks",             color: "#60a5fa" },
-              { metric: "bing_impressions",             label: "Impressions",        color: "#a78bfa" },
-              { metric: "bing_avg_click_position",      label: "Avg click position", color: "#f59e0b", aggregation: "average", invert: true },
-              { metric: "bing_avg_impression_position", label: "Avg impr position",  color: "#fb7185", aggregation: "average", invert: true },
-            ]}
-          />
         </section>
       ) : null}
 

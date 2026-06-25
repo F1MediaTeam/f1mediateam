@@ -16,13 +16,15 @@ function fmt(n: number): string {
 }
 
 function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  // h-full + flex-col so every panel fills its grid cell to the same height,
+  // and the body region absorbs any extra space below the header.
   return (
-    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
+    <div className="h-full flex flex-col rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
       <div className="mb-3">
         <div className="text-sm font-medium">{title}</div>
         {subtitle ? <div className="text-[11px] text-[var(--color-text-muted)]">{subtitle}</div> : null}
       </div>
-      {children}
+      <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
     </div>
   );
 }
@@ -112,7 +114,6 @@ export default function SemrushInsights({ data }: { data: SemrushChartData }) {
     widgets.push({
       id: "authority",
       label: "Authority Score",
-      fullWidth: true,
       node: (
         <Panel title="Authority Score" subtitle="Backlink authority over time">
           <TrendChart points={data.authority} height={220} formatter={(v) => String(Math.round(v))} />
@@ -180,7 +181,7 @@ export default function SemrushInsights({ data }: { data: SemrushChartData }) {
     <WidgetBoard
       storageKey="f1.semrush-insights.layout.v1"
       widgets={widgets}
-      gridClassName="grid grid-cols-1 gap-4 lg:grid-cols-2"
+      gridClassName="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:auto-rows-fr"
     />
   );
 }

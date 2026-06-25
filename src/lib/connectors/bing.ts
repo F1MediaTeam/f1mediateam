@@ -68,7 +68,10 @@ export const bingConnector: Connector = {
 
   async sync(ctx: SyncContext): Promise<SyncResult> {
     const creds = await data.getConnectorWithCredentials(ctx.token.id);
-    const apikey = process.env.BING_API_KEY ?? creds?.access_token;
+    // Per-client key wins; env var is the default for clients without one.
+    // This lets us use one agency key for most clients, while clients whose
+    // sites are verified under a different Bing account use their own key.
+    const apikey = creds?.access_token || process.env.BING_API_KEY;
     if (!apikey) throw new Error("Bing API key missing — set BING_API_KEY env var or paste a per-client key");
     let siteUrl = creds?.account_label ?? null;
     if (!siteUrl) {

@@ -12,7 +12,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Button } from "@/components/ui";
-import { connectBingSiteAction } from "@/app/admin/actions";
+import { connectBingSiteAction, connectBingAction } from "@/app/admin/actions";
 import { listBingSites } from "@/lib/connectors/bing";
 
 export default async function ConnectBingPage({
@@ -124,6 +124,33 @@ export default async function ConnectBingPage({
                 </div>
               </form>
             )}
+          </CardBody>
+        </Card>
+
+        <Card className="mt-6">
+          <CardHeader
+            title="Or use this client's own Bing key"
+            subtitle="Use when the client's site is verified under a different Bing account than your agency one"
+          />
+          <CardBody>
+            <form action={connectBingAction} className="space-y-3">
+              <input type="hidden" name="client_id" value={id} />
+              <input
+                type="password"
+                name="apikey"
+                placeholder="32-character Bing Webmaster API key"
+                autoComplete="off"
+                required
+                className="w-full rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] px-3.5 py-2.5 text-sm font-mono"
+              />
+              <p className="text-[11px] text-[var(--color-text-subtle)]">
+                We&apos;ll call <span className="font-mono">GetUserSites</span> with this key and store the first verified site as
+                {" "}{client.company_name}&apos;s Bing connection. The key is encrypted at rest and replaces the agency key for this client.
+              </p>
+              <div className="flex items-center gap-2 pt-2">
+                <Button type="submit">Connect with this key</Button>
+              </div>
+            </form>
           </CardBody>
         </Card>
       </div>

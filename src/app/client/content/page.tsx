@@ -4,7 +4,6 @@ import ClientShell from "@/components/client/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import Time from "@/components/shared/Time";
 import { approveContentAction, requestChangesAction, addClientContentAction } from "../actions";
-import ContentCardControls from "@/components/shared/ContentCardControls";
 import ContentDetailModal from "@/components/shared/ContentDetailModal";
 import ClientAddContentModal from "@/components/client/ClientAddContentModal";
 import RequestChangesModal from "@/components/client/RequestChangesModal";
@@ -62,18 +61,8 @@ export default async function ClientContent() {
                         key={card.id}
                         className="relative rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3"
                       >
-                        {/* 3-dot menu — only renders an item on proposed cards (Request changes) */}
-                        <div className="absolute top-2 right-2">
-                          <ContentCardControls
-                            card={{ id: card.id, title: card.title, body: card.body, link: card.link, stage: card.stage }}
-                            role="client"
-                            updateAction={approveContentAction /* placeholder — client edits not enabled yet */}
-                            requestChangesAction={requestChangesAction}
-                          />
-                        </div>
-
                         <ContentDetailModal
-                          triggerClassName="block w-full text-left pr-8"
+                          triggerClassName="block w-full text-left"
                           card={{ id: card.id, title: card.title, body: card.body, link: card.link, stage: card.stage, created_at: card.created_at, updated_at: card.updated_at }}
                           companyName={client.company_name}
                           events={events.map((e) => ({ id: e.id, created_at: e.created_at, from_stage: e.from_stage, to_stage: e.to_stage, actor_role: e.actor_role, note: e.note }))}

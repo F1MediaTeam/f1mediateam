@@ -82,12 +82,6 @@ export default async function ClientHome() {
         <h1 className="mt-1 text-4xl font-semibold tracking-tight">Welcome back.</h1>
       </div>
 
-      {widgets.rankings ? (
-        <section className="mb-10">
-          <SeoMetricsRow clientId={client.id} />
-        </section>
-      ) : null}
-
       {widgets.content ? (
         <div className="mb-10 grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
           <StatusColumn
@@ -213,9 +207,20 @@ export default async function ClientHome() {
 
       {(widgets.rankings || widgets.traffic) ? (
         <section className="mb-10">
-          <div className="mb-4">
-            <h2 className="text-2xl font-semibold tracking-tight">SEO insights</h2>
-          </div>
+          {widgets.rankings ? (
+            <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] mb-6">
+              <div className="px-5 py-4 text-center border-b border-[var(--color-border)]">
+                <h2 className="text-2xl font-semibold tracking-tight">SEO insights</h2>
+              </div>
+              <div className="p-5">
+                <SeoMetricsRow clientId={client.id} embedded />
+              </div>
+            </div>
+          ) : (
+            <div className="mb-6 text-center">
+              <h2 className="text-2xl font-semibold tracking-tight">SEO insights</h2>
+            </div>
+          )}
           <div className="space-y-6">
             {widgets.rankings ? (
               <GscSearchSection clientId={client.id} />

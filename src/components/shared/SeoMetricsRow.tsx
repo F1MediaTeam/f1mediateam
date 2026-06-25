@@ -40,7 +40,7 @@ function compact(v: number): string {
   return formatNumber(v, { maximumFractionDigits: 0 });
 }
 
-export default async function SeoMetricsRow({ clientId }: { clientId: string }) {
+export default async function SeoMetricsRow({ clientId, embedded = false }: { clientId: string; embedded?: boolean }) {
   // Pull current/previous values per metric in parallel so the row renders fast.
   const values = await Promise.all(
     METRICS.map(async (m) => {
@@ -58,8 +58,14 @@ export default async function SeoMetricsRow({ clientId }: { clientId: string }) 
     }),
   );
 
+  // When embedded inside a parent card (e.g. attached under the "SEO insights"
+  // title), drop the wrapper border/bg so we don't get a card-in-a-card look.
+  const wrapperClass = embedded
+    ? ""
+    : "rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4";
+
   return (
-    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
+    <div className={wrapperClass}>
       <div className="flex items-center justify-between mb-3">
         <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
           SEO snapshot

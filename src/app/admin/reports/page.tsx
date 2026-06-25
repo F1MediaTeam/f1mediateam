@@ -1,10 +1,12 @@
 import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
-import { Card, CardBody, CardHeader, Pill } from "@/components/ui";
+import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import ReportFilters, { type ReportRange } from "@/components/admin/ReportFilters";
 import ExportLinks from "@/components/admin/ExportLinks";
 import { formatDate, formatNumber, formatPercentChange, todayIso } from "@/lib/utils";
+import { aiConfigured } from "@/lib/deck/ai-narrative";
+import { gammaConfigured } from "@/lib/connectors/gamma";
 
 type Range = ReportRange;
 
@@ -69,6 +71,11 @@ export default async function AdminReports({
     return { metric: d.metric, label: d.label, invert: d.invert ?? false, first, last, change };
   });
 
+  const aiOk = aiConfigured();
+  const gammaOk = gammaConfigured();
+  const fieldCls = "w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40";
+  const labelCls = "block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5";
+
   return (
     <AdminShell session={session} active="/admin/reports">
       <div className="px-8 py-8 max-w-7xl">
@@ -77,6 +84,77 @@ export default async function AdminReports({
           <h1 className="text-3xl font-semibold tracking-tight mt-1">Performance report</h1>
         </div>
 
+        {/* ─────────── Meeting deck (formerly /admin/meeting-deck) ─────────── */}
+        {!aiOk ? (
+          <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-200 text-sm px-4 py-3">
+            <strong>ANTHROPIC_API_KEY</strong> is not set on this environment. Meeting deck generation will fail until you add it under Vercel → Project Settings → Environment Variables.
+          </div>
+        ) : null}
+        <Card className="mb-8">
+          <CardHeader
+            title="Meeting deck"
+            subtitle="Pick a company + time frame. Claude writes the narrative slides from that client's posted content, GSC numbers, drafts, open tasks, and any Fieldy meeting notes mentioning them in the window. PDF downloads when ready (15–30s)."
+          />
+          <CardBody>
+            <form action="/api/meeting-deck" method="post" target="_blank" className="space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Company</label>
+                  <select name="client_id" required defaultValue={clientId} className={fieldCls}>
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>{c.company_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Time frame</label>
+                  <select name="range" defaultValue="28d" className={fieldCls}>
+                    <option value="7d">Last 7 days</option>
+                    <option value="28d">Last 28 days</option>
+                    <option value="90d">Last 90 days</option>
+                    <option value="ytd">Year to date</option>
+                    <option value="custom">Custom range…</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Custom from</label>
+                  <input type="date" name="from" className={fieldCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Custom to</label>
+                  <input type="date" name="to" className={fieldCls} />
+                </div>
+              </div>
+              <details className="text-xs text-[var(--color-text-muted)] border-t border-[var(--color-border)] pt-4">
+                <summary className="cursor-pointer">Brand options (optional)</summary>
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className={labelCls}>Accent color</label>
+                    <input type="color" name="accent" defaultValue="#14B8A6" className="h-[42px] w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)]" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className={labelCls}>Logo URL</label>
+                    <input type="url" name="logo_url" placeholder="https://…/logo.png" className={fieldCls} />
+                  </div>
+                </div>
+              </details>
+              <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-end pt-2">
+                {gammaOk ? (
+                  <Button type="submit" name="output" value="gamma" variant="secondary" className="px-6">
+                    Open in Gamma
+                  </Button>
+                ) : null}
+                <Button type="submit" name="output" value="pdf" className="px-8">
+                  Generate &amp; download
+                </Button>
+              </div>
+            </form>
+          </CardBody>
+        </Card>
+
+        {/* ─────────── Performance report (filters + export) ─────────── */}
         <Card className="mb-6">
           <CardBody className="pt-5">
             <ReportFilters

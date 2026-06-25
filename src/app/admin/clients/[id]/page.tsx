@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
-import MetricCompare from "@/components/shared/MetricCompare";
+import MultiMetricCard from "@/components/shared/MultiMetricCard";
 import SemrushGauges from "@/components/shared/SemrushGauges";
 import OrganicKeywordsPanel from "@/components/shared/OrganicKeywordsPanel";
 import SemrushInsights from "@/components/shared/SemrushInsights";
@@ -206,13 +206,53 @@ export default async function ClientProfile({
         )}
 
         <div className="grid grid-cols-1 gap-6 mb-8">
-          <MetricCompare clientId={id} metric="clicks"                        label="Organic clicks"      hint="From Google Search Console" />
-          <MetricCompare clientId={id} metric="impressions"                   label="Impressions"         hint="From Google Search Console" />
-          <MetricCompare clientId={id} metric="avg_position"                  label="Average position"    hint="From Google Search Console · lower is better" invert />
-          <MetricCompare clientId={id} metric="sessions"                      label="Sessions"            hint="From Google Analytics 4" />
-          <MetricCompare clientId={id} metric="bing_clicks"                   label="Bing organic clicks" hint="From Bing Webmaster Tools" />
-          <MetricCompare clientId={id} metric="bing_impressions"              label="Bing impressions"    hint="From Bing Webmaster Tools" />
-          <MetricCompare clientId={id} metric="bing_avg_click_position"       label="Bing avg. click position" hint="From Bing Webmaster Tools · lower is better" invert />
+          <MultiMetricCard
+            clientId={id}
+            title="Google Search Console"
+            hint="Organic search performance"
+            metrics={[
+              { metric: "clicks",       label: "Total clicks",      color: "#60a5fa" },
+              { metric: "impressions",  label: "Total impressions", color: "#a78bfa" },
+              { metric: "avg_position", label: "Average position",  color: "#f59e0b", aggregation: "average", invert: true },
+              { metric: "ctr",          label: "CTR",               color: "#34d399", aggregation: "average", unit: "%" },
+            ]}
+          />
+          <MultiMetricCard
+            clientId={id}
+            title="Google Analytics 4"
+            hint="Site traffic"
+            metrics={[
+              { metric: "sessions",     label: "Sessions",     color: "#22d3ee" },
+              { metric: "active_users", label: "Active users", color: "#f472b6" },
+              { metric: "conversions",  label: "Conversions",  color: "#facc15" },
+            ]}
+          />
+          <MultiMetricCard
+            clientId={id}
+            title="Bing Webmaster Tools"
+            hint="Bing organic performance"
+            metrics={[
+              { metric: "bing_clicks",                  label: "Clicks",            color: "#60a5fa" },
+              { metric: "bing_impressions",             label: "Impressions",       color: "#a78bfa" },
+              { metric: "bing_avg_click_position",      label: "Avg click position", color: "#f59e0b", aggregation: "average", invert: true },
+              { metric: "bing_avg_impression_position", label: "Avg impr position",  color: "#fb7185", aggregation: "average", invert: true },
+            ]}
+          />
+          <MultiMetricCard
+            clientId={id}
+            title="Semrush"
+            hint="Authority, traffic, and rankings"
+            metrics={[
+              { metric: "semrush_organic_keywords",  label: "Organic keywords", color: "#34d399" },
+              { metric: "semrush_organic_traffic",   label: "Organic traffic",  color: "#22d3ee" },
+              { metric: "semrush_backlinks",         label: "Backlinks",        color: "#a78bfa" },
+              { metric: "semrush_referring_domains", label: "Referring domains", color: "#f472b6" },
+              { metric: "semrush_authority_score",   label: "Authority score",  color: "#f59e0b", aggregation: "average" },
+              { metric: "site_health",               label: "Site health",      color: "#84cc16", aggregation: "average", unit: "%" },
+              { metric: "visibility",                label: "Visibility",       color: "#fb7185", aggregation: "average", unit: "%" },
+              { metric: "ai_visibility",             label: "AI visibility",    color: "#c084fc", aggregation: "average" },
+            ]}
+          />
           <SemrushGauges clientId={id} />
           <OrganicKeywordsPanel clientId={id} />
         </div>

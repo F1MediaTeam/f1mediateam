@@ -8,7 +8,7 @@ import ClientShell from "@/components/client/Shell";
 import { Card, CardBody, CardHeader, Pill } from "@/components/ui";
 import { createClientCalendarEventAction } from "./actions";
 import { isoDate, formatDateTime } from "@/lib/utils";
-import MetricCompare from "@/components/shared/MetricCompare";
+import MultiMetricCard from "@/components/shared/MultiMetricCard";
 import GscDashboard from "@/components/shared/GscDashboard";
 import SeoMetricsRow from "@/components/shared/SeoMetricsRow";
 import SemrushInsights from "@/components/shared/SemrushInsights";
@@ -237,10 +237,21 @@ export default async function ClientHome() {
             <h2 className="text-lg font-semibold tracking-tight">SEMrush trends</h2>
             <Pill>SEMrush</Pill>
           </div>
-          <div className="grid grid-cols-1 gap-6">
-            <MetricCompare clientId={client.id} metric="semrush_organic_traffic"  label="Organic traffic (est.)"   hint="Estimated organic visits across all ranked keywords" />
-            <MetricCompare clientId={client.id} metric="semrush_organic_keywords" label="Organic keywords"         hint="Number of keyword phrases ranking in Google" />
-          </div>
+          <MultiMetricCard
+            clientId={client.id}
+            title="Semrush"
+            hint="Authority, traffic, and rankings"
+            metrics={[
+              { metric: "semrush_organic_keywords",  label: "Organic keywords", color: "#34d399" },
+              { metric: "semrush_organic_traffic",   label: "Organic traffic",  color: "#22d3ee" },
+              { metric: "semrush_backlinks",         label: "Backlinks",        color: "#a78bfa" },
+              { metric: "semrush_referring_domains", label: "Referring domains", color: "#f472b6" },
+              { metric: "semrush_authority_score",   label: "Authority score",  color: "#f59e0b", aggregation: "average" },
+              { metric: "site_health",               label: "Site health",      color: "#84cc16", aggregation: "average", unit: "%" },
+              { metric: "visibility",                label: "Visibility",       color: "#fb7185", aggregation: "average", unit: "%" },
+              { metric: "ai_visibility",             label: "AI visibility",    color: "#c084fc", aggregation: "average" },
+            ]}
+          />
         </section>
       ) : null}
 
@@ -250,9 +261,36 @@ export default async function ClientHome() {
             <h2 className="text-lg font-semibold tracking-tight">Site traffic</h2>
             <Pill>Google Analytics 4</Pill>
           </div>
-          <div className="grid grid-cols-1 gap-6">
-            <MetricCompare clientId={client.id} metric="sessions" label="Sessions" />
+          <MultiMetricCard
+            clientId={client.id}
+            title="Google Analytics 4"
+            hint="Site traffic"
+            metrics={[
+              { metric: "sessions",     label: "Sessions",     color: "#22d3ee" },
+              { metric: "active_users", label: "Active users", color: "#f472b6" },
+              { metric: "conversions",  label: "Conversions",  color: "#facc15" },
+            ]}
+          />
+        </section>
+      ) : null}
+
+      {widgets.rankings ? (
+        <section className="mb-10">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold tracking-tight">Bing search performance</h2>
+            <Pill>Bing Webmaster Tools</Pill>
           </div>
+          <MultiMetricCard
+            clientId={client.id}
+            title="Bing Webmaster Tools"
+            hint="Bing organic performance"
+            metrics={[
+              { metric: "bing_clicks",                  label: "Clicks",             color: "#60a5fa" },
+              { metric: "bing_impressions",             label: "Impressions",        color: "#a78bfa" },
+              { metric: "bing_avg_click_position",      label: "Avg click position", color: "#f59e0b", aggregation: "average", invert: true },
+              { metric: "bing_avg_impression_position", label: "Avg impr position",  color: "#fb7185", aggregation: "average", invert: true },
+            ]}
+          />
         </section>
       ) : null}
 

@@ -46,10 +46,11 @@ export default async function ConnectBingPage({
       try { return new URL(w).hostname.replace(/^www\./, ""); } catch { return null; }
     })
     .filter((h): h is string => !!h);
-  const defaultSite =
-    sites.find((s) => {
-      try { return clientHosts.some((h) => new URL(s).hostname.replace(/^www\./, "") === h); } catch { return false; }
-    }) ?? sites[0];
+  const matchedSite = sites.find((s) => {
+    try { return clientHosts.some((h) => new URL(s).hostname.replace(/^www\./, "") === h); } catch { return false; }
+  });
+  const defaultSite = matchedSite ?? sites[0];
+  const noClientMatch = sites.length > 0 && !matchedSite;
 
   return (
     <AdminShell session={session} active="/admin/clients">
@@ -96,6 +97,22 @@ export default async function ConnectBingPage({
                     <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
+                {noClientMatch ? (
+                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200">
+                    <div className="font-medium">Don&apos;t see {client.company_name}&apos;s site?</div>
+                    <div className="mt-1 text-amber-200/80">
+                      Your agency Bing account doesn&apos;t have it verified yet.
+                      Open{" "}
+                      <a href="https://www.bing.com/webmasters" target="_blank" rel="noopener noreferrer" className="underline">bing.com/webmasters</a>
+                      {" "}signed in as <span className="font-mono">garrett.f1mediateam@gmail.com</span> and either{" "}
+                      <strong>Add a site</strong> for{" "}
+                      <span className="font-mono">{clientHosts[0] ?? client.company_name}</span>
+                      , or ask the client to add your agency email as an{" "}
+                      <strong>Administrator</strong> on their existing Bing property.
+                      Reload this page after.
+                    </div>
+                  </div>
+                ) : null}
                 <div className="flex items-center gap-2 pt-2">
                   <Button type="submit">Connect</Button>
                   <Link

@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
+import FileDropZone from "@/components/shared/FileDropZone";
 
 interface ClientOption {
   id: string;
@@ -65,7 +66,7 @@ export default function AdminTaskAddModal({ action, clients }: Props) {
               </button>
             </div>
             <p className="text-xs text-[var(--color-text-muted)] mb-4">Assign work to a client.</p>
-            <form action={action} onSubmit={() => setOpen(false)} className="space-y-3.5">
+            <form action={action} onSubmit={() => setOpen(false)} className="space-y-3.5" encType="multipart/form-data">
               <div>
                 <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">Client</label>
                 <select name="client_id" required defaultValue={clients[0]?.id ?? ""} className={field}>
@@ -85,6 +86,10 @@ export default function AdminTaskAddModal({ action, clients }: Props) {
               <div>
                 <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">Notes (optional)</label>
                 <textarea name="notes" rows={3} placeholder="Anything else worth capturing?" className={field} />
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">Attachments (optional)</label>
+                <FileDropZone />
               </div>
               <Button type="submit" className="w-full">Add task</Button>
             </form>

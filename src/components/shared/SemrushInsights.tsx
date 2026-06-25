@@ -47,11 +47,49 @@ function AuthorityScoreCard({ points }: { points: { date: string; value: number 
   }
   const current = points[points.length - 1].value;
   const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+  // Circular progress ring — like SEMrush's own UI. The score (0-100) fills
+  // a circle of arc; the number sits centered inside.
+  const pct = Math.max(0, Math.min(1, current / 100));
+  const r = 42;
+  const c = 2 * Math.PI * r;
   return (
     <div className="h-full grid place-items-center">
-      <div className="text-7xl font-semibold tabular-nums text-[var(--color-accent)] leading-none">
-        {fmt(current)}
-      </div>
+      <svg viewBox="0 0 100 100" className="w-44 h-44 sm:w-52 sm:h-52">
+        <circle cx={50} cy={50} r={r} fill="none" stroke="var(--color-bg)" strokeWidth={10} />
+        <circle
+          cx={50}
+          cy={50}
+          r={r}
+          fill="none"
+          stroke="var(--color-accent)"
+          strokeWidth={10}
+          strokeDasharray={`${pct * c} ${c}`}
+          strokeLinecap="round"
+          transform="rotate(-90 50 50)"
+        />
+        <text
+          x={50}
+          y={52}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={24}
+          fontWeight={600}
+          fill="var(--color-text)"
+        >
+          {fmt(current)}
+        </text>
+        <text
+          x={50}
+          y={68}
+          textAnchor="middle"
+          fontSize={7}
+          letterSpacing="2"
+          fill="var(--color-text-muted)"
+        >
+          OUT OF 100
+        </text>
+      </svg>
     </div>
   );
 }

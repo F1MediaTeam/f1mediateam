@@ -208,8 +208,7 @@ export default async function ClientProfile({
         <div className="grid grid-cols-1 gap-6 mb-8">
           <MultiMetricCard
             clientId={id}
-            title="Google Search Console"
-            hint="Organic search performance"
+            title="Organic Search Performance"
             metrics={[
               { metric: "clicks",       label: "Total clicks",      color: "#60a5fa" },
               { metric: "impressions",  label: "Total impressions", color: "#a78bfa" },

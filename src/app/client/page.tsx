@@ -228,8 +228,7 @@ export default async function ClientHome() {
             {widgets.traffic ? (
               <MultiMetricCard
                 clientId={client.id}
-                title="Google Analytics 4"
-                hint="Site traffic"
+                title="Site Traffic"
                 metrics={[
                   { metric: "sessions",     label: "Sessions",     color: "#22d3ee" },
                   { metric: "active_users", label: "Active users", color: "#f472b6" },
@@ -240,8 +239,7 @@ export default async function ClientHome() {
             {widgets.rankings ? (
               <MultiMetricCard
                 clientId={client.id}
-                title="Bing Webmaster Tools"
-                hint="Bing organic performance"
+                title="Organic Performance"
                 metrics={[
                   { metric: "bing_clicks",                  label: "Clicks",             color: "#60a5fa" },
                   { metric: "bing_impressions",             label: "Impressions",        color: "#a78bfa" },

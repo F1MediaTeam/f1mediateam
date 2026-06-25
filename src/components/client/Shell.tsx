@@ -33,10 +33,20 @@ export default function ClientShell({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-6">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Link href="/client" aria-label="F1 Media Team — home" className="shrink-0">
-              <Logo compact width={140} height={40} />
+              <Logo compact width={110} height={32} />
             </Link>
             <span className="text-[var(--color-border-strong)] hidden sm:inline">/</span>
-            <span className="text-sm font-medium truncate hidden sm:inline">{client.company_name}</span>
+            {client.company_name.toLowerCase().includes("buckets") ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src="/buckets-logo.svg"
+                alt={client.company_name}
+                style={{ width: 110, height: 32, objectFit: "contain", objectPosition: "left center" }}
+                className="hidden sm:inline-block shrink-0"
+              />
+            ) : (
+              <span className="text-sm font-medium truncate hidden sm:inline">{client.company_name}</span>
+            )}
           </div>
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1">

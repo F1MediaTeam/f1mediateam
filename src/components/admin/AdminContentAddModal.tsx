@@ -13,10 +13,12 @@ interface ClientOption {
 
 interface Props {
   action: (formData: FormData) => void | Promise<void>;
-  clients: ClientOption[];
+  // Either a list of clients (renders a picker) or a fixed client (renders as a static caption).
+  clients?: ClientOption[];
+  lockedClient?: ClientOption;
 }
 
-export default function AdminContentAddModal({ action, clients }: Props) {
+export default function AdminContentAddModal({ action, clients, lockedClient }: Props) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -65,19 +67,25 @@ export default function AdminContentAddModal({ action, clients }: Props) {
               </button>
             </div>
             <p className="text-xs text-[var(--color-text-muted)] mb-4">
-              Drafted by you, sent to the client as <strong>Proposed</strong>.
+              {lockedClient
+                ? <>Drafted by you, sent to <strong>{lockedClient.company_name}</strong> as <strong>Proposed</strong>.</>
+                : <>Drafted by you, sent to the client as <strong>Proposed</strong>.</>}
             </p>
             <form action={action} onSubmit={() => setOpen(false)} className="space-y-3.5">
-              <div>
-                <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
-                  Client
-                </label>
-                <select name="client_id" required defaultValue={clients[0]?.id ?? ""} className={field}>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>{c.company_name}</option>
-                  ))}
-                </select>
-              </div>
+              {lockedClient ? (
+                <input type="hidden" name="client_id" value={lockedClient.id} />
+              ) : (
+                <div>
+                  <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
+                    Client
+                  </label>
+                  <select name="client_id" required defaultValue={clients?.[0]?.id ?? ""} className={field}>
+                    {(clients ?? []).map((c) => (
+                      <option key={c.id} value={c.id}>{c.company_name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
                   Title

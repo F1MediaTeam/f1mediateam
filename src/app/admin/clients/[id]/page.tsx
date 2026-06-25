@@ -14,6 +14,7 @@ import { formatBytes, formatLocation } from "@/lib/utils";
 import Time from "@/components/shared/Time";
 import { setWidgetAction, disconnectConnectorAction, refreshConnectorAction, advanceContentAction, createContentAction, semrushDeepPullAction } from "@/app/admin/actions";
 import CreateClientUserForm from "@/components/admin/CreateClientUserForm";
+import AdminContentAddModal from "@/components/admin/AdminContentAddModal";
 import ImpersonateButton from "@/components/admin/ImpersonateButton";
 import LiveSyncTrigger from "@/components/admin/LiveSyncTrigger";
 import type { ContentStage, SemrushReport } from "@/lib/types";
@@ -128,12 +129,18 @@ export default async function ClientProfile({
                   {content.length} {content.length === 1 ? "card" : "cards"} for {client.company_name}
                 </h2>
               </div>
-              <Link
-                href={`/admin/content?client=${client.id}`}
-                className="text-xs text-[var(--color-accent)] hover:underline"
-              >
-                Open full board →
-              </Link>
+              <div className="flex items-center gap-3">
+                <AdminContentAddModal
+                  action={createContentAction}
+                  lockedClient={{ id: client.id, company_name: client.company_name }}
+                />
+                <Link
+                  href={`/admin/content?client=${client.id}`}
+                  className="text-xs text-[var(--color-accent)] hover:underline"
+                >
+                  Open full board →
+                </Link>
+              </div>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {stageMeta.map(({ stage, label, tone }) => {
@@ -185,32 +192,6 @@ export default async function ClientProfile({
                 );
               })}
             </div>
-            <Card className="mt-4">
-              <CardHeader title="New content card" subtitle={`Drafted by you, sent to ${client.company_name} as Proposed`} />
-              <CardBody>
-                <form action={createContentAction} className="grid grid-cols-1 md:grid-cols-6 gap-3">
-                  <input type="hidden" name="client_id" value={client.id} />
-                  <input
-                    name="title"
-                    required
-                    placeholder="Title"
-                    className="md:col-span-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-                  />
-                  <input
-                    name="link"
-                    placeholder="Optional link"
-                    className="md:col-span-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-                  />
-                  <Button type="submit" className="md:col-span-1">Add</Button>
-                  <textarea
-                    name="body"
-                    rows={2}
-                    placeholder="Notes / what's in this card?"
-                    className="md:col-span-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-                  />
-                </form>
-              </CardBody>
-            </Card>
           </div>
         ) : (
           <Card className="mb-8">

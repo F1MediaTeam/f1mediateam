@@ -11,6 +11,7 @@ import { isoDate, formatDateTime } from "@/lib/utils";
 import MetricCompare from "@/components/shared/MetricCompare";
 import GscDashboard from "@/components/shared/GscDashboard";
 import SeoMetricsRow from "@/components/shared/SeoMetricsRow";
+import SemrushGauges from "@/components/shared/SemrushGauges";
 import SemrushInsights from "@/components/shared/SemrushInsights";
 import BingSearchSection from "@/components/shared/BingSearchSection";
 import { buildSemrushChartData } from "@/lib/semrush-charts";
@@ -191,6 +192,17 @@ export default async function ClientHome() {
       {widgets.rankings ? (
         <section className="mb-10">
           <SeoMetricsRow clientId={client.id} />
+        </section>
+      ) : null}
+
+      {widgets.rankings ? (
+        <section className="mb-10">
+          {/* White-labeled SEMrush dials — renders only when data exists. */}
+          <SemrushGauges
+            clientId={client.id}
+            title="F1 Media Team Analytics"
+            hint="Select a time frame to filter results"
+          />
         </section>
       ) : null}
 

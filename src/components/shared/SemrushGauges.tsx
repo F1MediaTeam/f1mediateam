@@ -13,7 +13,16 @@ const SEMRUSH_METRICS: GaugeMetric[] = [
   { metric: "semrush_paid_cost",        label: "Est. paid spend", money: true },
 ];
 
-export default async function SemrushGauges({ clientId }: { clientId: string }) {
+export default async function SemrushGauges({
+  clientId,
+  // Admin sees the real source; the client portal white-labels these.
+  title = "SEMrush",
+  hint = "From SEMrush · monthly — pick a time frame to scope the dials",
+}: {
+  clientId: string;
+  title?: string;
+  hint?: string;
+}) {
   const seriesList = await Promise.all(
     SEMRUSH_METRICS.map((m) => data.listSnapshots({ clientId, metric: m.metric })),
   );
@@ -27,8 +36,8 @@ export default async function SemrushGauges({ clientId }: { clientId: string }) 
 
   return (
     <MetricGaugeGroup
-      title="SEMrush"
-      hint="From SEMrush · monthly — pick a time frame to scope the dials"
+      title={title}
+      hint={hint}
       metrics={SEMRUSH_METRICS}
       seriesByMetric={seriesByMetric}
     />

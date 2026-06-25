@@ -294,27 +294,16 @@ export default function TrendChart({
       <path d={areaPath} fill={`url(#${gradId})`} />
       <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
 
-      {/* Per-day dots — for short ranges show every day; for long ranges
-          (>60 points) only show dots at the labeled x-axis positions plus
-          any currently-pinned point, to keep the chart legible. */}
-      {(() => {
-        const dense = points.length <= 60;
-        const tickSet = new Set(xTickIdx);
-        return pts.map((p, i) => {
-          if (!dense && pinnedIdx !== i && !tickSet.has(i)) return null;
-          return (
-            <circle
-              key={`dot-${i}`}
-              cx={p.x}
-              cy={p.y}
-              r={pinnedIdx === i ? 5.5 : 4}
-              fill={pinnedIdx === i ? lineColor : "var(--color-bg-card)"}
-              stroke={lineColor}
-              strokeWidth={1.75}
-            />
-          );
-        });
-      })()}
+      {pinnedIdx !== null && pts[pinnedIdx] ? (
+        <circle
+          cx={pts[pinnedIdx].x}
+          cy={pts[pinnedIdx].y}
+          r={5.5}
+          fill={lineColor}
+          stroke={lineColor}
+          strokeWidth={1.75}
+        />
+      ) : null}
 
 
       {!active ? (

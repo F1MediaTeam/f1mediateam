@@ -75,6 +75,12 @@ export default async function ClientHome() {
 
   return (
     <ClientShell session={session} client={client} active="/client">
+      {widgets.rankings ? (
+        <section className="mb-10">
+          <SeoMetricsRow clientId={client.id} />
+        </section>
+      ) : null}
+
       <div className="mb-10">
         <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
           Overview
@@ -185,12 +191,6 @@ export default async function ClientHome() {
             </div>
           </CardBody>
         </Card>
-      ) : null}
-
-      {widgets.rankings ? (
-        <section className="mb-10">
-          <SeoMetricsRow clientId={client.id} />
-        </section>
       ) : null}
 
       {widgets.rankings && semrushChart.hasAny ? (

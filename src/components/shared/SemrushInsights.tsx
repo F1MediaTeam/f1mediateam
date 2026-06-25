@@ -10,6 +10,90 @@ import TrendChart from "@/components/shared/TrendChart";
 import WidgetBoard, { type WidgetSlot } from "@/components/shared/WidgetBoard";
 import type { SemrushChartData, ChartSeries } from "@/lib/semrush-charts";
 
+// Compact sparkline for the AuthorityScoreCard. Pure inline SVG, no axes,
+// no interaction — meant to give a quick visual trend under the stat tiles.
+function Sparkline({ points, color = "var(--color-accent)", height = 56 }: { points: { date: string; value: number }[]; color?: string; height?: number }) {
+  if (!points.length) return null;
+  const W = 600;
+  const padY = 4;
+  const vals = points.map((p) => p.value);
+  const lo = Math.min(...vals);
+  const hi = Math.max(...vals);
+  const span = hi - lo || 1;
+  const xs = points.map((_, i) => (points.length === 1 ? W / 2 : (i / (points.length - 1)) * W));
+  const ys = points.map((p) => padY + (1 - (p.value - lo) / span) * (height - padY * 2));
+  let d = `M ${xs[0]} ${ys[0]}`;
+  for (let i = 1; i < points.length; i++) d += ` L ${xs[i]} ${ys[i]}`;
+  const areaD = `${d} L ${xs[xs.length - 1]} ${height} L ${xs[0]} ${height} Z`;
+  const gradId = `spark-grad-${Math.round(W + height)}`;
+  return (
+    <svg viewBox={`0 0 ${W} ${height}`} width="100%" height={height} preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={areaD} fill={`url(#${gradId})`} />
+      <path d={d} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={xs[xs.length - 1]} cy={ys[ys.length - 1]} r={3} fill={color} />
+    </svg>
+  );
+}
+
+function AuthorityScoreCard({ points }: { points: { date: string; value: number }[] }) {
+  if (points.length === 0) {
+    return <div className="text-xs text-[var(--color-text-muted)]">No data.</div>;
+  }
+  const vals = points.map((p) => p.value);
+  const current = vals[vals.length - 1];
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const first = vals[0];
+  const change = current - first;
+  const changePct = first !== 0 ? ((current - first) / first) * 100 : 0;
+  const trendUp = change >= 0;
+  const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+  return (
+    <div className="h-full flex flex-col gap-4">
+      <div className="grid grid-cols-4 gap-3 items-center">
+        <div className="col-span-2 rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 px-4 py-3 flex flex-col">
+          <div className="text-[10px] uppercase tracking-widest text-[var(--color-accent)]">Current</div>
+          <div className="mt-1 text-4xl font-semibold tabular-nums text-[var(--color-text)] leading-none">
+            {fmt(current)}
+          </div>
+          <div className={`mt-2 text-[11px] font-mono ${trendUp ? "text-emerald-300" : "text-red-300"}`}>
+            {trendUp ? "▲" : "▼"} {Math.abs(change).toFixed(1)} ({changePct >= 0 ? "+" : ""}{changePct.toFixed(1)}%) since {points[0].date}
+          </div>
+        </div>
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2.5">
+          <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Min</div>
+          <div className="mt-1 text-xl font-semibold tabular-nums">{fmt(min)}</div>
+        </div>
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2.5">
+          <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Max</div>
+          <div className="mt-1 text-xl font-semibold tabular-nums">{fmt(max)}</div>
+        </div>
+      </div>
+      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2.5">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Average</div>
+            <div className="text-base font-semibold tabular-nums mt-0.5">{fmt(avg)}</div>
+          </div>
+          <div className="text-[10px] text-[var(--color-text-subtle)] font-mono">
+            {points.length} day{points.length === 1 ? "" : "s"} of history
+          </div>
+        </div>
+      </div>
+      <div className="flex-1 min-h-0 flex items-end">
+        <Sparkline points={points} />
+      </div>
+    </div>
+  );
+}
+
 function fmt(n: number): string {
   if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, "")}K`;
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
@@ -117,8 +201,8 @@ export default function SemrushInsights({ data }: { data: SemrushChartData }) {
       id: "authority",
       label: "Authority Score",
       node: (
-        <Panel title="Authority Score" subtitle="Backlink authority over time">
-          <TrendChart points={data.authority} height={220} formatter={(v) => String(Math.round(v))} />
+        <Panel title="Authority Score" subtitle="Current value with min · avg · max + sparkline">
+          <AuthorityScoreCard points={data.authority} />
         </Panel>
       ),
     });

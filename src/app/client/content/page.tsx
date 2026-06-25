@@ -30,9 +30,6 @@ export default async function ClientContent() {
           Content
         </div>
         <h1 className="text-3xl font-semibold tracking-tight mt-1">Approvals & live posts</h1>
-        <p className="text-sm text-[var(--color-text-muted)] mt-1">
-          Items in the first column are waiting for you. Approve to send them to be posted, or request changes.
-        </p>
       </div>
 
       {/* Accent + Add content button right-aligned above the Live column.

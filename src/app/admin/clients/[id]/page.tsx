@@ -440,7 +440,7 @@ export default async function ClientProfile({
                 </div>
                 <WidgetBoard
                   storageKey={`f1.semrush-raw-reports.layout.v1.${id}`}
-                  gridClassName="grid grid-cols-1 gap-3 lg:grid-cols-2"
+                  gridClassName="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:auto-rows-fr"
                   widgets={semrushReports.map((r) => {
                     const meta = (r.meta ?? {}) as Record<string, unknown>;
                     const label = (meta.label as string) ?? r.report_type;
@@ -488,7 +488,7 @@ function SemrushReportCard({ r }: { r: SemrushReport }) {
   const units = Number(meta.units_estimate) || 0;
   const headers = r.rows[0] ? Object.keys(r.rows[0]).slice(0, 5) : [];
   return (
-    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3">
+    <div className="h-full flex flex-col rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="text-sm font-medium">{label}</div>
         <span className="font-mono text-[11px] text-[var(--color-text-muted)]">{r.row_count} rows</span>

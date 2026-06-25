@@ -81,7 +81,7 @@ function AuthorityScoreCard({ points }: { points: { date: string; value: number 
         </text>
         <text
           x={50}
-          y={62}
+          y={66}
           textAnchor="middle"
           fontSize={5}
           letterSpacing="0.5"

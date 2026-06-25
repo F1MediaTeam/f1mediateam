@@ -921,11 +921,12 @@ export async function upsertConnectorToken(input: {
     meta: input.meta ?? {},
     updated_at: new Date().toISOString(),
   };
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("connector_tokens")
     .upsert(row, { onConflict: "client_id,provider,account_label" })
     .select()
     .single();
+  if (error) throw new Error(`upsertConnectorToken failed: ${error.message}`);
   return (data as ConnectorToken) ?? null;
 }
 

@@ -23,11 +23,22 @@ export const maxDuration = 60;
 
 export default async function ClientProfile({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const session = await requireAdmin();
   const { id } = await params;
+  const sp = await searchParams;
+  const oauthError = typeof sp.oauth_error === "string" ? sp.oauth_error : null;
+  const oauthConnected = typeof sp.oauth_connected === "string" ? sp.oauth_connected : null;
+  const providerLabel: Record<string, string> = {
+    gsc: "Google Search Console",
+    ga4: "Google Analytics 4",
+    bing: "Bing Webmaster Tools",
+    semrush: "Semrush",
+  };
   const client = await data.getClient(id);
   if (!client) notFound();
 
@@ -92,6 +103,19 @@ export default async function ClientProfile({
             </Link>
           </div>
         </div>
+
+        {oauthError ? (
+          <div className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            <div className="font-medium">Connection failed</div>
+            <div className="mt-0.5 text-red-200/80">{oauthError}</div>
+          </div>
+        ) : null}
+
+        {oauthConnected ? (
+          <div className="mb-6 rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 px-4 py-3 text-sm text-[var(--color-accent)]">
+            Connected to {providerLabel[oauthConnected] ?? oauthConnected}.
+          </div>
+        ) : null}
 
         {customerUser ? (
           <div className="mb-8">

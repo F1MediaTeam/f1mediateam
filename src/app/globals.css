@@ -52,7 +52,7 @@
   color-scheme: light;
   --logo-img: url(/logo-light.png);
   --color-bg: #e8ecf2;        /* page = light grey "canvas" */
-  --color-bg-card: #ffffff;   /* cards / panels = white, pop above the grey page */
+  --color-bg-card: #f6f8fb;   /* cards / panels = soft off-white, easier on the eyes than pure white */
   --color-bg-elev: #e8ecf2;   /* nested items "recess" back to the canvas grey */
   --color-bg-hover: #d8dde5;
   --color-border: #cdd5e0;        /* keeps a clean edge where two whites meet */

@@ -11,6 +11,7 @@ import { isoDate, formatDateTime } from "@/lib/utils";
 import MultiMetricCard from "@/components/shared/MultiMetricCard";
 import GscDashboard from "@/components/shared/GscDashboard";
 import SeoMetricsRow from "@/components/shared/SeoMetricsRow";
+import OrganicKeywordsPanel from "@/components/shared/OrganicKeywordsPanel";
 import SemrushInsights from "@/components/shared/SemrushInsights";
 import { buildSemrushChartData } from "@/lib/semrush-charts";
 import ContentCardControls from "@/components/shared/ContentCardControls";
@@ -221,6 +222,11 @@ export default async function ClientHome() {
               <h2 className="text-2xl font-semibold tracking-tight">SEO insights</h2>
             </div>
           )}
+          {widgets.rankings ? (
+            <div className="mb-6">
+              <OrganicKeywordsPanel clientId={client.id} />
+            </div>
+          ) : null}
           <div className="space-y-6">
             {widgets.rankings ? (
               <GscSearchSection clientId={client.id} />

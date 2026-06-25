@@ -6,10 +6,6 @@
 import { data } from "@/lib/data";
 import { Pill } from "@/components/ui";
 import MultiSeriesDashboard, { type DashSeries } from "@/components/shared/MultiSeriesDashboard";
-import { formatNumber } from "@/lib/utils";
-
-const intFmt = (v: number) =>
-  formatNumber(v, { maximumFractionDigits: 0, notation: v >= 10_000 ? "compact" : "standard" });
 
 export default async function BingSearchSection({ clientId }: { clientId: string }) {
   const [clicks, impressions, position] = await Promise.all([
@@ -32,17 +28,17 @@ export default async function BingSearchSection({ clientId }: { clientId: string
     {
       id: "bing_clicks", label: "Bing clicks", color: "#3B82F6",
       tile: "bg-blue-500/20 border-blue-400/40", ring: "ring-blue-400/60",
-      data: toPts(clicks), aggregate: "sum", fmt: intFmt,
+      data: toPts(clicks), aggregate: "sum", format: "int",
     },
     {
       id: "bing_impressions", label: "Bing impressions", color: "#8B5CF6",
       tile: "bg-purple-500/20 border-purple-400/40", ring: "ring-purple-400/60",
-      data: toPts(impressions), aggregate: "sum", fmt: intFmt,
+      data: toPts(impressions), aggregate: "sum", format: "int",
     },
     {
       id: "bing_position", label: "Avg. click position", color: "#F59E0B",
       tile: "bg-amber-500/20 border-amber-400/40", ring: "ring-amber-400/60",
-      data: toPts(position), aggregate: "average", fmt: (v) => v.toFixed(1),
+      data: toPts(position), aggregate: "average", format: "decimal",
     },
   ];
 

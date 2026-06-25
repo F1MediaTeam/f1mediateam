@@ -6,12 +6,16 @@
 // breakdown tables — so it works for Bing (and any other multi-metric source).
 
 import { useMemo, useState } from "react";
+import { formatNumber } from "@/lib/utils";
 
 interface Pt {
   captured_at: string;
   value: number;
 }
 
+// NOTE: every field here must be serializable — this config is passed from a
+// Server Component (e.g. BingSearchSection) to this Client Component, so no
+// functions. Number formatting is selected via the `format` key, not a fn.
 export interface DashSeries {
   id: string;
   label: string;
@@ -20,7 +24,12 @@ export interface DashSeries {
   ring: string;         // active tile ring
   data: Pt[];
   aggregate: "sum" | "average";
-  fmt: (v: number) => string;
+  format: "int" | "decimal";
+}
+
+function formatValue(v: number, format: DashSeries["format"]): string {
+  if (format === "decimal") return v.toFixed(1);
+  return formatNumber(v, { maximumFractionDigits: 0, notation: v >= 10_000 ? "compact" : "standard" });
 }
 
 const RANGES = [
@@ -210,7 +219,7 @@ export default function MultiSeriesDashboard({
                   <span className="text-sm text-[var(--color-text)] font-medium">{def.label}</span>
                 </div>
                 <div className="mt-2 text-3xl font-semibold tabular-nums" style={{ color: def.color }}>
-                  {def.fmt(headline)}
+                  {formatValue(headline, def.format)}
                 </div>
               </label>
             );

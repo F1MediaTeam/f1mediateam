@@ -89,9 +89,17 @@ export async function POST(request: NextRequest) {
     today,
   );
 
+  const brand = {
+    tier: (field(fd, "tier") || "foundation") as "foundation" | "growth" | "domination",
+    tone: (field(fd, "tone") || "professional") as "professional" | "conversational" | "technical" | "friendly",
+    industry: field(fd, "industry") || undefined,
+    services: field(fd, "services") || undefined,
+    driveFolderUrl: field(fd, "drive_folder_url") || undefined,
+  };
+
   let narrative;
   try {
-    narrative = await generateNarrative(client, window);
+    narrative = await generateNarrative(client, window, brand);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Narrative generation failed";
     return new Response(msg, { status: 502 });

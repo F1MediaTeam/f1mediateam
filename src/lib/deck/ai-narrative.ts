@@ -183,7 +183,22 @@ numbers, or work that wasn't done.
 You will return strict JSON matching the schema in the user message. No prose
 outside the JSON. No code fences.`;
 
-function userPrompt(facts: GatheredFacts): string {
+function tierLabel(t: BrandContext["tier"]): string {
+  switch (t) {
+    case "growth": return "Growth & Authority";
+    case "domination": return "Market Domination";
+    case "foundation": return "Foundation Visibility";
+    default: return "Foundation Visibility";
+  }
+}
+function toneLabel(t: BrandContext["tone"]): string {
+  if (t === "conversational") return "Conversational";
+  if (t === "technical") return "Technical";
+  if (t === "friendly") return "Friendly";
+  return "Professional";
+}
+
+function userPrompt(facts: GatheredFacts, brand?: BrandContext): string {
   const w = facts.window;
   const gscImprDelta = facts.gscImprPrev === 0
     ? "no prior comparison"
@@ -198,7 +213,22 @@ function userPrompt(facts: GatheredFacts): string {
 
   const lines: string[] = [];
   lines.push(`Client: ${facts.client.company_name}`);
+  if (brand?.industry) lines.push(`Industry: ${brand.industry}`);
+  if (brand?.services) lines.push(`Services delivered: ${brand.services}`);
+  lines.push(`Tier: ${tierLabel(brand?.tier)}`);
+  lines.push(`Tone: ${toneLabel(brand?.tone)}`);
   lines.push(`Window: ${w.label} (${w.fromIso} → ${w.toIso})`);
+  if (brand?.driveFolderUrl) lines.push(`Source-of-truth Drive folder: ${brand.driveFolderUrl}`);
+  lines.push("");
+  lines.push("F1 MEDIA UNIVERSAL CONTENT RULES (apply to every section):");
+  lines.push("- Lead with wins. Every data explanation opens with the strongest positive movement first.");
+  lines.push("- Frame the indexing lag. New content takes 30–90 days to build authority — say so when position/traffic hasn't moved yet.");
+  lines.push("- Business language, not SEO language. \"Your site appeared in X searches\" not \"X impressions.\"");
+  lines.push("- Deliverables are proof of value. List them completely; even small fixes matter.");
+  lines.push("- No internal tool names. Refer to \"our analytics stack\" or \"our audit process\" — never name vendors.");
+  lines.push("- Never use alarm language. Pair any negative with context and what's being done.");
+  lines.push("- This is a retained-client report — no CTAs, sign-ups, or conversion copy.");
+  lines.push(`- Adapt vocabulary to tier (${tierLabel(brand?.tier)}) and tone (${toneLabel(brand?.tone)}).`);
   lines.push("");
   lines.push("HEADLINE METRICS");
   lines.push(`- Impressions: ${compact(facts.gscImprCur)} this period vs ${compact(facts.gscImprPrev)} prior — ${gscImprDelta}`);
@@ -294,13 +324,13 @@ interface AnthropicResponse {
   stop_reason?: string;
 }
 
-async function callClaude(facts: GatheredFacts): Promise<NarrativeSections> {
+async function callClaude(facts: GatheredFacts, brand?: BrandContext): Promise<NarrativeSections> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) {
     throw new Error("ANTHROPIC_API_KEY is not set — add it to the Vercel project's environment variables.");
   }
 
-  const messages: AnthropicMessage[] = [{ role: "user", content: userPrompt(facts) }];
+  const messages: AnthropicMessage[] = [{ role: "user", content: userPrompt(facts, brand) }];
 
   const res = await fetch(ANTHROPIC_API, {
     method: "POST",
@@ -350,12 +380,21 @@ async function callClaude(facts: GatheredFacts): Promise<NarrativeSections> {
 
 // ---------------- public entry point ----------------
 
+export interface BrandContext {
+  tier?: "foundation" | "growth" | "domination" | "";
+  tone?: "professional" | "conversational" | "technical" | "friendly" | "";
+  industry?: string;
+  services?: string;
+  driveFolderUrl?: string;
+}
+
 export async function generateNarrative(
   client: Client,
   window: RangeWindow,
+  brand?: BrandContext,
 ): Promise<NarrativeOutput> {
   const facts = await gatherFacts(client, window);
-  const sections = await callClaude(facts);
+  const sections = await callClaude(facts, brand);
 
   const draftPages = facts.pipeline
     .map((p) => p.link)

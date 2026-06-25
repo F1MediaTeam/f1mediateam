@@ -127,16 +127,58 @@ export default async function AdminReports({
                   <input type="date" name="to" className={fieldCls} />
                 </div>
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Tier</label>
+                  <select name="tier" defaultValue="foundation" className={fieldCls}>
+                    <option value="foundation">Foundation Visibility</option>
+                    <option value="growth">Growth &amp; Authority</option>
+                    <option value="domination">Market Domination</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Tone</label>
+                  <select name="tone" defaultValue="professional" className={fieldCls}>
+                    <option value="professional">Professional</option>
+                    <option value="conversational">Conversational</option>
+                    <option value="technical">Technical</option>
+                    <option value="friendly">Friendly</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Industry (optional)</label>
+                  <input type="text" name="industry" placeholder="DTF &amp; Embroidery Supplies / E-Commerce" className={fieldCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Services (optional)</label>
+                  <input type="text" name="services" placeholder="SEO, Web Dev, Backlink Management" className={fieldCls} />
+                </div>
+              </div>
               <details className="text-xs text-[var(--color-text-muted)] border-t border-[var(--color-border)] pt-4">
-                <summary className="cursor-pointer">Brand options (optional)</summary>
+                <summary className="cursor-pointer">Brand &amp; assets (optional)</summary>
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
-                    <label className={labelCls}>Accent color</label>
+                    <label className={labelCls}>Primary color</label>
                     <input type="color" name="accent" defaultValue="#14B8A6" className="h-[42px] w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)]" />
                   </div>
-                  <div className="md:col-span-2">
+                  <div>
+                    <label className={labelCls}>Secondary</label>
+                    <input type="color" name="brand_secondary" defaultValue="#E63946" className="h-[42px] w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)]" />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Tertiary</label>
+                    <input type="color" name="brand_tertiary" defaultValue="#F4A261" className="h-[42px] w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)]" />
+                  </div>
+                  <div className="md:col-span-3">
                     <label className={labelCls}>Logo URL</label>
                     <input type="url" name="logo_url" placeholder="https://…/logo.png" className={fieldCls} />
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className={labelCls}>Google Drive folder (optional)</label>
+                    <input type="url" name="drive_folder_url" placeholder="https://drive.google.com/…" className={fieldCls} />
+                    <p className="mt-1 text-[10px] text-[var(--color-text-subtle)]">Where you keep GSC / GA4 exports, screenshots, deliverables logs. Used as a reference link inside the prompt.</p>
                   </div>
                 </div>
               </details>

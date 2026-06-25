@@ -5,7 +5,7 @@ import Link from "next/link";
 import { requireClient } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import ClientShell from "@/components/client/Shell";
-import { Card, CardBody, CardHeader, Pill } from "@/components/ui";
+import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import { createClientCalendarEventAction } from "./actions";
 import { isoDate, formatDateTime } from "@/lib/utils";
 import MultiMetricCard from "@/components/shared/MultiMetricCard";
@@ -14,7 +14,7 @@ import SeoMetricsRow from "@/components/shared/SeoMetricsRow";
 import OrganicKeywordsPanel from "@/components/shared/OrganicKeywordsPanel";
 import SemrushInsights from "@/components/shared/SemrushInsights";
 import { buildSemrushChartData } from "@/lib/semrush-charts";
-import ContentCardControls from "@/components/shared/ContentCardControls";
+import RequestChangesModal from "@/components/client/RequestChangesModal";
 import ContentDetailModal from "@/components/shared/ContentDetailModal";
 import CalendarAddModal from "@/components/client/CalendarAddModal";
 import Time from "@/components/shared/Time";
@@ -325,16 +325,8 @@ function StatusColumn({
               key={card.id}
               className="relative rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3"
             >
-              <div className="absolute top-2 right-2">
-                <ContentCardControls
-                  card={{ id: card.id, title: card.title, body: card.body, link: card.link, stage: card.stage }}
-                  role="client"
-                  updateAction={approveContentAction}
-                  requestChangesAction={requestChangesAction}
-                />
-              </div>
               <ContentDetailModal
-                triggerClassName="block w-full text-left pr-8"
+                triggerClassName="block w-full text-left"
                 card={{ id: card.id, title: card.title, body: card.body, link: card.link, stage: card.stage, created_at: card.created_at, updated_at: card.updated_at }}
                 companyName={companyName}
                 events={[]}
@@ -353,6 +345,18 @@ function StatusColumn({
                   </>
                 }
               />
+              {card.stage === "proposed" ? (
+                <div className="mt-3 flex items-center gap-2">
+                  <form action={approveContentAction} className="flex-1">
+                    <input type="hidden" name="id" value={card.id} />
+                    <Button size="sm" type="submit" className="w-full">Approve</Button>
+                  </form>
+                  <RequestChangesModal
+                    action={requestChangesAction}
+                    card={{ id: card.id, title: card.title, body: card.body, link: card.link }}
+                  />
+                </div>
+              ) : null}
             </div>
           ))
         )}

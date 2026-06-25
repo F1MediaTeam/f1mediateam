@@ -7,6 +7,7 @@ import { approveContentAction, requestChangesAction, addClientContentAction } fr
 import ContentCardControls from "@/components/shared/ContentCardControls";
 import ContentDetailModal from "@/components/shared/ContentDetailModal";
 import ClientAddContentModal from "@/components/client/ClientAddContentModal";
+import RequestChangesModal from "@/components/client/RequestChangesModal";
 import type { ContentStage } from "@/lib/types";
 
 const STAGES: { stage: ContentStage; label: string; tone: "warn" | "accent" | "ok" }[] = [
@@ -91,16 +92,16 @@ export default async function ClientContent() {
                         />
 
                         {stage === "proposed" ? (
-                          card.created_by === session.user_id ? (
-                            <div className="mt-3 text-[11px] italic text-[var(--color-text-muted)]">
-                              Submitted — pending our review.
-                            </div>
-                          ) : (
-                            <form action={approveContentAction} className="mt-3">
+                          <div className="mt-3 flex items-center gap-2">
+                            <form action={approveContentAction} className="flex-1">
                               <input type="hidden" name="id" value={card.id} />
                               <Button size="sm" type="submit" className="w-full">Approve</Button>
                             </form>
-                          )
+                            <RequestChangesModal
+                              action={requestChangesAction}
+                              card={{ id: card.id, title: card.title, body: card.body, link: card.link }}
+                            />
+                          </div>
                         ) : null}
                       </div>
                     );

@@ -54,8 +54,10 @@ function Donut({ follow, nofollow }: { follow: number; nofollow: number }) {
   const r = 40;
   const c = 2 * Math.PI * r;
   return (
-    <div className="flex items-center gap-5">
-      <svg viewBox="0 0 100 100" className="h-28 w-28 shrink-0">
+    // Center in both axes and fill the parent panel body so the donut sits
+    // visually balanced inside the card.
+    <div className="h-full w-full flex items-center justify-center gap-6 sm:gap-8">
+      <svg viewBox="0 0 100 100" className="h-40 w-40 sm:h-44 sm:w-44 shrink-0">
         <circle cx={50} cy={50} r={r} fill="none" stroke="var(--color-bg)" strokeWidth={14} />
         <circle
           cx={50}
@@ -75,7 +77,7 @@ function Donut({ follow, nofollow }: { follow: number; nofollow: number }) {
           follow
         </text>
       </svg>
-      <div className="space-y-2 text-xs">
+      <div className="space-y-2 text-xs min-w-[8rem]">
         <div className="flex items-center gap-2">
           <span className="inline-block h-3 w-3 rounded-sm bg-[var(--color-accent)]" />
           <span className="text-[var(--color-text-muted)]">Follow</span>

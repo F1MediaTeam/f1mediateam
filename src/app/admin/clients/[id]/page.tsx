@@ -91,18 +91,6 @@ export default async function ClientProfile({
           </div>
           <div className="flex flex-wrap gap-2 sm:shrink-0">
             <ImpersonateButton clientId={client.id} clientName={client.company_name} />
-            <Link
-              href={`/admin/reports?client=${client.id}`}
-              className="rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] hover:bg-[var(--color-bg-hover)] px-4 py-2 text-sm whitespace-nowrap"
-            >
-              Build report
-            </Link>
-            <Link
-              href={`/admin/meeting-deck?client=${client.id}`}
-              className="rounded-lg bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:opacity-90 px-4 py-2 text-sm font-medium whitespace-nowrap"
-            >
-              Meeting deck
-            </Link>
           </div>
         </div>
 

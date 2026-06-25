@@ -52,43 +52,66 @@ function AuthorityScoreCard({ points }: { points: { date: string; value: number 
   const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
   const first = vals[0];
   const change = current - first;
-  const changePct = first !== 0 ? ((current - first) / first) * 100 : 0;
   const trendUp = change >= 0;
   const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+  // Half-circle gauge — 0..100 maps to angle -90deg..+90deg.
+  // Authority Score's 0-100 range makes this read as "X out of 100".
+  const pct = Math.max(0, Math.min(1, current / 100));
+  const gaugeRadius = 80;
+  const cx = 100;
+  const cy = 100;
+  // Path from left (-90deg from straight up = 180deg in SVG terms) to right.
+  function polar(angle: number, r: number) {
+    const a = (angle * Math.PI) / 180;
+    return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+  }
+  const startA = 180;
+  const endA = 360;
+  const valueA = startA + pct * (endA - startA);
+  const trackStart = polar(startA, gaugeRadius);
+  const trackEnd = polar(endA, gaugeRadius);
+  const valueEnd = polar(valueA, gaugeRadius);
+  const trackPath = `M ${trackStart.x} ${trackStart.y} A ${gaugeRadius} ${gaugeRadius} 0 0 1 ${trackEnd.x} ${trackEnd.y}`;
+  const valuePath = `M ${trackStart.x} ${trackStart.y} A ${gaugeRadius} ${gaugeRadius} 0 0 1 ${valueEnd.x} ${valueEnd.y}`;
+
   return (
-    <div className="h-full flex flex-col gap-4">
-      <div className="grid grid-cols-4 gap-3 items-center">
-        <div className="col-span-2 rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 px-4 py-3 flex flex-col">
-          <div className="text-[10px] uppercase tracking-widest text-[var(--color-accent)]">Current</div>
-          <div className="mt-1 text-4xl font-semibold tabular-nums text-[var(--color-text)] leading-none">
+    <div className="h-full flex flex-col">
+      {/* Gauge dial */}
+      <div className="relative flex justify-center">
+        <svg viewBox="0 0 200 130" className="w-full max-w-[280px]">
+          <path d={trackPath} fill="none" stroke="var(--color-bg)" strokeWidth={16} strokeLinecap="round" />
+          <path d={valuePath} fill="none" stroke="var(--color-accent)" strokeWidth={16} strokeLinecap="round" />
+          <text x={cx} y={cy - 4} textAnchor="middle" fontSize={36} fontWeight={600} fill="var(--color-text)">
             {fmt(current)}
-          </div>
-          <div className={`mt-2 text-[11px] font-mono ${trendUp ? "text-emerald-300" : "text-red-300"}`}>
-            {trendUp ? "▲" : "▼"} {Math.abs(change).toFixed(1)} ({changePct >= 0 ? "+" : ""}{changePct.toFixed(1)}%) since {points[0].date}
-          </div>
-        </div>
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2.5">
+          </text>
+          <text x={cx} y={cy + 16} textAnchor="middle" fontSize={9} fill="var(--color-text-muted)" letterSpacing="2">
+            / 100
+          </text>
+        </svg>
+      </div>
+
+      {/* Trend pill */}
+      <div className="flex items-center justify-center -mt-2 mb-3">
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-mono ${trendUp ? "bg-emerald-500/10 text-emerald-300" : "bg-red-500/10 text-red-300"}`}>
+          {trendUp ? "▲" : "▼"} {Math.abs(change).toFixed(1)} since {points[0].date}
+        </span>
+      </div>
+
+      {/* Min · Avg · Max strip */}
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-2 py-2">
           <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Min</div>
-          <div className="mt-1 text-xl font-semibold tabular-nums">{fmt(min)}</div>
+          <div className="mt-0.5 text-lg font-semibold tabular-nums">{fmt(min)}</div>
         </div>
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2.5">
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-2 py-2">
+          <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Avg</div>
+          <div className="mt-0.5 text-lg font-semibold tabular-nums">{fmt(avg)}</div>
+        </div>
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-2 py-2">
           <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Max</div>
-          <div className="mt-1 text-xl font-semibold tabular-nums">{fmt(max)}</div>
+          <div className="mt-0.5 text-lg font-semibold tabular-nums">{fmt(max)}</div>
         </div>
-      </div>
-      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2.5">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">Average</div>
-            <div className="text-base font-semibold tabular-nums mt-0.5">{fmt(avg)}</div>
-          </div>
-          <div className="text-[10px] text-[var(--color-text-subtle)] font-mono">
-            {points.length} day{points.length === 1 ? "" : "s"} of history
-          </div>
-        </div>
-      </div>
-      <div className="flex-1 min-h-0 flex items-end">
-        <Sparkline points={points} />
       </div>
     </div>
   );
@@ -201,7 +224,7 @@ export default function SemrushInsights({ data }: { data: SemrushChartData }) {
       id: "authority",
       label: "Authority Score",
       node: (
-        <Panel title="Authority Score" subtitle="Current value with min · avg · max + sparkline">
+        <Panel title="Authority Score" subtitle="Out of 100, with min · avg · max">
           <AuthorityScoreCard points={data.authority} />
         </Panel>
       ),

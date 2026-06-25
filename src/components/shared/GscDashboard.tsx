@@ -11,7 +11,7 @@
 // activated. Queries and Pages call /api/gsc-breakdown for the current
 // range; Days reads the daily snapshots already passed in as props.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { formatNumber } from "@/lib/utils";
 
 interface Snapshot {
@@ -107,6 +107,12 @@ function MultiLineChart({ series, enabled, onScrub }: ChartProps) {
   const H = 360;
   const pad = { l: 16, r: 16, t: 16, b: 30 };
 
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [activeFloat, setActiveFloat] = useState<number | null>(null);
+  const [pinnedIdx, setPinnedIdx] = useState<number | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const downRef = useRef<{ x: number; moved: boolean; priorPin: number | null } | null>(null);
+
   const activeSeries = series.filter((s) => enabled[s.def.id]);
   const allDates = useMemo(() => {
     const set = new Set<string>();
@@ -125,10 +131,11 @@ function MultiLineChart({ series, enabled, onScrub }: ChartProps) {
   // X scale: equally spaced points by date index.
   const x = (i: number) => pad.l + (i / Math.max(allDates.length - 1, 1)) * (W - pad.l - pad.r);
 
-  // Each metric gets its own Y scale so wildly different ranges (clicks vs CTR)
-  // can coexist visually. We don't render numeric Y ticks since each line has
-  // its own meaning — the colored KPI tile above shows the value.
-  function pathFor(s: { def: SeriesDef; points: Snapshot[] }): string {
+  // Per-series Y normalization. Build a date→value lookup AND a per-series
+  // normalized y-coordinate getter so the scrubber dot can sit exactly on
+  // the line at a continuous float index (linear between adjacent points).
+  type Norm = { byDate: Map<string, number>; y: (v: number) => number };
+  function normFor(s: { def: SeriesDef; points: Snapshot[] }): Norm {
     const byDate = new Map(s.points.map((p) => [p.captured_at, p.value]));
     const vals = s.points.map((p) => p.value);
     const min = Math.min(...vals, 0);
@@ -137,15 +144,80 @@ function MultiLineChart({ series, enabled, onScrub }: ChartProps) {
     const top = pad.t + 8;
     const bot = H - pad.b - 4;
     const y = (v: number) => bot - ((v - min) / range) * (bot - top);
+    return { byDate, y };
+  }
+
+  function pathFor(s: { def: SeriesDef; points: Snapshot[] }, norm: Norm): string {
     const parts: string[] = [];
     let started = false;
     allDates.forEach((d, i) => {
-      const v = byDate.get(d);
+      const v = norm.byDate.get(d);
       if (v === undefined) return;
-      parts.push(`${started ? "L" : "M"} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`);
+      parts.push(`${started ? "L" : "M"} ${x(i).toFixed(1)} ${norm.y(v).toFixed(1)}`);
       started = true;
     });
     return parts.join(" ");
+  }
+
+  // Continuous float index (not snapped) from pointer position.
+  function floatFromPointer(e: PointerEvent<SVGSVGElement>): number {
+    const svg = svgRef.current;
+    if (!svg) return 0;
+    const rect = svg.getBoundingClientRect();
+    const localX = ((e.clientX - rect.left) / rect.width) * W;
+    if (allDates.length === 1) return 0;
+    const ratio = (localX - pad.l) / (W - pad.l - pad.r);
+    return Math.max(0, Math.min(allDates.length - 1, ratio * (allDates.length - 1)));
+  }
+
+  const onPointerDown = (e: PointerEvent<SVGSVGElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragging(true);
+    const f = floatFromPointer(e);
+    setActiveFloat(f);
+    onScrub?.(f);
+    downRef.current = { x: e.clientX, moved: false, priorPin: pinnedIdx };
+    setPinnedIdx(null);
+  };
+  const onPointerMove = (e: PointerEvent<SVGSVGElement>) => {
+    if (!dragging) return;
+    if (downRef.current && Math.abs(e.clientX - downRef.current.x) > 4) {
+      downRef.current.moved = true;
+    }
+    const f = floatFromPointer(e);
+    setActiveFloat(f);
+    onScrub?.(f);
+  };
+  const onPointerUp = (e: PointerEvent<SVGSVGElement>) => {
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* released */ }
+    setDragging(false);
+    const down = downRef.current;
+    downRef.current = null;
+    if (down && !down.moved && activeFloat !== null) {
+      const snapped = Math.round(activeFloat);
+      const next = down.priorPin === snapped ? null : snapped;
+      setPinnedIdx(next);
+      onScrub?.(next);
+    } else {
+      onScrub?.(pinnedIdx);
+    }
+    setActiveFloat(null);
+  };
+
+  // Scrubber position (continuous): live drag wins, then pin.
+  const scrubFloat = activeFloat !== null ? activeFloat : pinnedIdx;
+
+  // Linear-interpolate a series' value at a continuous float index.
+  function interpAt(s: { def: SeriesDef; points: Snapshot[] }, f: number): { value: number | null; y: number | null } {
+    const norm = normFor(s);
+    const lo = Math.max(0, Math.min(allDates.length - 1, Math.floor(f)));
+    const hi = Math.min(lo + 1, allDates.length - 1);
+    const t = f - lo;
+    const vLo = norm.byDate.get(allDates[lo]);
+    const vHi = norm.byDate.get(allDates[hi]);
+    if (vLo === undefined || vHi === undefined) return { value: null, y: null };
+    const v = vLo + t * (vHi - vLo);
+    return { value: v, y: norm.y(v) };
   }
 
   // Date label picks: first, ~1/4, ~1/2, ~3/4, last
@@ -161,12 +233,52 @@ function MultiLineChart({ series, enabled, onScrub }: ChartProps) {
     return `${Number(mo)}/${Number(day)}`;
   };
 
+  const scrubX = scrubFloat !== null ? (() => {
+    const lo = Math.max(0, Math.min(allDates.length - 1, Math.floor(scrubFloat)));
+    const hi = Math.min(lo + 1, allDates.length - 1);
+    const t = scrubFloat - lo;
+    return x(lo) + t * (x(hi) - x(lo));
+  })() : null;
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[360px]">
+    <svg
+      ref={svgRef}
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full h-[360px] touch-none select-none cursor-crosshair"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+    >
       <line x1={pad.l} x2={W - pad.r} y1={H - pad.b} y2={H - pad.b} stroke="rgba(255,255,255,0.10)" />
-      {activeSeries.map((s) => (
-        <path key={s.def.id} d={pathFor(s)} fill="none" stroke={s.def.color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-      ))}
+      {activeSeries.map((s) => {
+        const norm = normFor(s);
+        return (
+          <path key={s.def.id} d={pathFor(s, norm)} fill="none" stroke={s.def.color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        );
+      })}
+
+      {scrubFloat !== null && scrubX !== null ? (
+        <>
+          <line
+            x1={scrubX}
+            x2={scrubX}
+            y1={pad.t}
+            y2={H - pad.b}
+            stroke="var(--color-text-muted)"
+            strokeOpacity={0.4}
+            strokeDasharray="3 3"
+          />
+          {activeSeries.map((s) => {
+            const { y } = interpAt(s, scrubFloat);
+            if (y === null) return null;
+            return (
+              <circle key={`dot-${s.def.id}`} cx={scrubX} cy={y} r={5} fill={s.def.color} stroke={s.def.color} strokeWidth={1.5} />
+            );
+          })}
+        </>
+      ) : null}
+
       {labelIdx.map((i) => (
         <text
           key={i}
@@ -193,6 +305,8 @@ export default function GscDashboard(props: Props) {
     impressions: true,
     position: true,
   });
+  // Float index reported by the chart while scrubbing; null when idle.
+  const [scrubIdx, setScrubIdx] = useState<number | null>(null);
 
   const days = RANGES.find((r) => r.value === range)!.days;
 
@@ -243,7 +357,21 @@ export default function GscDashboard(props: Props) {
       <div className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
           {seriesData.map(({ def, points }) => {
-            const { headline } = summarize(points, def);
+            const { headline: aggregate } = summarize(points, def);
+            // Build the shared date list (same logic the chart uses) so the
+            // scrub float index maps to the right point in this series.
+            let interpolated: number | null = null;
+            if (scrubIdx !== null && points.length) {
+              const allDates = Array.from(new Set(seriesData.flatMap((s) => s.points.map((p) => p.captured_at)))).sort();
+              const lo = Math.max(0, Math.min(allDates.length - 1, Math.floor(scrubIdx)));
+              const hi = Math.min(lo + 1, allDates.length - 1);
+              const t = scrubIdx - lo;
+              const byDate = new Map(points.map((p) => [p.captured_at, p.value]));
+              const vLo = byDate.get(allDates[lo]);
+              const vHi = byDate.get(allDates[hi]);
+              if (vLo !== undefined && vHi !== undefined) interpolated = vLo + t * (vHi - vLo);
+            }
+            const headline = interpolated ?? aggregate;
             const on = enabled[def.id];
             const checkboxId = `series-toggle-${def.id}`;
             return (
@@ -293,7 +421,7 @@ export default function GscDashboard(props: Props) {
           })}
         </div>
 
-        <MultiLineChart series={seriesData} enabled={enabled} />
+        <MultiLineChart series={seriesData} enabled={enabled} onScrub={setScrubIdx} />
       </div>
 
       <BreakdownTabs

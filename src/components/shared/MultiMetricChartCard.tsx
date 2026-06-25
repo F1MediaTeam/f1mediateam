@@ -128,6 +128,7 @@ export default function MultiMetricChartCard({ title, hint, metrics }: Props) {
             // hoverIdx is a continuous float during drag — linearly interpolate
             // between adjacent points so the KPI glides instead of jumping.
             let hoverValue: number | undefined = undefined;
+            let hoverDate: string | undefined = undefined;
             if (hoverIdx !== null && w.points.length > 0) {
               const lo = Math.max(0, Math.min(w.points.length - 1, Math.floor(hoverIdx)));
               const hi = Math.min(lo + 1, w.points.length - 1);
@@ -135,6 +136,7 @@ export default function MultiMetricChartCard({ title, hint, metrics }: Props) {
               const a = w.points[lo];
               const b = w.points[hi];
               hoverValue = a.value + t * (b.value - a.value);
+              hoverDate = t < 0.5 ? a.captured_at : b.captured_at;
             }
             const displayValue = hoverValue ?? w.aggregated;
             return (

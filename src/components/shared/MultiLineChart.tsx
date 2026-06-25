@@ -18,7 +18,8 @@ interface Props {
   series: ChartSeries[];
   width?: number;
   height?: number;
-  /** Reported on press/drag/release; null when not scrubbing. */
+  /** Continuous float index in [0, n-1] reported live during drag.
+   *  Parent linearly interpolates between adjacent data points to glide values. */
   onHover?: (idx: number | null) => void;
 }
 
@@ -43,7 +44,9 @@ function smoothPath(pts: { x: number; y: number }[], yLo: number, yHi: number): 
 
 export default function MultiLineChart({ series, width = 1400, height = 380, onHover }: Props) {
   const ref = useRef<SVGSVGElement | null>(null);
-  const [activeIdx, setActiveIdx] = useState<number | null>(null);
+  // continuous float index in [0, n-1] while dragging; null when not.
+  const [activeFloat, setActiveFloat] = useState<number | null>(null);
+  // snapped pinned index after a tap (no drag)
   const [pinnedIdx, setPinnedIdx] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
   const downRef = useRef<{ x: number; moved: boolean; priorPin: number | null } | null>(null);
@@ -87,22 +90,24 @@ export default function MultiLineChart({ series, width = 1400, height = 380, onH
     }));
   }
 
-  function idxFromPointer(e: PointerEvent<SVGSVGElement>): number {
+  // Continuous float (not snapped) — lets the dot/values glide between days.
+  function floatFromPointer(e: PointerEvent<SVGSVGElement>): number {
     const node = ref.current;
     if (!node) return 0;
     const r = node.getBoundingClientRect();
     const x = ((e.clientX - r.left) / r.width) * width;
     if (singlePoint) return 0;
     const ratio = (x - padL) / W;
-    return Math.max(0, Math.min(xMaster.length - 1, Math.round(ratio * (xMaster.length - 1))));
+    const f = ratio * (xMaster.length - 1);
+    return Math.max(0, Math.min(xMaster.length - 1, f));
   }
 
   const onPointerDown = (e: PointerEvent<SVGSVGElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId);
     setDragging(true);
-    const i = idxFromPointer(e);
-    setActiveIdx(i);
-    onHover?.(i);
+    const f = floatFromPointer(e);
+    setActiveFloat(f);
+    onHover?.(f);
     downRef.current = { x: e.clientX, moved: false, priorPin: pinnedIdx };
     setPinnedIdx(null);
   };
@@ -111,9 +116,9 @@ export default function MultiLineChart({ series, width = 1400, height = 380, onH
     if (downRef.current && Math.abs(e.clientX - downRef.current.x) > 4) {
       downRef.current.moved = true;
     }
-    const i = idxFromPointer(e);
-    setActiveIdx(i);
-    onHover?.(i);
+    const f = floatFromPointer(e);
+    setActiveFloat(f);
+    onHover?.(f);
   };
   const onPointerUp = (e: PointerEvent<SVGSVGElement>) => {
     try {
@@ -122,18 +127,20 @@ export default function MultiLineChart({ series, width = 1400, height = 380, onH
     setDragging(false);
     const down = downRef.current;
     downRef.current = null;
-    if (down && !down.moved && activeIdx !== null) {
-      const next = down.priorPin === activeIdx ? null : activeIdx;
+    if (down && !down.moved && activeFloat !== null) {
+      // tap (no drag) → snap to nearest day, toggle pin
+      const snapped = Math.round(activeFloat);
+      const next = down.priorPin === snapped ? null : snapped;
       setPinnedIdx(next);
       onHover?.(next);
     } else {
       onHover?.(pinnedIdx);
     }
-    setActiveIdx(null);
+    setActiveFloat(null);
   };
 
-  // The displayed scrubber index: live drag > pinned > none.
-  const scrubIdx = activeIdx !== null ? activeIdx : pinnedIdx;
+  // The displayed scrubber position: live drag (float) > pinned day > none.
+  const scrubFloat = activeFloat !== null ? activeFloat : pinnedIdx;
 
   const xTickCount = 5;
   const xTickIdx = singlePoint
@@ -141,6 +148,43 @@ export default function MultiLineChart({ series, width = 1400, height = 380, onH
     : Array.from({ length: xTickCount }, (_, i) =>
         Math.round((i / (xTickCount - 1)) * (xMaster.length - 1)),
       );
+
+  // Catmull-Rom cubic Bezier point at parameter t between p1 and p2, with
+  // control points clamped exactly the way smoothPath above clamps them — so
+  // the scrubber dot sits *on* the rendered curve rather than floating off.
+  function dotPositionOnCurve(s: ChartSeries, f: number): { x: number; y: number } | null {
+    if (!s.visible || s.points.length === 0) return null;
+    const pts = normalize(s);
+    if (pts.length === 1) return pts[0];
+    const lo = Math.max(0, Math.min(pts.length - 1, Math.floor(f)));
+    const hi = Math.min(lo + 1, pts.length - 1);
+    if (lo === hi) return pts[lo];
+    const t = f - lo;
+    const p0 = pts[Math.max(0, lo - 1)];
+    const p1 = pts[lo];
+    const p2 = pts[hi];
+    const p3 = pts[Math.min(pts.length - 1, hi + 1)];
+    const clampY = (y: number) => Math.max(padT, Math.min(padT + H, y));
+    const cp1y = clampY(p1.y + (p2.y - p0.y) / 6);
+    const cp2y = clampY(p2.y - (p3.y - p1.y) / 6);
+    const u = 1 - t;
+    const x = p1.x + t * (p2.x - p1.x);
+    const y =
+      u * u * u * p1.y +
+      3 * u * u * t * cp1y +
+      3 * u * t * t * cp2y +
+      t * t * t * p2.y;
+    return { x, y };
+  }
+
+  // Crosshair x is the linear interpolation between adjacent x-coords, so it
+  // glides continuously even when there's only one source series.
+  function scrubX(f: number): number {
+    const lo = Math.max(0, Math.min(xMaster.length - 1, Math.floor(f)));
+    const hi = Math.min(lo + 1, xMaster.length - 1);
+    const t = f - lo;
+    return xCoord(lo) + t * (xCoord(hi) - xCoord(lo));
+  }
 
   return (
     <svg
@@ -169,12 +213,12 @@ export default function MultiLineChart({ series, width = 1400, height = 380, onH
         );
       })}
 
-      {/* Scrubber crosshair + per-line dots */}
-      {scrubIdx !== null ? (
+      {/* Scrubber crosshair + per-line dots, interpolated along the curve. */}
+      {scrubFloat !== null ? (
         <>
           <line
-            x1={xCoord(scrubIdx)}
-            x2={xCoord(scrubIdx)}
+            x1={scrubX(scrubFloat)}
+            x2={scrubX(scrubFloat)}
             y1={padT}
             y2={padT + H}
             stroke="var(--color-text-muted)"
@@ -182,10 +226,19 @@ export default function MultiLineChart({ series, width = 1400, height = 380, onH
             strokeDasharray="3 3"
           />
           {series.map((s) => {
-            if (!s.visible || !s.points[scrubIdx]) return null;
-            const pts = normalize(s);
-            const p = pts[scrubIdx];
-            return <circle key={`dot-${s.key}`} cx={p.x} cy={p.y} r={4.5} fill={s.color} stroke={s.color} strokeWidth={1.5} />;
+            const pos = dotPositionOnCurve(s, scrubFloat);
+            if (!pos) return null;
+            return (
+              <circle
+                key={`dot-${s.key}`}
+                cx={pos.x}
+                cy={pos.y}
+                r={4.5}
+                fill={s.color}
+                stroke={s.color}
+                strokeWidth={1.5}
+              />
+            );
           })}
         </>
       ) : null}

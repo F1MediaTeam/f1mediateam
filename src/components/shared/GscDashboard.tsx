@@ -99,9 +99,10 @@ function summarize(series: Snapshot[], def: SeriesDef): { headline: number; sub:
 interface ChartProps {
   series: { def: SeriesDef; points: Snapshot[] }[];
   enabled: Record<SeriesDef["id"], boolean>;
+  onScrub?: (idx: number | null) => void;
 }
 
-function MultiLineChart({ series, enabled }: ChartProps) {
+function MultiLineChart({ series, enabled, onScrub }: ChartProps) {
   const W = 1100;
   const H = 360;
   const pad = { l: 16, r: 16, t: 16, b: 30 };

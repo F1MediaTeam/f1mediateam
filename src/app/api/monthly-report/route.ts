@@ -117,7 +117,6 @@ async function synthesize(args: {
   brandProfile: unknown;
   profileData: unknown;
   fieldyTranscript: string;
-  selectedNotes: string;
 }): Promise<MonthlyContent> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY is not set");
@@ -126,7 +125,6 @@ async function synthesize(args: {
     "\n\nBRAND_PROFILE:\n" + JSON.stringify(args.brandProfile, null, 2) +
     "\n\nPROFILE_DATA (source of truth for all numbers):\n" + JSON.stringify(args.profileData, null, 2) +
     "\n\nFIELDY_TRANSCRIPT (qualitative context only — never a metrics source):\n" + (args.fieldyTranscript || "(empty)") +
-    "\n\nSELECTED_NOTES (operator-picked directives for this report):\n" + (args.selectedNotes || "(empty)") +
     "\n\nReturn ONLY the content object as valid JSON.";
 
   const res = await fetch(ANTHROPIC_API, {
@@ -373,9 +371,6 @@ export async function POST(request: NextRequest) {
     },
   };
 
-  // SELECTED_NOTES — the operator-picked directives from the form textarea.
-  const selectedNotes = field(fd, "instructions");
-
   let content: MonthlyContent;
   try {
     content = await synthesize({
@@ -383,7 +378,6 @@ export async function POST(request: NextRequest) {
       brandProfile,
       profileData,
       fieldyTranscript: transcript,
-      selectedNotes,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "synthesis failed";
@@ -406,7 +400,6 @@ export async function POST(request: NextRequest) {
         brandProfile,
         profileData,
         fieldyTranscript: transcript,
-        selectedNotes,
       },
       content,
     });

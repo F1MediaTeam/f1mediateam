@@ -8,12 +8,13 @@ import { formatLocation } from "@/lib/utils";
 import PasswordChangeForm from "@/components/client/PasswordChangeForm";
 import ProfileForm from "@/components/client/ProfileForm";
 import ClientOnboardingPanel from "@/components/admin/ClientOnboardingPanel";
+import OnboardingDownloadsCard from "@/components/client/OnboardingDownloadsCard";
 
 export default async function ClientSettings() {
   const session = await requireClient();
   const client = await data.getClient(session.client_id!);
   if (!client) return null;
-  const [pref, audit, clientUser] = await Promise.all([
+  const [pref, audit, clientUser, allFiles] = await Promise.all([
     data.getEmailPref(session.user_id),
     // Filter by client_id — admin view-as never leaks into this list.
     data.listAudit({ clientId: session.client_id!, limit: 12 }),
@@ -21,7 +22,17 @@ export default async function ClientSettings() {
     // impersonating, session.user_id is the admin — this fetches the actual
     // client portal account so we show their email, not the impersonator's.
     data.getClientUser(session.client_id!),
+    data.listFiles(session.client_id!),
   ]);
+  const onboardingFiles = allFiles
+    .filter((f) => f.category === "onboarding" || f.category === "onboarding-asset")
+    .map((f) => ({
+      id: f.id,
+      filename: f.filename,
+      category: f.category ?? null,
+      size_bytes: f.size_bytes,
+      created_at: f.created_at,
+    }));
 
   return (
     <ClientShell session={session} client={client} active="/client/settings">
@@ -83,7 +94,8 @@ export default async function ClientSettings() {
         </Card>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 grid grid-cols-1 gap-6">
+        <OnboardingDownloadsCard files={onboardingFiles} />
         <ClientOnboardingPanel clientId={client.id} />
       </div>
     </ClientShell>

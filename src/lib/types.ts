@@ -228,6 +228,60 @@ export interface OnboardingData {
     | "other"
     | "";
   authorization_other?: string;
+
+  // ----- Doc 2: Company Bio & Performance Insights -----
+  company_bio?: string;
+  brand_diff?: string;             // "What makes your firm different…"
+  brand_3words?: string;           // "If a client had to describe your firm in three words…"
+  perf_social_used?: string;       // checkbox + free text
+  perf_social_explanation?: string;
+  perf_website_url?: string;
+  perf_website_explanation?: string;
+  perf_paid_platforms?: string;
+  perf_paid_explanation?: string;
+  perf_podcast_name?: string;
+  perf_podcast_explanation?: string;
+  perf_youtube?: string;
+  perf_youtube_explanation?: string;
+  perf_seo_explanation?: string;
+  perf_referrals_explanation?: string;
+  perf_underperforming?: string;
+
+  // ----- Doc 3: Contact List -----
+  contacts?: Array<{
+    name?: string;
+    email?: string;
+    phone?: string;
+    role?: string;
+  }>;
+
+  // ----- Doc 4: Digital Growth Strategy (read-only, no fields) -----
+  // No fields; this doc is informational.
+
+  // ----- Doc 5: List of Services & Locations -----
+  services?: Array<{
+    name?: string;
+    description?: string;
+    priority?: "high" | "medium" | "low" | "";
+    audience?: string;
+  }>;
+  service_locations?: Array<{
+    city?: string;
+    has_office?: "yes" | "no" | "";
+    priority?: "high" | "medium" | "low" | "";
+    notes?: string;
+  }>;
+  market_focus_main_city?: string;
+  market_focus_competition?: string;
+  market_focus_priority_cities?: string;
+  market_focus_avoid?: string;
+
+  // ----- Doc 6: Logos & Photos (file upload — actual files in storage,
+  //                metadata only here) -----
+  uploaded_asset_filenames?: string[];
+  brand_color_hex?: string;
+  brand_fonts?: string;
+  brand_guidelines_notes?: string;
 }
 
 export interface ConnectorToken {

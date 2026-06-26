@@ -223,6 +223,25 @@ export async function getAttachmentDownloadUrl(attachmentId: string): Promise<st
   return signed?.signedUrl ?? null;
 }
 
+// Signed URL to download a row from the `files` table (e.g. submitted
+// onboarding PDF). Verifies the file belongs to the requesting client.
+export async function getFileDownloadUrl(fileId: string): Promise<string | null> {
+  const session = await requireClient();
+  if (!session.client_id) return null;
+  const supabase = await createServiceClient();
+  const { data: row } = await supabase
+    .from("files")
+    .select("storage_path, client_id")
+    .eq("id", fileId)
+    .maybeSingle();
+  const r = row as { storage_path: string; client_id: string } | null;
+  if (!r || r.client_id !== session.client_id) return null;
+  const { data: signed } = await supabase.storage
+    .from("client-attachments")
+    .createSignedUrl(r.storage_path, 300);
+  return signed?.signedUrl ?? null;
+}
+
 export async function updateProfileAction(
   _prev: { error: string | null; ok?: string | null },
   formData: FormData,
@@ -276,7 +295,7 @@ export async function submitOnboardingAction(formData: FormData) {
   try { parsed = JSON.parse(dataField); } catch { parsed = {}; }
 
   const supabase = await createSupabase();
-  await supabase
+  const { data: row } = await supabase
     .from("client_onboarding")
     .upsert(
       {
@@ -287,8 +306,61 @@ export async function submitOnboardingAction(formData: FormData) {
         accepted_terms: true,
       },
       { onConflict: "client_id" },
-    );
+    )
+    .select()
+    .single();
   // also satisfy the legacy disclaimer for callers that still check it
   await data.recordDisclaimer(session.user_id, DISCLAIMER_VERSION);
+
+  // Render the answers as a PDF and store it under client-attachments so
+  // the client can download it from their Settings page later. Also upload
+  // any brand-asset files that were dropped on the final wizard page.
+  try {
+    const client = await data.getClient(session.client_id);
+    const { renderOnboardingPdf } = await import("@/lib/onboarding-pdf");
+    const buf = await renderOnboardingPdf({
+      clientName: client?.company_name ?? "Client",
+      submittedAt: row?.submitted_at ?? new Date().toISOString(),
+      data: parsed as unknown as OnboardingDataLike,
+      termsVersion: DISCLAIMER_VERSION,
+    });
+    const service = await createServiceClient();
+    const stamp = new Date().toISOString().slice(0, 10);
+    const path = `${session.client_id}/onboarding/${stamp}-onboarding-${randomUUID()}.pdf`;
+    await service.storage.from("client-attachments").upload(path, buf, {
+      contentType: "application/pdf",
+      upsert: false,
+    });
+    await service.from("files").insert({
+      client_id: session.client_id,
+      filename: `f1-onboarding-${stamp}.pdf`,
+      storage_path: path,
+      mime_type: "application/pdf",
+      size_bytes: buf.length,
+      category: "onboarding",
+      uploaded_by: session.user_id,
+    });
+    // Brand assets uploaded on the final page
+    const assets = formData.getAll("brand_assets");
+    if (Array.isArray(assets) && assets.length > 0) {
+      const { persistAttachments } = await import("@/lib/attachments");
+      await persistAttachments({
+        formData,
+        fieldName: "brand_assets",
+        client_id: session.client_id,
+        uploaded_by: session.user_id,
+        category: "onboarding-asset",
+      });
+    }
+  } catch (e) {
+    console.error("onboarding PDF persist failed", e);
+  }
+
   revalidatePath("/client");
+  revalidatePath("/client/settings");
+  revalidatePath("/client/files");
+  revalidatePath(`/admin/clients/${session.client_id}`);
 }
+
+// Local helper type to keep the action file's import surface tight.
+type OnboardingDataLike = Parameters<typeof import("@/lib/onboarding-pdf").renderOnboardingPdf>[0]["data"];

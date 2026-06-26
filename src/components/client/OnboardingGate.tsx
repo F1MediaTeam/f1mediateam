@@ -20,27 +20,29 @@ const inputClass =
   "w-full rounded-lg border border-black/15 bg-[#F5F7FA] text-black px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-black/20 focus:bg-white";
 const labelClass = "block text-[10px] uppercase tracking-widest text-black/55 mb-1.5 font-semibold";
 
-function Field({ label, value, onChange, type = "text", placeholder }: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string }) {
+function Field({ label, value, onChange, type = "text", placeholder, error }: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string; error?: boolean }) {
+  const cls = inputClass + (error ? " !border-red-500 !border-2 bg-red-50" : "");
   return (
     <label className="block">
       <span className={labelClass}>{label}</span>
-      <input type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={inputClass} />
+      <input type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={cls} />
     </label>
   );
 }
 
-function Area({ label, value, onChange, placeholder, rows = 3 }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; rows?: number }) {
+function Area({ label, value, onChange, placeholder, rows = 3, error }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; rows?: number; error?: boolean }) {
+  const cls = inputClass + (error ? " !border-red-500 !border-2 bg-red-50" : "");
   return (
     <label className="block">
       <span className={labelClass}>{label}</span>
-      <textarea value={value} placeholder={placeholder} rows={rows} onChange={(e) => onChange(e.target.value)} className={inputClass} />
+      <textarea value={value} placeholder={placeholder} rows={rows} onChange={(e) => onChange(e.target.value)} className={cls} />
     </label>
   );
 }
 
-function YesNo({ label, value, onChange }: { label: string; value: "yes" | "no" | ""; onChange: (v: "yes" | "no" | "") => void }) {
+function YesNo({ label, value, onChange, error }: { label: string; value: "yes" | "no" | ""; onChange: (v: "yes" | "no" | "") => void; error?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-3 text-sm py-1.5">
+    <div className={"flex items-center justify-between gap-3 text-sm py-1.5 rounded-md " + (error ? "border-2 border-red-500 bg-red-50 px-2" : "")}>
       <span className="text-black/85">{label}</span>
       <div className="flex gap-1.5">
         {(["yes", "no"] as const).map((v) => (
@@ -51,9 +53,9 @@ function YesNo({ label, value, onChange }: { label: string; value: "yes" | "no" 
   );
 }
 
-function Priority({ label, value, onChange }: { label: string; value: "high" | "medium" | "low" | ""; onChange: (v: "high" | "medium" | "low" | "") => void }) {
+function Priority({ label, value, onChange, error }: { label: string; value: "high" | "medium" | "low" | ""; onChange: (v: "high" | "medium" | "low" | "") => void; error?: boolean }) {
   return (
-    <div>
+    <div className={error ? "rounded-md border-2 border-red-500 bg-red-50 px-2 py-1" : ""}>
       <span className={labelClass}>{label}</span>
       <div className="flex gap-2">
         {(["high", "medium", "low"] as const).map((p) => (
@@ -117,6 +119,8 @@ export default function OnboardingGate({ version, userName }: Props) {
   });
   const [accepted, setAccepted] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  const [attempted, setAttempted] = useState(false); // user tried to advance with missing fields
+  const err = (filledOK: boolean) => attempted && !filledOK; // show red if attempted AND not filled
 
   const set = <K extends keyof OnboardingData>(k: K, v: OnboardingData[K]) => setData((d) => ({ ...d, [k]: v }));
   const setGoogleAccess = (k: string, v: boolean) => setData((d) => ({ ...d, google_access: { ...(d.google_access ?? {}), [k]: v } }));
@@ -267,8 +271,29 @@ export default function OnboardingGate({ version, userName }: Props) {
     start(async () => { await submitOnboardingAction(fd); });
   }
 
-  function next() { if (page < PAGES.length - 1) { setPage(page + 1); window.scrollTo({ top: 0, behavior: "smooth" }); } }
-  function back() { if (page > 0) { setPage(page - 1); window.scrollTo({ top: 0, behavior: "smooth" }); } }
+  function next() {
+    if (!canAdvance) {
+      setAttempted(true);
+      // Scroll to the first red-outlined field so the customer sees what's missing.
+      requestAnimationFrame(() => {
+        const firstMissing = document.querySelector(".onboarding-body .\\!border-red-500, .onboarding-body .border-red-500");
+        firstMissing?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      return;
+    }
+    if (page < PAGES.length - 1) {
+      setPage(page + 1);
+      setAttempted(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+  function back() {
+    if (page > 0) {
+      setPage(page - 1);
+      setAttempted(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
 
   function PageHeader({ idx, title, sub }: { idx: number; title: string; sub?: string }) {
     return (
@@ -302,7 +327,7 @@ export default function OnboardingGate({ version, userName }: Props) {
           </div>
         </div>
 
-        <div className="bg-white text-black">
+        <div className="onboarding-body bg-white text-black">
           {/* ============== PAGE 1 — ACCOUNT ACCESS ============== */}
           {page === 0 ? (
             <>
@@ -339,39 +364,39 @@ export default function OnboardingGate({ version, userName }: Props) {
                 <Section title="1. Primary Administrative Email(s)">
                   <P>List all email addresses that currently hold administrative access to your digital platforms.</P>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <Field label="Primary admin email" value={data.primary_admin_email ?? ""} onChange={(v) => set("primary_admin_email", v)} type="email" />
-                    <Field label="Username" value={data.primary_admin_username ?? ""} onChange={(v) => set("primary_admin_username", v)} />
-                    <Field label="Password" value={data.primary_admin_password ?? ""} onChange={(v) => set("primary_admin_password", v)} type="password" />
+                    <Field label="Primary admin email" value={data.primary_admin_email ?? ""} onChange={(v) => set("primary_admin_email", v)} type="email" error={err(filled(data.primary_admin_email))} />
+                    <Field label="Username" value={data.primary_admin_username ?? ""} onChange={(v) => set("primary_admin_username", v)} error={err(filled(data.primary_admin_username))} />
+                    <Field label="Password" value={data.primary_admin_password ?? ""} onChange={(v) => set("primary_admin_password", v)} type="password" error={err(filled(data.primary_admin_password))} />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <Field label="Secondary admin email" value={data.secondary_admin_email ?? ""} onChange={(v) => set("secondary_admin_email", v)} type="email" />
-                    <Field label="Username" value={data.secondary_admin_username ?? ""} onChange={(v) => set("secondary_admin_username", v)} />
-                    <Field label="Password" value={data.secondary_admin_password ?? ""} onChange={(v) => set("secondary_admin_password", v)} type="password" />
+                    <Field label="Secondary admin email" value={data.secondary_admin_email ?? ""} onChange={(v) => set("secondary_admin_email", v)} type="email" error={err(filled(data.secondary_admin_email))} />
+                    <Field label="Username" value={data.secondary_admin_username ?? ""} onChange={(v) => set("secondary_admin_username", v)} error={err(filled(data.secondary_admin_username))} />
+                    <Field label="Password" value={data.secondary_admin_password ?? ""} onChange={(v) => set("secondary_admin_password", v)} type="password" error={err(filled(data.secondary_admin_password))} />
                   </div>
-                  <YesNo label="Is this email tied to Google services?" value={(data.primary_tied_to_google ?? "") as "yes" | "no" | ""} onChange={(v) => set("primary_tied_to_google", v)} />
-                  <YesNo label="Is this email tied to website hosting?" value={(data.primary_tied_to_hosting ?? "") as "yes" | "no" | ""} onChange={(v) => set("primary_tied_to_hosting", v)} />
+                  <YesNo label="Is this email tied to Google services?" value={(data.primary_tied_to_google ?? "") as "yes" | "no" | ""} onChange={(v) => set("primary_tied_to_google", v)} error={err(yn(data.primary_tied_to_google))} />
+                  <YesNo label="Is this email tied to website hosting?" value={(data.primary_tied_to_hosting ?? "") as "yes" | "no" | ""} onChange={(v) => set("primary_tied_to_hosting", v)} error={err(yn(data.primary_tied_to_hosting))} />
                 </Section>
 
                 <Section title="2. Website & Hosting Access">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <Field label="Website URL" value={data.website_url ?? ""} onChange={(v) => set("website_url", v)} placeholder="https://" />
-                    <Field label="Username" value={data.website_username ?? ""} onChange={(v) => set("website_username", v)} />
-                    <Field label="Password" value={data.website_password ?? ""} onChange={(v) => set("website_password", v)} type="password" />
+                    <Field label="Website URL" value={data.website_url ?? ""} onChange={(v) => set("website_url", v)} placeholder="https://" error={err(filled(data.website_url))} />
+                    <Field label="Username" value={data.website_username ?? ""} onChange={(v) => set("website_username", v)} error={err(filled(data.website_username))} />
+                    <Field label="Password" value={data.website_password ?? ""} onChange={(v) => set("website_password", v)} type="password" error={err(filled(data.website_password))} />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <Field label="Domain registrar (if known)" value={data.domain_registrar ?? ""} onChange={(v) => set("domain_registrar", v)} />
-                    <Field label="Hosting provider (if known)" value={data.hosting_provider ?? ""} onChange={(v) => set("hosting_provider", v)} />
-                    <Field label="Primary website access email" value={data.website_admin_email ?? ""} onChange={(v) => set("website_admin_email", v)} type="email" />
-                    <Field label="CMS platform (WordPress, Webflow, custom, etc.)" value={data.cms_platform ?? ""} onChange={(v) => set("cms_platform", v)} />
-                    <Field label="Developer contact (if applicable)" value={data.developer_contact ?? ""} onChange={(v) => set("developer_contact", v)} />
+                    <Field label="Domain registrar (if known)" value={data.domain_registrar ?? ""} onChange={(v) => set("domain_registrar", v)} error={err(filled(data.domain_registrar))} />
+                    <Field label="Hosting provider (if known)" value={data.hosting_provider ?? ""} onChange={(v) => set("hosting_provider", v)} error={err(filled(data.hosting_provider))} />
+                    <Field label="Primary website access email" value={data.website_admin_email ?? ""} onChange={(v) => set("website_admin_email", v)} type="email" error={err(filled(data.website_admin_email))} />
+                    <Field label="CMS platform (WordPress, Webflow, custom, etc.)" value={data.cms_platform ?? ""} onChange={(v) => set("cms_platform", v)} error={err(filled(data.cms_platform))} />
+                    <Field label="Developer contact (if applicable)" value={data.developer_contact ?? ""} onChange={(v) => set("developer_contact", v)} error={err(filled(data.developer_contact))} />
                   </div>
                 </Section>
 
                 <Section title="3. Search Engine Accounts">
                   <H3>Google Accounts</H3>
-                  <Field label="Google account email (admin)" value={data.google_admin_email ?? ""} onChange={(v) => set("google_admin_email", v)} type="email" />
+                  <Field label="Google account email (admin)" value={data.google_admin_email ?? ""} onChange={(v) => set("google_admin_email", v)} type="email" error={err(filled(data.google_admin_email))} />
                   <P>Access to the following:</P>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+                  <div className={"grid grid-cols-1 md:grid-cols-2 gap-1 " + (err(["analytics", "search_console", "business_profile", "ads", "tag_manager"].every((k) => (data.google_access ?? {})[k as keyof NonNullable<typeof data.google_access>])) ? "rounded-md border-2 border-red-500 bg-red-50 px-2 py-1" : "")}>
                     {[
                       { k: "analytics", l: "Google Analytics" },
                       { k: "search_console", l: "Google Search Console" },
@@ -388,9 +413,9 @@ export default function OnboardingGate({ version, userName }: Props) {
                   <Field label="Other" value={String((data.google_access ?? {}).other ?? "")} onChange={(v) => setData((d) => ({ ...d, google_access: { ...(d.google_access ?? {}), other: v } }))} />
 
                   <H3>Microsoft / Bing Accounts</H3>
-                  <Field label="Microsoft account email (admin)" value={data.microsoft_admin_email ?? ""} onChange={(v) => set("microsoft_admin_email", v)} type="email" />
+                  <Field label="Microsoft account email (admin)" value={data.microsoft_admin_email ?? ""} onChange={(v) => set("microsoft_admin_email", v)} type="email" error={err(filled(data.microsoft_admin_email))} />
                   <P>Access to:</P>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+                  <div className={"grid grid-cols-1 md:grid-cols-2 gap-1 " + (err(["bing_webmaster", "ads"].every((k) => (data.microsoft_access ?? {})[k as keyof NonNullable<typeof data.microsoft_access>])) ? "rounded-md border-2 border-red-500 bg-red-50 px-2 py-1" : "")}>
                     {[
                       { k: "bing_webmaster", l: "Bing Webmaster Tools" },
                       { k: "ads", l: "Microsoft Ads" },
@@ -412,8 +437,8 @@ export default function OnboardingGate({ version, userName }: Props) {
                       <div key={p.key} className="border-t border-black/10 pt-3">
                         <div className="text-sm font-bold text-black mb-2">{p.label}</div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <Field label={p.urlLabel} value={v.username ?? ""} onChange={(val) => setSocial(p.key, "username", val)} />
-                          <Field label="Admin email" value={v.admin_email ?? ""} onChange={(val) => setSocial(p.key, "admin_email", val)} type="email" />
+                          <Field label={p.urlLabel} value={v.username ?? ""} onChange={(val) => setSocial(p.key, "username", val)} error={err(filled(v.username))} />
+                          <Field label="Admin email" value={v.admin_email ?? ""} onChange={(val) => setSocial(p.key, "admin_email", val)} type="email" error={err(filled(v.admin_email))} />
                         </div>
                       </div>
                     );
@@ -422,7 +447,7 @@ export default function OnboardingGate({ version, userName }: Props) {
 
                 <Section title="5. Access Authorization Preference">
                   <P>Please indicate your preferred access method:</P>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div className={"grid grid-cols-1 md:grid-cols-2 gap-2 " + (err(Boolean(data.authorization_preference)) ? "rounded-md border-2 border-red-500 bg-red-50 px-2 py-1" : "")}>
                     {AUTH_OPTIONS.map((o) => (
                       <label key={o.value} className="flex items-center gap-2 text-sm py-1">
                         <input type="radio" name="auth_pref" checked={data.authorization_preference === o.value} onChange={() => set("authorization_preference", o.value)} className="h-4 w-4 accent-black" />
@@ -431,7 +456,7 @@ export default function OnboardingGate({ version, userName }: Props) {
                     ))}
                   </div>
                   {data.authorization_preference === "other" ? (
-                    <Area label="Tell us more" value={data.authorization_other ?? ""} onChange={(v) => set("authorization_other", v)} rows={2} />
+                    <Area label="Tell us more" value={data.authorization_other ?? ""} onChange={(v) => set("authorization_other", v)} rows={2} error={err(filled(data.authorization_other))} />
                   ) : null}
                   <div className="mt-4 rounded-lg border border-black/10 bg-[#FAFAFA] px-4 py-3">
                     <div className="text-xs font-bold text-black mb-1">Security Note</div>
@@ -456,14 +481,14 @@ export default function OnboardingGate({ version, userName }: Props) {
                 <Section title="1. Official Company Bio">
                   <P>Please provide a detailed company bio including:</P>
                   <UL items={["When the firm was founded", "Why it was founded", "Mission and core values", "Practice focus and philosophy", "What differentiates your firm from competitors", "Notable achievements, recognitions, or milestones", "Community involvement (if applicable)", "Target clientele"]} />
-                  <Area label="Company bio" value={data.company_bio ?? ""} onChange={(v) => set("company_bio", v)} rows={9} />
+                  <Area label="Company bio" value={data.company_bio ?? ""} onChange={(v) => set("company_bio", v)} rows={9} error={err(filled(data.company_bio))} />
                 </Section>
 
                 <Section title="2. Two Strategic Brand Questions">
                   <P><strong>Question 1:</strong> What makes your firm different from other firms in your market? (Examples: client experience, case strategy, responsiveness, niche focus, fee structure, trial experience, etc.)</P>
-                  <Area label="Response" value={data.brand_diff ?? ""} onChange={(v) => set("brand_diff", v)} rows={5} />
+                  <Area label="Response" value={data.brand_diff ?? ""} onChange={(v) => set("brand_diff", v)} rows={5} error={err(filled(data.brand_diff))} />
                   <P><strong>Question 2:</strong> If a client had to describe your firm in three words, what would they say and why?</P>
-                  <Area label="Response" value={data.brand_3words ?? ""} onChange={(v) => set("brand_3words", v)} rows={5} />
+                  <Area label="Response" value={data.brand_3words ?? ""} onChange={(v) => set("brand_3words", v)} rows={5} error={err(filled(data.brand_3words))} />
                 </Section>
 
                 <Section title="3. Marketing Performance Analysis">
@@ -474,46 +499,46 @@ export default function OnboardingGate({ version, userName }: Props) {
                   <div className="space-y-4">
                     <div>
                       <div className="text-xs font-bold uppercase text-black/70 mb-1">☐ Social Media</div>
-                      <Field label="Platforms used" value={data.perf_social_used ?? ""} onChange={(v) => set("perf_social_used", v)} />
-                      <Area label="Explanation" value={data.perf_social_explanation ?? ""} onChange={(v) => set("perf_social_explanation", v)} rows={4} />
+                      <Field label="Platforms used" value={data.perf_social_used ?? ""} onChange={(v) => set("perf_social_used", v)} error={err(filled(data.perf_social_used))} />
+                      <Area label="Explanation" value={data.perf_social_explanation ?? ""} onChange={(v) => set("perf_social_explanation", v)} rows={4} error={err(filled(data.perf_social_explanation))} />
                     </div>
                     <div>
                       <div className="text-xs font-bold uppercase text-black/70 mb-1">☐ Website</div>
-                      <Field label="Website URL(s)" value={data.perf_website_url ?? ""} onChange={(v) => set("perf_website_url", v)} />
-                      <Area label="Explanation" value={data.perf_website_explanation ?? ""} onChange={(v) => set("perf_website_explanation", v)} rows={4} />
+                      <Field label="Website URL(s)" value={data.perf_website_url ?? ""} onChange={(v) => set("perf_website_url", v)} error={err(filled(data.perf_website_url))} />
+                      <Area label="Explanation" value={data.perf_website_explanation ?? ""} onChange={(v) => set("perf_website_explanation", v)} rows={4} error={err(filled(data.perf_website_explanation))} />
                     </div>
                     <div>
                       <div className="text-xs font-bold uppercase text-black/70 mb-1">☐ Paid Advertising</div>
-                      <Field label="Platforms used (Google Ads, Meta, etc.)" value={data.perf_paid_platforms ?? ""} onChange={(v) => set("perf_paid_platforms", v)} />
-                      <Area label="Explanation" value={data.perf_paid_explanation ?? ""} onChange={(v) => set("perf_paid_explanation", v)} rows={4} />
+                      <Field label="Platforms used (Google Ads, Meta, etc.)" value={data.perf_paid_platforms ?? ""} onChange={(v) => set("perf_paid_platforms", v)} error={err(filled(data.perf_paid_platforms))} />
+                      <Area label="Explanation" value={data.perf_paid_explanation ?? ""} onChange={(v) => set("perf_paid_explanation", v)} rows={4} error={err(filled(data.perf_paid_explanation))} />
                     </div>
                     <div>
                       <div className="text-xs font-bold uppercase text-black/70 mb-1">☐ Podcast</div>
-                      <Field label="Podcast name / platform" value={data.perf_podcast_name ?? ""} onChange={(v) => set("perf_podcast_name", v)} />
-                      <Area label="Explanation" value={data.perf_podcast_explanation ?? ""} onChange={(v) => set("perf_podcast_explanation", v)} rows={4} />
+                      <Field label="Podcast name / platform" value={data.perf_podcast_name ?? ""} onChange={(v) => set("perf_podcast_name", v)} error={err(filled(data.perf_podcast_name))} />
+                      <Area label="Explanation" value={data.perf_podcast_explanation ?? ""} onChange={(v) => set("perf_podcast_explanation", v)} rows={4} error={err(filled(data.perf_podcast_explanation))} />
                     </div>
                     <div>
                       <div className="text-xs font-bold uppercase text-black/70 mb-1">☐ Other</div>
-                      <Field label="Channel / source" value={data.perf_other ?? ""} onChange={(v) => set("perf_other", v)} />
-                      <Area label="Explanation" value={data.perf_other_explanation ?? ""} onChange={(v) => set("perf_other_explanation", v)} rows={4} />
+                      <Field label="Channel / source" value={data.perf_other ?? ""} onChange={(v) => set("perf_other", v)} error={err(filled(data.perf_other))} />
+                      <Area label="Explanation" value={data.perf_other_explanation ?? ""} onChange={(v) => set("perf_other_explanation", v)} rows={4} error={err(filled(data.perf_other_explanation))} />
                     </div>
                   </div>
 
                   <H3>Where Have You Seen the Least Success?</H3>
                   <P>Please describe channels, campaigns, or efforts that did not produce desired results.</P>
-                  <Field label="Channel / Platform" value={data.perf_underperforming_channel ?? ""} onChange={(v) => set("perf_underperforming_channel", v)} />
-                  <Field label="What was attempted" value={data.perf_underperforming_attempted ?? ""} onChange={(v) => set("perf_underperforming_attempted", v)} />
-                  <Area label="Why you believe it underperformed" value={data.perf_underperforming ?? ""} onChange={(v) => set("perf_underperforming", v)} rows={6} />
-                  <Area label="Additional notes" value={data.perf_additional_notes ?? ""} onChange={(v) => set("perf_additional_notes", v)} rows={5} />
+                  <Field label="Channel / Platform" value={data.perf_underperforming_channel ?? ""} onChange={(v) => set("perf_underperforming_channel", v)} error={err(filled(data.perf_underperforming_channel))} />
+                  <Field label="What was attempted" value={data.perf_underperforming_attempted ?? ""} onChange={(v) => set("perf_underperforming_attempted", v)} error={err(filled(data.perf_underperforming_attempted))} />
+                  <Area label="Why you believe it underperformed" value={data.perf_underperforming ?? ""} onChange={(v) => set("perf_underperforming", v)} rows={6} error={err(filled(data.perf_underperforming))} />
+                  <Area label="Additional notes" value={data.perf_additional_notes ?? ""} onChange={(v) => set("perf_additional_notes", v)} rows={5} error={err(filled(data.perf_additional_notes))} />
                 </Section>
 
                 <Section title="4. Additional Strategic Insights (Optional but Recommended)">
                   <P>The following help us identify your ideal positioning and growth lanes:</P>
-                  <Area label="Who is your ideal client?" value={data.ideal_client ?? ""} onChange={(v) => set("ideal_client", v)} />
-                  <Area label="What type of cases generate the highest revenue?" value={data.highest_revenue_cases ?? ""} onChange={(v) => set("highest_revenue_cases", v)} />
-                  <Area label="What type of cases do you prefer not to take?" value={data.cases_to_avoid ?? ""} onChange={(v) => set("cases_to_avoid", v)} />
-                  <Area label="What markets feel saturated?" value={data.saturated_markets ?? ""} onChange={(v) => set("saturated_markets", v)} />
-                  <Area label="Where do you see the greatest growth opportunity?" value={data.growth_opportunity ?? ""} onChange={(v) => set("growth_opportunity", v)} />
+                  <Area label="Who is your ideal client?" value={data.ideal_client ?? ""} onChange={(v) => set("ideal_client", v)} error={err(filled(data.ideal_client))} />
+                  <Area label="What type of cases generate the highest revenue?" value={data.highest_revenue_cases ?? ""} onChange={(v) => set("highest_revenue_cases", v)} error={err(filled(data.highest_revenue_cases))} />
+                  <Area label="What type of cases do you prefer not to take?" value={data.cases_to_avoid ?? ""} onChange={(v) => set("cases_to_avoid", v)} error={err(filled(data.cases_to_avoid))} />
+                  <Area label="What markets feel saturated?" value={data.saturated_markets ?? ""} onChange={(v) => set("saturated_markets", v)} error={err(filled(data.saturated_markets))} />
+                  <Area label="Where do you see the greatest growth opportunity?" value={data.growth_opportunity ?? ""} onChange={(v) => set("growth_opportunity", v)} error={err(filled(data.growth_opportunity))} />
                 </Section>
               </div>
             </>
@@ -552,10 +577,10 @@ export default function OnboardingGate({ version, userName }: Props) {
                   {(data.contacts ?? []).map((c, i) => (
                     <div key={i} className="rounded-xl border border-black/10 bg-[#FAFAFA] p-4 space-y-3 relative">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <Field label="Full name (First & Last)" value={c.name ?? ""} onChange={(v) => updateRow("contacts", i, { name: v })} />
-                        <Field label="Direct email" value={c.email ?? ""} onChange={(v) => updateRow("contacts", i, { email: v })} type="email" />
-                        <Field label="Phone number" value={c.phone ?? ""} onChange={(v) => updateRow("contacts", i, { phone: v })} />
-                        <Field label="Role & notes" value={c.role ?? ""} onChange={(v) => updateRow("contacts", i, { role: v })} placeholder="e.g. Managing Attorney – Final Approvals" />
+                        <Field label="Full name (First & Last)" value={c.name ?? ""} onChange={(v) => updateRow("contacts", i, { name: v })} error={err(filled(c.name))} />
+                        <Field label="Direct email" value={c.email ?? ""} onChange={(v) => updateRow("contacts", i, { email: v })} type="email" error={err(filled(c.email))} />
+                        <Field label="Phone number" value={c.phone ?? ""} onChange={(v) => updateRow("contacts", i, { phone: v })} error={err(filled(c.phone))} />
+                        <Field label="Role & notes" value={c.role ?? ""} onChange={(v) => updateRow("contacts", i, { role: v })} placeholder="e.g. Managing Attorney – Final Approvals" error={err(filled(c.role))} />
                       </div>
                       {(data.contacts ?? []).length > 1 ? (
                         <button type="button" onClick={() => removeRow("contacts", i)} className="absolute top-2 right-3 text-[11px] text-black/50 hover:text-red-600">Remove</button>
@@ -679,11 +704,11 @@ export default function OnboardingGate({ version, userName }: Props) {
                   {(data.services ?? []).map((s, i) => (
                     <div key={i} className="rounded-xl border border-black/10 bg-[#FAFAFA] p-4 space-y-3 relative">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <Field label="Service name" value={s.name ?? ""} onChange={(v) => updateRow("services", i, { name: v })} />
-                        <Field label="Primary target audience" value={s.audience ?? ""} onChange={(v) => updateRow("services", i, { audience: v })} />
+                        <Field label="Service name" value={s.name ?? ""} onChange={(v) => updateRow("services", i, { name: v })} error={err(filled(s.name))} />
+                        <Field label="Primary target audience" value={s.audience ?? ""} onChange={(v) => updateRow("services", i, { audience: v })} error={err(filled(s.audience))} />
                       </div>
-                      <Area label="Brief description" value={s.description ?? ""} onChange={(v) => updateRow("services", i, { description: v })} rows={2} />
-                      <Priority label="Priority level" value={(s.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => updateRow("services", i, { priority: v })} />
+                      <Area label="Brief description" value={s.description ?? ""} onChange={(v) => updateRow("services", i, { description: v })} rows={2} error={err(filled(s.description))} />
+                      <Priority label="Priority level" value={(s.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => updateRow("services", i, { priority: v })} error={err(Boolean(s.priority))} />
                       {(data.services ?? []).length > 1 ? (
                         <button type="button" onClick={() => removeRow("services", i)} className="absolute top-2 right-3 text-[11px] text-black/50 hover:text-red-600">Remove</button>
                       ) : null}
@@ -712,23 +737,23 @@ export default function OnboardingGate({ version, userName }: Props) {
                 <P><em>Clear structure = stronger rankings, higher visibility, and better-qualified leads.</em></P>
 
                 <Section title="PRIMARY CITY">
-                  <Field label="City / Area" value={data.primary_city?.name ?? ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), name: v })} />
-                  <YesNo label="Office Location" value={(data.primary_city?.has_office ?? "") as "yes" | "no" | ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), has_office: v })} />
-                  <Area label="Physical Office Address (if applicable)" value={data.primary_city?.office_address ?? ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), office_address: v })} rows={2} />
-                  <YesNo label="Virtual Service Area" value={(data.primary_city?.virtual_service ?? "") as "yes" | "no" | ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), virtual_service: v })} />
-                  <Priority label="Priority Level" value={(data.primary_city?.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), priority: v })} />
-                  <YesNo label="Is this a Primary Revenue Market?" value={(data.primary_city?.revenue_market ?? "") as "yes" | "no" | ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), revenue_market: v })} />
-                  <Area label="Notes (competitiveness, target clientele, special focus, etc.)" value={data.primary_city?.notes ?? ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), notes: v })} rows={3} />
+                  <Field label="City / Area" value={data.primary_city?.name ?? ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), name: v })} error={err(filled(data.primary_city?.name))} />
+                  <YesNo label="Office Location" value={(data.primary_city?.has_office ?? "") as "yes" | "no" | ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), has_office: v })} error={err(yn(data.primary_city?.has_office))} />
+                  <Area label="Physical Office Address (if applicable)" value={data.primary_city?.office_address ?? ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), office_address: v })} rows={2} error={err(filled(data.primary_city?.office_address))} />
+                  <YesNo label="Virtual Service Area" value={(data.primary_city?.virtual_service ?? "") as "yes" | "no" | ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), virtual_service: v })} error={err(yn(data.primary_city?.virtual_service))} />
+                  <Priority label="Priority Level" value={(data.primary_city?.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), priority: v })} error={err(Boolean(data.primary_city?.priority))} />
+                  <YesNo label="Is this a Primary Revenue Market?" value={(data.primary_city?.revenue_market ?? "") as "yes" | "no" | ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), revenue_market: v })} error={err(yn(data.primary_city?.revenue_market))} />
+                  <Area label="Notes (competitiveness, target clientele, special focus, etc.)" value={data.primary_city?.notes ?? ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), notes: v })} rows={3} error={err(filled(data.primary_city?.notes))} />
                 </Section>
 
                 <Section title="SURROUNDING CITIES">
                   <P>Complete one block per city.</P>
                   {(data.service_locations ?? []).map((l, i) => (
                     <div key={i} className="rounded-xl border border-black/10 bg-[#FAFAFA] p-4 space-y-3 relative">
-                      <Field label="City / Area" value={l.city ?? ""} onChange={(v) => updateRow("service_locations", i, { city: v })} />
-                      <YesNo label="Office Location" value={(l.has_office ?? "") as "yes" | "no" | ""} onChange={(v) => updateRow("service_locations", i, { has_office: v })} />
-                      <Priority label="Priority Level" value={(l.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => updateRow("service_locations", i, { priority: v })} />
-                      <Area label="Notes" value={l.notes ?? ""} onChange={(v) => updateRow("service_locations", i, { notes: v })} rows={2} />
+                      <Field label="City / Area" value={l.city ?? ""} onChange={(v) => updateRow("service_locations", i, { city: v })} error={err(filled(l.city))} />
+                      <YesNo label="Office Location" value={(l.has_office ?? "") as "yes" | "no" | ""} onChange={(v) => updateRow("service_locations", i, { has_office: v })} error={err(yn(l.has_office))} />
+                      <Priority label="Priority Level" value={(l.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => updateRow("service_locations", i, { priority: v })} error={err(Boolean(l.priority))} />
+                      <Area label="Notes" value={l.notes ?? ""} onChange={(v) => updateRow("service_locations", i, { notes: v })} rows={2} error={err(filled(l.notes))} />
                       {(data.service_locations ?? []).length > 1 ? (
                         <button type="button" onClick={() => removeRow("service_locations", i)} className="absolute top-2 right-3 text-[11px] text-black/50 hover:text-red-600">Remove</button>
                       ) : null}
@@ -740,10 +765,10 @@ export default function OnboardingGate({ version, userName }: Props) {
                 <Section title="COUNTIES SERVED">
                   {(data.counties_served ?? []).map((c, i) => (
                     <div key={i} className="rounded-xl border border-black/10 bg-[#FAFAFA] p-4 space-y-3 relative">
-                      <Field label="County Name" value={c.name ?? ""} onChange={(v) => updateRow("counties_served", i, { name: v })} />
-                      <YesNo label="Office located in this county?" value={(c.office_in_county ?? "") as "yes" | "no" | ""} onChange={(v) => updateRow("counties_served", i, { office_in_county: v })} />
-                      <Priority label="Priority Level" value={(c.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => updateRow("counties_served", i, { priority: v })} />
-                      <Area label="Notes" value={c.notes ?? ""} onChange={(v) => updateRow("counties_served", i, { notes: v })} rows={2} />
+                      <Field label="County Name" value={c.name ?? ""} onChange={(v) => updateRow("counties_served", i, { name: v })} error={err(filled(c.name))} />
+                      <YesNo label="Office located in this county?" value={(c.office_in_county ?? "") as "yes" | "no" | ""} onChange={(v) => updateRow("counties_served", i, { office_in_county: v })} error={err(yn(c.office_in_county))} />
+                      <Priority label="Priority Level" value={(c.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => updateRow("counties_served", i, { priority: v })} error={err(Boolean(c.priority))} />
+                      <Area label="Notes" value={c.notes ?? ""} onChange={(v) => updateRow("counties_served", i, { notes: v })} rows={2} error={err(filled(c.notes))} />
                       {(data.counties_served ?? []).length > 1 ? (
                         <button type="button" onClick={() => removeRow("counties_served", i)} className="absolute top-2 right-3 text-[11px] text-black/50 hover:text-red-600">Remove</button>
                       ) : null}
@@ -753,20 +778,20 @@ export default function OnboardingGate({ version, userName }: Props) {
                 </Section>
 
                 <Section title="STATEWIDE COVERAGE (If Applicable)">
-                  <YesNo label="Do you provide services statewide?" value={(data.statewide_coverage?.provides ?? "") as "yes" | "no" | ""} onChange={(v) => set("statewide_coverage", { ...(data.statewide_coverage ?? {}), provides: v })} />
-                  <Area label="If yes, please specify limitations or exclusions" value={data.statewide_coverage?.limitations ?? ""} onChange={(v) => set("statewide_coverage", { ...(data.statewide_coverage ?? {}), limitations: v })} rows={3} />
-                  <Priority label="Priority Level for Statewide Visibility" value={(data.statewide_coverage?.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => set("statewide_coverage", { ...(data.statewide_coverage ?? {}), priority: v })} />
+                  <YesNo label="Do you provide services statewide?" value={(data.statewide_coverage?.provides ?? "") as "yes" | "no" | ""} onChange={(v) => set("statewide_coverage", { ...(data.statewide_coverage ?? {}), provides: v })} error={err(yn(data.statewide_coverage?.provides))} />
+                  <Area label="If yes, please specify limitations or exclusions" value={data.statewide_coverage?.limitations ?? ""} onChange={(v) => set("statewide_coverage", { ...(data.statewide_coverage ?? {}), limitations: v })} rows={3} error={err(filled(data.statewide_coverage?.limitations))} />
+                  <Priority label="Priority Level for Statewide Visibility" value={(data.statewide_coverage?.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => set("statewide_coverage", { ...(data.statewide_coverage ?? {}), priority: v })} error={err(Boolean(data.statewide_coverage?.priority))} />
                 </Section>
 
                 <Section title="OUT-OF-STATE REPRESENTATION (If Applicable)">
                   {(data.out_of_state ?? []).map((o, i) => (
                     <div key={i} className="rounded-xl border border-black/10 bg-[#FAFAFA] p-4 space-y-3 relative">
-                      <Field label="State" value={o.state ?? ""} onChange={(v) => updateRow("out_of_state", i, { state: v })} />
-                      <Field label="Service type provided in this state" value={o.service_type ?? ""} onChange={(v) => updateRow("out_of_state", i, { service_type: v })} />
-                      <YesNo label="Licensed to practice in this state?" value={(o.licensed ?? "") as "yes" | "no" | ""} onChange={(v) => updateRow("out_of_state", i, { licensed: v })} />
-                      <YesNo label="Physical office in this state?" value={(o.office ?? "") as "yes" | "no" | ""} onChange={(v) => updateRow("out_of_state", i, { office: v })} />
-                      <Priority label="Priority Level" value={(o.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => updateRow("out_of_state", i, { priority: v })} />
-                      <Area label="Notes" value={o.notes ?? ""} onChange={(v) => updateRow("out_of_state", i, { notes: v })} rows={2} />
+                      <Field label="State" value={o.state ?? ""} onChange={(v) => updateRow("out_of_state", i, { state: v })} error={err(filled(o.state))} />
+                      <Field label="Service type provided in this state" value={o.service_type ?? ""} onChange={(v) => updateRow("out_of_state", i, { service_type: v })} error={err(filled(o.service_type))} />
+                      <YesNo label="Licensed to practice in this state?" value={(o.licensed ?? "") as "yes" | "no" | ""} onChange={(v) => updateRow("out_of_state", i, { licensed: v })} error={err(yn(o.licensed))} />
+                      <YesNo label="Physical office in this state?" value={(o.office ?? "") as "yes" | "no" | ""} onChange={(v) => updateRow("out_of_state", i, { office: v })} error={err(yn(o.office))} />
+                      <Priority label="Priority Level" value={(o.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => updateRow("out_of_state", i, { priority: v })} error={err(Boolean(o.priority))} />
+                      <Area label="Notes" value={o.notes ?? ""} onChange={(v) => updateRow("out_of_state", i, { notes: v })} rows={2} error={err(filled(o.notes))} />
                       {(data.out_of_state ?? []).length > 1 ? (
                         <button type="button" onClick={() => removeRow("out_of_state", i)} className="absolute top-2 right-3 text-[11px] text-black/50 hover:text-red-600">Remove</button>
                       ) : null}
@@ -776,15 +801,15 @@ export default function OnboardingGate({ version, userName }: Props) {
                 </Section>
 
                 <Section title="FUTURE EXPANSION TARGETS">
-                  <Area label="List cities, counties, or states you plan to expand into within the next 6–24 months" value={data.future_expansion_targets ?? ""} onChange={(v) => set("future_expansion_targets", v)} rows={3} />
-                  <Field label="Estimated expansion timeline (if known)" value={data.future_expansion_timeline ?? ""} onChange={(v) => set("future_expansion_timeline", v)} />
+                  <Area label="List cities, counties, or states you plan to expand into within the next 6–24 months" value={data.future_expansion_targets ?? ""} onChange={(v) => set("future_expansion_targets", v)} rows={3} error={err(filled(data.future_expansion_targets))} />
+                  <Field label="Estimated expansion timeline (if known)" value={data.future_expansion_timeline ?? ""} onChange={(v) => set("future_expansion_timeline", v)} error={err(filled(data.future_expansion_timeline))} />
                 </Section>
 
                 <Section title="Market focus">
-                  <Area label="Are you targeting one main city or multiple cities equally?" value={data.market_focus_main_city ?? ""} onChange={(v) => set("market_focus_main_city", v)} rows={2} />
-                  <Area label="Are you competing against large firms or local competitors?" value={data.market_focus_competition ?? ""} onChange={(v) => set("market_focus_competition", v)} rows={2} />
-                  <Area label="Cities you want to dominate first" value={data.market_focus_priority_cities ?? ""} onChange={(v) => set("market_focus_priority_cities", v)} rows={2} />
-                  <Area label="Markets to avoid" value={data.market_focus_avoid ?? ""} onChange={(v) => set("market_focus_avoid", v)} rows={2} />
+                  <Area label="Are you targeting one main city or multiple cities equally?" value={data.market_focus_main_city ?? ""} onChange={(v) => set("market_focus_main_city", v)} rows={2} error={err(filled(data.market_focus_main_city))} />
+                  <Area label="Are you competing against large firms or local competitors?" value={data.market_focus_competition ?? ""} onChange={(v) => set("market_focus_competition", v)} rows={2} error={err(filled(data.market_focus_competition))} />
+                  <Area label="Cities you want to dominate first" value={data.market_focus_priority_cities ?? ""} onChange={(v) => set("market_focus_priority_cities", v)} rows={2} error={err(filled(data.market_focus_priority_cities))} />
+                  <Area label="Markets to avoid" value={data.market_focus_avoid ?? ""} onChange={(v) => set("market_focus_avoid", v)} rows={2} error={err(filled(data.market_focus_avoid))} />
                 </Section>
               </div>
             </>
@@ -814,9 +839,9 @@ export default function OnboardingGate({ version, userName }: Props) {
                 <P>If no formal brand guide exists, F1 Media Team can assist in formalizing one.</P>
 
                 <Section title="Brand guidelines">
-                  <Field label="Brand color (HEX, RGB, or CMYK)" value={data.brand_color_hex ?? ""} onChange={(v) => set("brand_color_hex", v)} placeholder="#0F172A or 15, 23, 42" />
-                  <Field label="Typography / fonts" value={data.brand_fonts ?? ""} onChange={(v) => set("brand_fonts", v)} placeholder="DM Sans, Cormorant Garamond, etc." />
-                  <Area label="Notes — usage rules, spacing, tone of voice" value={data.brand_guidelines_notes ?? ""} onChange={(v) => set("brand_guidelines_notes", v)} rows={4} />
+                  <Field label="Brand color (HEX, RGB, or CMYK)" value={data.brand_color_hex ?? ""} onChange={(v) => set("brand_color_hex", v)} placeholder="#0F172A or 15, 23, 42" error={err(filled(data.brand_color_hex))} />
+                  <Field label="Typography / fonts" value={data.brand_fonts ?? ""} onChange={(v) => set("brand_fonts", v)} placeholder="DM Sans, Cormorant Garamond, etc." error={err(filled(data.brand_fonts))} />
+                  <Area label="Notes — usage rules, spacing, tone of voice" value={data.brand_guidelines_notes ?? ""} onChange={(v) => set("brand_guidelines_notes", v)} rows={4} error={err(filled(data.brand_guidelines_notes))} />
                 </Section>
 
                 <H2>3. Raw Photos & Media Files</H2>
@@ -846,7 +871,7 @@ export default function OnboardingGate({ version, userName }: Props) {
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") document.getElementById("brand-assets-input")?.click(); }}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) setFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]); }}
-                    className="cursor-pointer rounded-xl border-2 border-dashed border-black/25 bg-[#F8FAFC] hover:bg-white px-6 py-10 text-center transition"
+                    className={"cursor-pointer rounded-xl border-2 border-dashed bg-[#F8FAFC] hover:bg-white px-6 py-10 text-center transition " + (err(files.length > 0) ? "border-red-500 bg-red-50" : "border-black/25")}
                   >
                     <div className="text-sm font-semibold text-black">Drop your logos, brand assets, photos, or videos here</div>
                     <div className="mt-1 text-[11px] text-black/60">or click to browse · .AI / .EPS / .SVG / .PDF / .PNG / .JPG / video</div>
@@ -866,7 +891,7 @@ export default function OnboardingGate({ version, userName }: Props) {
                 </Section>
 
                 <Section title="Terms of Service & Privacy Policy">
-                  <label className="flex items-start gap-3 cursor-pointer">
+                  <label className={"flex items-start gap-3 cursor-pointer rounded-md p-2 " + (err(accepted) ? "border-2 border-red-500 bg-red-50" : "")}>
                     <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} className="mt-1 h-4 w-4 accent-black" />
                     <span className="text-sm text-black">
                       I acknowledge I have read and agree to F1 Media Team&apos;s{" "}
@@ -890,9 +915,26 @@ export default function OnboardingGate({ version, userName }: Props) {
               ) : null}
             </div>
             {page < PAGES.length - 1 ? (
-              <button type="button" onClick={next} disabled={!canAdvance} className="rounded-lg bg-black px-6 py-2 text-sm font-semibold text-white hover:bg-black/90 disabled:opacity-40 disabled:cursor-not-allowed">Next page →</button>
+              <button type="button" onClick={next} className="rounded-lg bg-black px-6 py-2 text-sm font-semibold text-white hover:bg-black/90">Next page →</button>
             ) : (
-              <button type="button" onClick={submit} disabled={!canAdvance || pending} className="rounded-lg bg-[#3F8E84] px-6 py-2 text-sm font-semibold text-white hover:bg-[#3F8E84]/90 disabled:opacity-40 disabled:cursor-not-allowed">{pending ? "Submitting…" : "Submit onboarding"}</button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!canAdvance) {
+                    setAttempted(true);
+                    requestAnimationFrame(() => {
+                      const firstMissing = document.querySelector(".onboarding-body .\\!border-red-500, .onboarding-body .border-red-500");
+                      firstMissing?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    });
+                    return;
+                  }
+                  submit();
+                }}
+                disabled={pending}
+                className="rounded-lg bg-[#3F8E84] px-6 py-2 text-sm font-semibold text-white hover:bg-[#3F8E84]/90 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {pending ? "Submitting…" : "Submit onboarding"}
+              </button>
             )}
           </div>
         </div>

@@ -1,22 +1,22 @@
 "use client";
 
-// Profile form on the client portal Settings page. Editable: full name.
-// Read-only display: email + company. Email is the auth identity so it
-// changes via Supabase admin, not from here.
+// Business profile on the client portal Settings page. The "name" here is
+// the business name (clients.company_name) and the "email" is the email
+// tied to this client's portal account (the customer-side user), not
+// whoever happens to be signed in (which may be an impersonating admin).
 
 import { useActionState } from "react";
 import { updateProfileAction } from "@/app/client/actions";
 import { Button } from "@/components/ui";
 
 interface Props {
-  initialFullName: string;
-  email: string;
-  companyName: string;
+  initialCompanyName: string;
+  accountEmail: string | null;
 }
 
 const initialState = { error: null as string | null, ok: null as string | null };
 
-export default function ProfileForm({ initialFullName, email, companyName }: Props) {
+export default function ProfileForm({ initialCompanyName, accountEmail }: Props) {
   const [state, formAction, pending] = useActionState(updateProfileAction, initialState);
 
   const field =
@@ -28,26 +28,30 @@ export default function ProfileForm({ initialFullName, email, companyName }: Pro
   return (
     <form action={formAction} className="space-y-3.5">
       <div>
-        <label htmlFor="full_name" className={labelCls}>Full name</label>
+        <label htmlFor="company_name" className={labelCls}>Business name</label>
         <input
-          id="full_name"
-          name="full_name"
+          id="company_name"
+          name="company_name"
           required
-          defaultValue={initialFullName}
-          placeholder="Your name"
+          defaultValue={initialCompanyName}
+          placeholder="Your business"
           className={field}
         />
-      </div>
-      <div>
-        <label htmlFor="email" className={labelCls}>Email</label>
-        <input id="email" value={email} readOnly className={readOnlyField} />
         <p className="mt-1 text-[10px] text-[var(--color-text-subtle)]">
-          Email is your sign-in identity. To change it, ask your F1 Media account manager.
+          Shows on your dashboard header and in reports we send.
         </p>
       </div>
       <div>
-        <label htmlFor="company" className={labelCls}>Company</label>
-        <input id="company" value={companyName} readOnly className={readOnlyField} />
+        <label htmlFor="email" className={labelCls}>Account email</label>
+        <input
+          id="email"
+          value={accountEmail ?? "No portal account on file"}
+          readOnly
+          className={readOnlyField}
+        />
+        <p className="mt-1 text-[10px] text-[var(--color-text-subtle)]">
+          Email tied to your portal sign-in. To change it, ask your F1 Media account manager.
+        </p>
       </div>
 
       {state.error ? (

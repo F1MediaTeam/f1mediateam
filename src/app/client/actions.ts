@@ -228,16 +228,18 @@ export async function updateProfileAction(
   formData: FormData,
 ): Promise<{ error: string | null; ok?: string | null }> {
   const session = await requireClient();
-  const fullName = String(formData.get("full_name") ?? "").trim();
-  if (fullName.length < 2) return { error: "Please enter your full name.", ok: null };
+  if (!session.client_id) return { error: "No client linked to this session.", ok: null };
+  const companyName = String(formData.get("company_name") ?? "").trim();
+  if (companyName.length < 2) return { error: "Please enter the business name.", ok: null };
   const supabase = await createServiceClient();
   const { error } = await supabase
-    .from("profiles")
-    .update({ full_name: fullName })
-    .eq("id", session.user_id);
+    .from("clients")
+    .update({ company_name: companyName })
+    .eq("id", session.client_id);
   if (error) return { error: error.message, ok: null };
   revalidatePath("/client/settings");
   revalidatePath("/client");
+  revalidatePath(`/admin/clients/${session.client_id}`);
   return { error: null, ok: "Profile updated." };
 }
 

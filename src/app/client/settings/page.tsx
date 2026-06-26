@@ -13,11 +13,14 @@ export default async function ClientSettings() {
   const session = await requireClient();
   const client = await data.getClient(session.client_id!);
   if (!client) return null;
-  const [pref, audit, profile] = await Promise.all([
+  const [pref, audit, clientUser] = await Promise.all([
     data.getEmailPref(session.user_id),
     // Filter by client_id — admin view-as never leaks into this list.
     data.listAudit({ clientId: session.client_id!, limit: 12 }),
-    data.getProfile(session.user_id),
+    // The CUSTOMER-side user assigned to this client. When an admin is
+    // impersonating, session.user_id is the admin — this fetches the actual
+    // client portal account so we show their email, not the impersonator's.
+    data.getClientUser(session.client_id!),
   ]);
 
   return (
@@ -29,12 +32,11 @@ export default async function ClientSettings() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader title="Profile" subtitle="Your name and account details" />
+          <CardHeader title="Profile" subtitle="Your business name and account email" />
           <CardBody>
             <ProfileForm
-              initialFullName={profile?.full_name ?? ""}
-              email={profile?.email ?? session.email}
-              companyName={client.company_name}
+              initialCompanyName={client.company_name}
+              accountEmail={clientUser?.email ?? null}
             />
           </CardBody>
         </Card>

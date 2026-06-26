@@ -82,6 +82,15 @@ export interface MonthlyContent {
   };
   whatsNext?: string[];
   questions?: { prompt?: string; contact?: string | null };
+  // Optional extra charts the bot specifies as DATA (labels + numeric series).
+  // Each renders as its own slide before "What's Next".
+  charts?: Array<{
+    title: string;
+    type: "line" | "bar";
+    source?: "GSC" | "GA4" | "SEMrush" | "Bing" | string;
+    labels: string[];
+    series: Array<{ name: string; values: number[] }>;
+  }>;
 }
 
 export async function generateDeck(brand: BrandConfig, content: MonthlyContent): Promise<NodeBuffer> {
@@ -379,6 +388,47 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
       s.addText([{ text: "AI Overview:  ", options: { bold: true, color: C.secondary } }, { text: rd.aiOverview, options: { color: C.ink } }], { x: M + 0.35, y: yy, w: PW - 2 * M - 0.7, h: 0.9, margin: 0, valign: "middle", fontFace: BODY, fontSize: 13 });
     }
     footer(s);
+  }
+
+  // ===== Optional CHART SLIDES (between slide 8 and slide 9) =====
+  // Each bot-specified chart becomes its own slide with title + chart + source.
+  if (Array.isArray(content?.charts) && content.charts.length) {
+    const palette = [C.secondary, C.primary, C.tertiary || C.good, C.good, C.muted];
+    for (const chart of content.charts.slice(0, 6)) {
+      if (!chart || !Array.isArray(chart.labels) || !Array.isArray(chart.series) || chart.series.length === 0) continue;
+      const s = pres.addSlide();
+      s.background = { color: C.lightBg };
+      sectionTitle(s, chart.title || "Performance", "•");
+      if (chart.source) {
+        s.addText(`Source: ${chart.source}`, {
+          x: M, y: 1.55, w: PW - 2 * M, h: 0.4, margin: 0,
+          fontFace: BODY, fontSize: 12, italic: true, color: C.muted,
+        });
+      }
+      const chartData = chart.series.map((srs, i) => ({
+        name: srs.name || `Series ${i + 1}`,
+        labels: chart.labels,
+        values: (srs.values || []).map((v) => Number.isFinite(v) ? v : 0),
+      }));
+      const chartType = chart.type === "bar" ? pres.charts.BAR : pres.charts.LINE;
+      s.addChart(chartType, chartData, {
+        x: M, y: 2.05, w: PW - 2 * M, h: 4.6,
+        chartColors: chartData.map((_, i) => palette[i % palette.length]),
+        showLegend: chartData.length > 1,
+        legendPos: "b",
+        legendFontFace: BODY,
+        legendFontSize: 11,
+        catAxisLabelColor: C.muted,
+        catAxisLabelFontSize: 10,
+        valAxisLabelColor: C.muted,
+        valAxisLabelFontSize: 10,
+        valGridLine: { color: C.panelLine, size: 0.5 },
+        catGridLine: { style: "none" },
+        chartArea: { fill: { color: C.white } },
+        ...(chart.type !== "bar" ? { lineSize: 3, lineSmooth: true } : { barGapWidthPct: 60 }),
+      });
+      footer(s);
+    }
   }
 
   // ===== SLIDE 9 — What's Next =====

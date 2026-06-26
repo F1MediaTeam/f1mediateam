@@ -112,20 +112,21 @@ interface ClaudeResp {
   content: Array<{ type: string; text?: string }>;
 }
 
-async function synthesize(structured: unknown, transcript: string, adminInstructions: string): Promise<MonthlyContent> {
+async function synthesize(args: {
+  reportMeta: unknown;
+  brandProfile: unknown;
+  profileData: unknown;
+  fieldyTranscript: string;
+  selectedNotes: string;
+}): Promise<MonthlyContent> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY is not set");
-  const instructionsBlock = adminInstructions.trim()
-    ? "ADMIN_INSTRUCTIONS (free-text guidance from the admin generating this deck — honor unless it conflicts with the SOP rules in your system prompt; the SOP wins on any conflict):\n" +
-      adminInstructions.trim() +
-      "\n\n"
-    : "";
   const userMsg =
-    instructionsBlock +
-    "STRUCTURED_DATA (source of truth for all numbers):\n" +
-    JSON.stringify(structured, null, 2) +
-    "\n\nFIELDY_TRANSCRIPT (qualitative context only — never a metrics source):\n" +
-    transcript +
+    "REPORT_META:\n" + JSON.stringify(args.reportMeta, null, 2) +
+    "\n\nBRAND_PROFILE:\n" + JSON.stringify(args.brandProfile, null, 2) +
+    "\n\nPROFILE_DATA (source of truth for all numbers):\n" + JSON.stringify(args.profileData, null, 2) +
+    "\n\nFIELDY_TRANSCRIPT (qualitative context only — never a metrics source):\n" + (args.fieldyTranscript || "(empty)") +
+    "\n\nSELECTED_NOTES (operator-picked directives for this report):\n" + (args.selectedNotes || "(empty)") +
     "\n\nReturn ONLY the content object as valid JSON.";
 
   const res = await fetch(ANTHROPIC_API, {
@@ -138,6 +139,7 @@ async function synthesize(structured: unknown, transcript: string, adminInstruct
     body: JSON.stringify({
       model: ANTHROPIC_MODEL,
       max_tokens: 4000,
+      temperature: 0.2,
       system: SYNTHESIS_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userMsg }],
     }),
@@ -172,10 +174,13 @@ export async function POST(request: NextRequest) {
   const today = todayIso("America/Los_Angeles");
   const window = resolveRange(field(fd, "range") || "28d", field(fd, "from") || null, field(fd, "to") || null, today);
 
-  // ---------- 1. STRUCTURED_DATA ----------
+  // ---------- 1. PROFILE_DATA per source ----------
   const [
     clicksAll, imprAll, posAll, ctrAll,
-    sessionsAll,
+    sessionsAll, activeUsersAll, conversionsAll,
+    bingClicksAll, bingImprAll, bingAvgPosAll,
+    semrushKeywordsAll, semrushTrafficAll, semrushAuthorityAll,
+    visibilityAll, aiVisibilityAll,
     contentCards,
     topPages,
     semrushReports,
@@ -185,24 +190,60 @@ export async function POST(request: NextRequest) {
     data.listSnapshots({ clientId, metric: "avg_position" }),
     data.listSnapshots({ clientId, metric: "ctr" }),
     data.listSnapshots({ clientId, metric: "sessions" }),
+    data.listSnapshots({ clientId, metric: "active_users" }),
+    data.listSnapshots({ clientId, metric: "conversions" }),
+    data.listSnapshots({ clientId, metric: "bing_clicks" }),
+    data.listSnapshots({ clientId, metric: "bing_impressions" }),
+    data.listSnapshots({ clientId, metric: "bing_avg_click_position" }),
+    data.listSnapshots({ clientId, metric: "semrush_organic_keywords" }),
+    data.listSnapshots({ clientId, metric: "semrush_organic_traffic" }),
+    data.listSnapshots({ clientId, metric: "semrush_authority_score" }),
+    data.listSnapshots({ clientId, metric: "visibility" }),
+    data.listSnapshots({ clientId, metric: "ai_visibility" }),
     data.listContent({ clientId }),
-    fetchClientGscPages(clientId, window.fromIso, window.toIso, 8).catch(() => []),
+    fetchClientGscPages(clientId, window.fromIso, window.toIso, 12).catch(() => []),
     data.listSemrushReports(clientId).catch(() => []),
   ]);
 
-  // Window totals
+  // ----- GSC -----
   const clicksCur = sumInRange(clicksAll, window.fromIso, window.toIso);
   const clicksPrev = sumInRange(clicksAll, window.prevFromIso, window.prevToIso);
   const imprCur = sumInRange(imprAll, window.fromIso, window.toIso);
   const imprPrev = sumInRange(imprAll, window.prevFromIso, window.prevToIso);
   const avgPosCur = avgInRange(posAll, window.fromIso, window.toIso);
   const ctrCur = avgInRange(ctrAll, window.fromIso, window.toIso);
-  const sessionsCur = sumInRange(sessionsAll, window.fromIso, window.toIso);
 
-  // Daily trend for slide 4 (use clicks)
   const trendPoints = clicksAll
     .filter((s) => inRange(s.captured_at, window.fromIso, window.toIso))
     .sort((a, b) => a.captured_at.localeCompare(b.captured_at));
+  const imprTrend = imprAll
+    .filter((s) => inRange(s.captured_at, window.fromIso, window.toIso))
+    .sort((a, b) => a.captured_at.localeCompare(b.captured_at));
+
+  // ----- GA4 -----
+  const sessionsCur = sumInRange(sessionsAll, window.fromIso, window.toIso);
+  const sessionsPrev = sumInRange(sessionsAll, window.prevFromIso, window.prevToIso);
+  const activeUsersCur = sumInRange(activeUsersAll, window.fromIso, window.toIso);
+  const conversionsCur = sumInRange(conversionsAll, window.fromIso, window.toIso);
+  const sessionsTrend = sessionsAll
+    .filter((s) => inRange(s.captured_at, window.fromIso, window.toIso))
+    .sort((a, b) => a.captured_at.localeCompare(b.captured_at));
+
+  // ----- Bing -----
+  const bingClicksCur = sumInRange(bingClicksAll, window.fromIso, window.toIso);
+  const bingClicksPrev = sumInRange(bingClicksAll, window.prevFromIso, window.prevToIso);
+  const bingImprCur = sumInRange(bingImprAll, window.fromIso, window.toIso);
+  const bingImprPrev = sumInRange(bingImprAll, window.prevFromIso, window.prevToIso);
+  const bingAvgPosCur = avgInRange(bingAvgPosAll, window.fromIso, window.toIso);
+
+  // ----- SEMrush -----
+  const latest = (series: { captured_at: string; value: number }[]) =>
+    series.length ? series[series.length - 1].value : null;
+  const semrushKeywordsCur = latest(semrushKeywordsAll);
+  const semrushTrafficCur = latest(semrushTrafficAll);
+  const semrushAuthorityCur = latest(semrushAuthorityAll);
+  const visibilityCur = latest(visibilityAll);
+  const aiVisibilityCur = latest(aiVisibilityAll);
 
   // Content cards posted within the window (slide 5)
   const postedInWindow = contentCards.filter(
@@ -263,17 +304,33 @@ export async function POST(request: NextRequest) {
   // ---------- Read form overrides ----------
   const tier = normalizeTier(field(fd, "tier") || "1");
   const brand = await resolveBrand(fd, client.company_name);
+  const brandKey = field(fd, "brand_key") || slugify(client.company_name);
 
-  const structured = {
-    client: {
-      id: client.id,
-      name: client.company_name,
-      website: client.websites?.[0] ?? "",
-      industry: field(fd, "industry"),
-      services: field(fd, "services"),
-      tier,
-      brandKey: field(fd, "brand_key") || slugify(client.company_name),
-    },
+  // REPORT_META — exactly the keys the master prompt expects.
+  const reportMeta = {
+    client: client.company_name,
+    website: client.websites?.[0] ?? "",
+    industry: field(fd, "industry"),
+    services: field(fd, "services"),
+    reportPeriod: `${window.fromIso} → ${window.toIso}`,
+    meetingDate: today,
+    tier,
+  };
+
+  // BRAND_PROFILE — pass brandKey straight through, plus the resolved tokens.
+  const brandProfile = {
+    brandKey,
+    primary: brand.primary,
+    secondary: brand.secondary,
+    tertiary: brand.tertiary,
+    displayFont: brand.displayFont,
+    bodyFont: brand.bodyFont,
+    logo: field(fd, "logo_url") || null,
+  };
+
+  // PROFILE_DATA — namespaced by source so the bot can apply the source-of-
+  // truth map. Numbers never blend across sources.
+  const profileData = {
     period: {
       label: window.label,
       from: window.fromIso,
@@ -282,30 +339,52 @@ export async function POST(request: NextRequest) {
       priorTo: window.prevToIso,
     },
     gsc: {
-      windowLabel: window.label,
       clicks: { current: clicksCur, prior: clicksPrev, currentCompact: compact(clicksCur), priorCompact: compact(clicksPrev) },
       impressions: { current: imprCur, prior: imprPrev, currentCompact: compact(imprCur), priorCompact: compact(imprPrev) },
       avgPosition: avgPosCur != null ? Number(avgPosCur.toFixed(1)) : null,
       ctr: ctrCur != null ? pct(ctrCur, 2) : null,
       topPages: topPages.map((p) => ({ url: p.key, clicks: p.clicks, impressions: p.impressions, position: p.position })),
-      trendDaily: trendPoints.map((p) => ({ date: p.captured_at, clicks: p.value })),
+      trendDailyClicks: trendPoints.map((p) => ({ date: p.captured_at, value: p.value })),
+      trendDailyImpressions: imprTrend.map((p) => ({ date: p.captured_at, value: p.value })),
     },
-    ga4: { sessionsInWindow: sessionsCur || null },
+    ga4: {
+      sessions: { current: sessionsCur, prior: sessionsPrev },
+      activeUsers: activeUsersCur || null,
+      conversions: conversionsCur || null,
+      trendDailySessions: sessionsTrend.map((p) => ({ date: p.captured_at, value: p.value })),
+    },
+    bing: {
+      clicks: { current: bingClicksCur, prior: bingClicksPrev },
+      impressions: { current: bingImprCur, prior: bingImprPrev },
+      avgClickPosition: bingAvgPosCur != null ? Number(bingAvgPosCur.toFixed(1)) : null,
+    },
+    semrush: {
+      organicKeywords: semrushKeywordsCur,
+      organicTraffic: semrushTrafficCur,
+      authorityScore: semrushAuthorityCur,
+      visibility: visibilityCur,
+      aiVisibility: aiVisibilityCur,
+      competitors: semrushCompetitors,
+      backlinksOverviewRows: semrushBacklinks.slice(0, 5),
+    },
     content: {
       postedInWindow: postedInWindow.map((c) => ({ title: c.title, link: c.link, body: c.body, updated_at: c.updated_at })),
       pipeline: pipeline.map((c) => ({ stage: c.stage, title: c.title, link: c.link })),
     },
-    semrush: {
-      competitors: semrushCompetitors,
-      backlinksOverviewRows: semrushBacklinks.slice(0, 5),
-    },
   };
 
-  const adminInstructions = field(fd, "instructions");
+  // SELECTED_NOTES — the operator-picked directives from the form textarea.
+  const selectedNotes = field(fd, "instructions");
 
   let content: MonthlyContent;
   try {
-    content = await synthesize(structured, transcript, adminInstructions);
+    content = await synthesize({
+      reportMeta,
+      brandProfile,
+      profileData,
+      fieldyTranscript: transcript,
+      selectedNotes,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "synthesis failed";
     return new Response(`Synthesis failed: ${msg}`, { status: 502 });
@@ -314,13 +393,23 @@ export async function POST(request: NextRequest) {
   // Defensive defaults — never let a missing field tank the render.
   content.client = content.client || client.company_name;
   content.tier = content.tier || tier;
-  content.brandKey = content.brandKey || (field(fd, "brand_key") || slugify(client.company_name));
+  content.brandKey = content.brandKey || brandKey;
   if (!content.reportPeriod) content.reportPeriod = `${window.fromIso} → ${window.toIso}`;
   if (!content.meetingDate) content.meetingDate = today;
 
   // Dry-run: return the content object for inspection without rendering.
   if (field(fd, "dryrun") === "1") {
-    return Response.json({ window, adminInstructions, structured, content });
+    return Response.json({
+      window,
+      sentToBot: {
+        reportMeta,
+        brandProfile,
+        profileData,
+        fieldyTranscript: transcript,
+        selectedNotes,
+      },
+      content,
+    });
   }
 
   // ---------- 3. Build the .pptx ----------

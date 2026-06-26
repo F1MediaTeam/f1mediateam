@@ -10,7 +10,7 @@ import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Button } from "@/components/ui";
 import { aiConfigured } from "@/lib/deck/ai-narrative";
-import FieldyPreviewButton from "@/components/admin/FieldyPreviewButton";
+import FieldyPanelButton from "@/components/admin/FieldyPanelButton";
 
 export default async function AdminReports({
   searchParams,
@@ -29,9 +29,12 @@ export default async function AdminReports({
   return (
     <AdminShell session={session} active="/admin/reports">
       <div className="px-8 py-8 max-w-7xl">
-        <div className="mb-8">
-          <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">Reports</div>
-          <h1 className="text-3xl font-semibold tracking-tight mt-1">Monthly meeting deck</h1>
+        <div className="mb-8 flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">Reports</div>
+            <h1 className="text-3xl font-semibold tracking-tight mt-1">Monthly meeting deck</h1>
+          </div>
+          <FieldyPanelButton />
         </div>
 
         {!aiOk ? (
@@ -126,7 +129,6 @@ export default async function AdminReports({
                 </div>
               </details>
               <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-end pt-2">
-                <FieldyPreviewButton />
                 <Button type="submit" name="dryrun" value="1" variant="secondary" className="px-6">
                   Dry-run (return JSON)
                 </Button>

@@ -104,6 +104,19 @@ export default async function AdminReports({
                   <input type="text" name="services" placeholder="SEO, Web Dev, Backlink Management" className={fieldCls} />
                 </div>
               </div>
+              <div className="border-t border-[var(--color-border)] pt-4">
+                <label className={labelCls}>Instructions for Claude (optional)</label>
+                <textarea
+                  name="instructions"
+                  rows={4}
+                  placeholder={'Steer this month\'s deck. Examples:\n• "Lead with the Authority Score gain and the homestead-exemption page wins."\n• "Spend slide 5 on the new state landing pages; keep backlinks brief."\n• "Match the client\'s exact phrasing from the call: \'topical authority,\' not \'topic clusters.\'"\n\nThe SOP rules (no CTAs, no alarm language, attribution discipline) still apply on top of whatever you write here.'}
+                  className={`${fieldCls} font-mono text-[12px] leading-snug`}
+                />
+                <p className="mt-1 text-[10px] text-[var(--color-text-subtle)]">
+                  Free-text guidance Claude reads alongside the structured data + Fieldy transcript. Non-negotiable F1 SOP rules override anything here.
+                </p>
+              </div>
+
               <details className="text-xs text-[var(--color-text-muted)] border-t border-[var(--color-border)] pt-4">
                 <summary className="cursor-pointer">Brand overrides (optional — beats brand_key)</summary>
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">

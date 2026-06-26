@@ -112,10 +112,16 @@ interface ClaudeResp {
   content: Array<{ type: string; text?: string }>;
 }
 
-async function synthesize(structured: unknown, transcript: string): Promise<MonthlyContent> {
+async function synthesize(structured: unknown, transcript: string, adminInstructions: string): Promise<MonthlyContent> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY is not set");
+  const instructionsBlock = adminInstructions.trim()
+    ? "ADMIN_INSTRUCTIONS (free-text guidance from the admin generating this deck — honor unless it conflicts with the SOP rules in your system prompt; the SOP wins on any conflict):\n" +
+      adminInstructions.trim() +
+      "\n\n"
+    : "";
   const userMsg =
+    instructionsBlock +
     "STRUCTURED_DATA (source of truth for all numbers):\n" +
     JSON.stringify(structured, null, 2) +
     "\n\nFIELDY_TRANSCRIPT (qualitative context only — never a metrics source):\n" +
@@ -295,9 +301,11 @@ export async function POST(request: NextRequest) {
     },
   };
 
+  const adminInstructions = field(fd, "instructions");
+
   let content: MonthlyContent;
   try {
-    content = await synthesize(structured, transcript);
+    content = await synthesize(structured, transcript, adminInstructions);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "synthesis failed";
     return new Response(`Synthesis failed: ${msg}`, { status: 502 });
@@ -312,7 +320,7 @@ export async function POST(request: NextRequest) {
 
   // Dry-run: return the content object for inspection without rendering.
   if (field(fd, "dryrun") === "1") {
-    return Response.json({ window, structured, content });
+    return Response.json({ window, adminInstructions, structured, content });
   }
 
   // ---------- 3. Build the .pptx ----------

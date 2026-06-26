@@ -1,11 +1,13 @@
 "use client";
 
 // "Fieldy" — single button that opens a panel listing every Fieldy
-// conversation in a date window. Multi-select cards → Generate slides via
-// /api/fieldy/slides (Claude) → preview deck + Copy for Gamma markdown.
+// conversation in a date window. Multi-select cards. Clicking "Use N for
+// this deck" writes the selected IDs into a hidden field on the parent
+// monthly-report form so the existing Claude pipeline pulls key points
+// from EXACTLY those conversations as FIELDY_TRANSCRIPT.
 //
-// The Fieldy key never reaches the browser — both calls go through our own
-// API routes that hold the key server-side.
+// The Fieldy key never reaches the browser — the list call is proxied
+// through /api/fieldy/conversations which holds the key server-side.
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui";
@@ -26,17 +28,6 @@ interface ListResp {
   error?: string;
 }
 
-interface DeckSlide {
-  title: string;
-  bullets: string[];
-}
-interface SlidesResp {
-  deck?: { deckTitle: string; slides: DeckSlide[] };
-  sourceCount?: number;
-  sourceIds?: string[];
-  error?: string;
-}
-
 function isoToday(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -53,10 +44,22 @@ export default function FieldyPanelButton() {
   const [loading, setLoading] = useState(false);
   const [list, setList] = useState<ListResp | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [generating, setGenerating] = useState(false);
-  const [slides, setSlides] = useState<SlidesResp | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [chosenCount, setChosenCount] = useState(0); // how many are committed to the parent form
+  const rootRef = useRef<HTMLSpanElement | null>(null);
   const cacheRef = useRef<{ key: string; data: ListResp; at: number } | null>(null);
+
+  // On mount, pre-load any previously-committed IDs from the parent form's
+  // hidden input — so reopening the panel shows the existing selection.
+  useEffect(() => {
+    const form = rootRef.current?.closest("form");
+    if (!form) return;
+    const input = form.querySelector<HTMLInputElement>('input[name="fieldy_ids"]');
+    if (input?.value) {
+      const ids = input.value.split(",").map((s) => s.trim()).filter(Boolean);
+      setSelected(new Set(ids));
+      setChosenCount(ids.length);
+    }
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -75,8 +78,6 @@ export default function FieldyPanelButton() {
     }
     setLoading(true);
     setList(null);
-    setSelected(new Set());
-    setSlides(null);
     try {
       const params = new URLSearchParams({ from, to });
       const res = await fetch(`/api/fieldy/conversations?${params.toString()}`);
@@ -106,52 +107,33 @@ export default function FieldyPanelButton() {
     setSelected(new Set());
   }
 
-  async function generateSlides() {
-    setGenerating(true);
-    setSlides(null);
-    try {
-      const res = await fetch("/api/fieldy/slides", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selected), from, to }),
-      });
-      const json = (await res.json()) as SlidesResp;
-      setSlides(json);
-    } catch (err) {
-      setSlides({ error: err instanceof Error ? err.message : "Slide generation failed" });
-    } finally {
-      setGenerating(false);
+  function commitSelection() {
+    const form = rootRef.current?.closest("form");
+    if (!form) return;
+    let input = form.querySelector<HTMLInputElement>('input[name="fieldy_ids"]');
+    if (!input) {
+      input = document.createElement("input");
+      input.type = "hidden";
+      input.name = "fieldy_ids";
+      form.appendChild(input);
     }
+    input.value = Array.from(selected).join(",");
+    setChosenCount(selected.size);
+    setOpen(false);
   }
 
-  function deckMarkdown(): string {
-    if (!slides?.deck) return "";
-    const { deckTitle, slides: ss } = slides.deck;
-    const lines: string[] = [];
-    if (deckTitle) lines.push(`# ${deckTitle}`, "");
-    for (const s of ss) {
-      lines.push(`## ${s.title}`);
-      for (const b of s.bullets) lines.push(`- ${b}`);
-      lines.push("");
+  function clearSelection() {
+    const form = rootRef.current?.closest("form");
+    if (form) {
+      const input = form.querySelector<HTMLInputElement>('input[name="fieldy_ids"]');
+      if (input) input.value = "";
     }
-    return lines.join("\n").trim();
-  }
-
-  async function copyForGamma() {
-    const md = deckMarkdown();
-    if (!md) return;
-    try {
-      await navigator.clipboard.writeText(md);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      // older browsers: open prompt as fallback
-      window.prompt("Copy for Gamma — paste into Gamma → New → Paste in text:", md);
-    }
+    setSelected(new Set());
+    setChosenCount(0);
   }
 
   return (
-    <>
+    <span ref={rootRef} className="contents">
       <Button
         type="button"
         variant="secondary"
@@ -161,7 +143,7 @@ export default function FieldyPanelButton() {
           if (!list) void loadConversations();
         }}
       >
-        Fieldy
+        Fieldy{chosenCount > 0 ? ` · ${chosenCount} selected` : ""}
       </Button>
 
       {open ? (
@@ -175,7 +157,9 @@ export default function FieldyPanelButton() {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="text-lg font-semibold">Fieldy</h3>
-                <p className="text-xs text-[var(--color-text-muted)]">Pick conversations · Claude shapes them into a slide deck · Copy for Gamma.</p>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Pick conversations. Their key points + notes are handed to the same Claude pipeline that writes the slide titles and body text for the .pptx below.
+                </p>
               </div>
               <button
                 type="button"
@@ -235,7 +219,7 @@ export default function FieldyPanelButton() {
                     <button type="button" onClick={clearAll} className="underline hover:text-[var(--color-text)]">Clear</button>
                   </div>
                 </div>
-                <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1 mb-4">
+                <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1 mb-4">
                   {list.conversations.map((c) => {
                     const on = selected.has(c.id);
                     return (
@@ -278,61 +262,28 @@ export default function FieldyPanelButton() {
               </>
             ) : null}
 
-            {/* Generate + preview */}
-            <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-end">
+            <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-end pt-2 border-t border-[var(--color-border)]">
+              {chosenCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  className="text-xs text-[var(--color-text-muted)] hover:text-red-300 underline self-center md:self-auto"
+                >
+                  Clear committed selection
+                </button>
+              ) : null}
               <Button
                 type="button"
-                onClick={() => void generateSlides()}
-                disabled={generating || selected.size === 0}
+                onClick={commitSelection}
+                disabled={selected.size === 0}
                 className="px-6"
               >
-                {generating ? "Generating…" : `Generate slides (${selected.size})`}
+                Use {selected.size} for this deck
               </Button>
             </div>
-
-            {slides?.error ? (
-              <div className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">{slides.error}</div>
-            ) : null}
-
-            {slides?.deck ? (
-              <div className="mt-5 border-t border-[var(--color-border)] pt-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">Deck preview</div>
-                    <h4 className="text-base font-semibold mt-0.5">{slides.deck.deckTitle}</h4>
-                    <div className="text-[11px] text-[var(--color-text-subtle)]">
-                      {slides.deck.slides.length} slides from {slides.sourceCount} conversation{slides.sourceCount === 1 ? "" : "s"}
-                    </div>
-                  </div>
-                  <Button type="button" onClick={() => void copyForGamma()}>
-                    {copied ? "Copied!" : "Copy for Gamma"}
-                  </Button>
-                </div>
-                <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
-                  {slides.deck.slides.map((s, i) => (
-                    <div key={i} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3">
-                      <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">Slide {i + 1}</div>
-                      <div className="mt-0.5 text-sm font-semibold">{s.title}</div>
-                      <ul className="mt-2 space-y-1 text-xs text-[var(--color-text-muted)]">
-                        {s.bullets.map((b, j) => (
-                          <li key={j} className="flex gap-2">
-                            <span className="text-[var(--color-accent)]">•</span>
-                            <span className="text-[var(--color-text)]/90">{b}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-                <details className="mt-3 text-xs text-[var(--color-text-muted)]">
-                  <summary className="cursor-pointer">Markdown for Gamma</summary>
-                  <pre className="mt-2 max-h-64 overflow-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-3 text-[11px] font-mono whitespace-pre-wrap">{deckMarkdown()}</pre>
-                </details>
-              </div>
-            ) : null}
           </div>
         </div>
       ) : null}
-    </>
+    </span>
   );
 }

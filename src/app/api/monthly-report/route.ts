@@ -218,16 +218,35 @@ export async function POST(request: NextRequest) {
   const semrushBacklinks = reportRows("backlink");
 
   // ---------- 2. FIELDY_TRANSCRIPT ----------
+  // If the admin curated specific Fieldy conversations via the Fieldy button,
+  // use exactly those (skip the client-name filter — they already chose). If
+  // not, fall back to the auto-pull: every conversation in the window that
+  // mentions the client by name.
   let transcript = "";
+  const curatedIds = field(fd, "fieldy_ids")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   if (fieldyConfigured()) {
     try {
-      const notes = await fieldyMeetingsInWindow(window.fromIso, window.toIso);
-      const ours = notes.filter((n) =>
-        [n.title, n.summary, n.content].some((s) =>
-          (s ?? "").toLowerCase().includes(client.company_name.toLowerCase()),
-        ),
-      );
-      transcript = ours
+      let chosen;
+      if (curatedIds.length > 0) {
+        // Pull a wide window so older curated picks still resolve.
+        const wide = new Date();
+        wide.setUTCDate(wide.getUTCDate() - 365);
+        const wideFrom = wide.toISOString().slice(0, 10);
+        const all = await fieldyMeetingsInWindow(wideFrom, today, 100);
+        chosen = all.filter((n) => curatedIds.includes(n.id));
+      } else {
+        const notes = await fieldyMeetingsInWindow(window.fromIso, window.toIso);
+        chosen = notes.filter((n) =>
+          [n.title, n.summary, n.content].some((s) =>
+            (s ?? "").toLowerCase().includes(client.company_name.toLowerCase()),
+          ),
+        );
+      }
+      transcript = chosen
         .map((n) => `# ${n.title}${n.startTime ? ` (${n.startTime.slice(0, 10)})` : ""}\n${n.summary ?? ""}\n${n.content ?? ""}`)
         .join("\n\n---\n\n");
     } catch {

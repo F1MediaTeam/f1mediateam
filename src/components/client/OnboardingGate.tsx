@@ -141,6 +141,122 @@ export default function OnboardingGate({ version, userName }: Props) {
     });
   }
 
+  // ---------- validation ----------
+  const filled = (s?: string | null) => typeof s === "string" && s.trim().length > 0;
+  const yn = (v?: string | null) => v === "yes" || v === "no";
+
+  function validatePage(idx: number): boolean {
+    switch (idx) {
+      case 0: {
+        // Primary + secondary admin
+        if (!filled(data.primary_admin_email) || !filled(data.primary_admin_username) || !filled(data.primary_admin_password)) return false;
+        if (!filled(data.secondary_admin_email) || !filled(data.secondary_admin_username) || !filled(data.secondary_admin_password)) return false;
+        if (!yn(data.primary_tied_to_google) || !yn(data.primary_tied_to_hosting)) return false;
+        // Website & hosting
+        if (
+          !filled(data.website_url) || !filled(data.website_username) || !filled(data.website_password) ||
+          !filled(data.domain_registrar) || !filled(data.hosting_provider) || !filled(data.website_admin_email) ||
+          !filled(data.cms_platform) || !filled(data.developer_contact)
+        ) return false;
+        // Google + Microsoft
+        if (!filled(data.google_admin_email)) return false;
+        const g = data.google_access ?? {};
+        for (const k of ["analytics", "search_console", "business_profile", "ads", "tag_manager"]) {
+          if (!g[k as keyof typeof g]) return false;
+        }
+        if (!filled(data.microsoft_admin_email)) return false;
+        const m = data.microsoft_access ?? {};
+        for (const k of ["bing_webmaster", "ads"]) {
+          if (!m[k as keyof typeof m]) return false;
+        }
+        // Every social platform: username + admin email
+        for (const p of SOCIAL_PLATFORMS) {
+          const s = data.socials?.[p.key];
+          if (!filled(s?.username) || !filled(s?.admin_email)) return false;
+        }
+        // Auth preference
+        if (!data.authorization_preference) return false;
+        if (data.authorization_preference === "other" && !filled(data.authorization_other)) return false;
+        return true;
+      }
+      case 1: {
+        if (
+          !filled(data.company_bio) || !filled(data.brand_diff) || !filled(data.brand_3words) ||
+          !filled(data.perf_social_used) || !filled(data.perf_social_explanation) ||
+          !filled(data.perf_website_url) || !filled(data.perf_website_explanation) ||
+          !filled(data.perf_paid_platforms) || !filled(data.perf_paid_explanation) ||
+          !filled(data.perf_podcast_name) || !filled(data.perf_podcast_explanation) ||
+          !filled(data.perf_other) || !filled(data.perf_other_explanation) ||
+          !filled(data.perf_underperforming_channel) || !filled(data.perf_underperforming_attempted) ||
+          !filled(data.perf_underperforming) || !filled(data.perf_additional_notes) ||
+          !filled(data.ideal_client) || !filled(data.highest_revenue_cases) ||
+          !filled(data.cases_to_avoid) || !filled(data.saturated_markets) || !filled(data.growth_opportunity)
+        ) return false;
+        return true;
+      }
+      case 2: {
+        const rows = data.contacts ?? [];
+        if (rows.length === 0) return false;
+        for (const c of rows) {
+          if (!filled(c.name) || !filled(c.email) || !filled(c.phone) || !filled(c.role)) return false;
+        }
+        return true;
+      }
+      case 3: return true; // informational page — no fields
+      case 4: {
+        // Services: at least one, all rows fully filled
+        const svcs = data.services ?? [];
+        if (svcs.length === 0) return false;
+        for (const s of svcs) {
+          if (!filled(s.name) || !filled(s.description) || !filled(s.audience) || !s.priority) return false;
+        }
+        // Primary city — every field
+        const pc = data.primary_city ?? {};
+        if (
+          !filled(pc.name) || !yn(pc.has_office) || !filled(pc.office_address) ||
+          !yn(pc.virtual_service) || !pc.priority || !yn(pc.revenue_market) || !filled(pc.notes)
+        ) return false;
+        // Surrounding cities — at least one, all filled
+        const sc = data.service_locations ?? [];
+        if (sc.length === 0) return false;
+        for (const l of sc) {
+          if (!filled(l.city) || !yn(l.has_office) || !l.priority || !filled(l.notes)) return false;
+        }
+        // Counties — at least one, all filled
+        const co = data.counties_served ?? [];
+        if (co.length === 0) return false;
+        for (const c of co) {
+          if (!filled(c.name) || !yn(c.office_in_county) || !c.priority || !filled(c.notes)) return false;
+        }
+        // Statewide
+        const sw = data.statewide_coverage ?? {};
+        if (!yn(sw.provides) || !filled(sw.limitations) || !sw.priority) return false;
+        // Out-of-state — at least one row
+        const os = data.out_of_state ?? [];
+        if (os.length === 0) return false;
+        for (const o of os) {
+          if (!filled(o.state) || !filled(o.service_type) || !yn(o.licensed) || !yn(o.office) || !o.priority || !filled(o.notes)) return false;
+        }
+        // Future expansion
+        if (!filled(data.future_expansion_targets) || !filled(data.future_expansion_timeline)) return false;
+        // Market focus questions
+        if (
+          !filled(data.market_focus_main_city) || !filled(data.market_focus_competition) ||
+          !filled(data.market_focus_priority_cities) || !filled(data.market_focus_avoid)
+        ) return false;
+        return true;
+      }
+      case 5: {
+        if (!filled(data.brand_color_hex) || !filled(data.brand_fonts) || !filled(data.brand_guidelines_notes)) return false;
+        if (files.length === 0) return false;
+        if (!accepted) return false;
+        return true;
+      }
+    }
+    return true;
+  }
+  const canAdvance = validatePage(page);
+
   function submit() {
     if (!accepted) return;
     const enriched: OnboardingData = { ...data, uploaded_asset_filenames: files.map((f) => f.name) };
@@ -767,11 +883,16 @@ export default function OnboardingGate({ version, userName }: Props) {
           {/* ============== NAVIGATION ============== */}
           <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-black/10 px-10 py-4 flex items-center justify-between">
             <button type="button" onClick={back} disabled={page === 0 || pending} className="rounded-lg border border-black/20 px-5 py-2 text-sm font-medium text-black hover:bg-black/5 disabled:opacity-40 disabled:cursor-not-allowed">← Back</button>
-            <div className="text-xs text-black/55 font-mono">{page + 1} / {PAGES.length} · {PAGES[page]} · v{version}</div>
+            <div className="text-center">
+              <div className="text-xs text-black/55 font-mono">{page + 1} / {PAGES.length} · {PAGES[page]} · v{version}</div>
+              {!canAdvance ? (
+                <div className="mt-1 text-[11px] text-red-600 font-medium">Complete every field on this page to continue.</div>
+              ) : null}
+            </div>
             {page < PAGES.length - 1 ? (
-              <button type="button" onClick={next} className="rounded-lg bg-black px-6 py-2 text-sm font-semibold text-white hover:bg-black/90">Next page →</button>
+              <button type="button" onClick={next} disabled={!canAdvance} className="rounded-lg bg-black px-6 py-2 text-sm font-semibold text-white hover:bg-black/90 disabled:opacity-40 disabled:cursor-not-allowed">Next page →</button>
             ) : (
-              <button type="button" onClick={submit} disabled={!accepted || pending} className="rounded-lg bg-[#3F8E84] px-6 py-2 text-sm font-semibold text-white hover:bg-[#3F8E84]/90 disabled:opacity-40 disabled:cursor-not-allowed">{pending ? "Submitting…" : "Submit onboarding"}</button>
+              <button type="button" onClick={submit} disabled={!canAdvance || pending} className="rounded-lg bg-[#3F8E84] px-6 py-2 text-sm font-semibold text-white hover:bg-[#3F8E84]/90 disabled:opacity-40 disabled:cursor-not-allowed">{pending ? "Submitting…" : "Submit onboarding"}</button>
             )}
           </div>
         </div>

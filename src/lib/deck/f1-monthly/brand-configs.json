@@ -1,0 +1,57 @@
+{
+  "default": {
+    "name": "Client",
+    "primary": "1A1A1A",
+    "secondary": "E63946",
+    "tertiary": "F4A261",
+    "displayFont": "Century Schoolbook",
+    "bodyFont": "Calibri",
+    "safeDisplayFont": "Century Schoolbook",
+    "safeBodyFont": "Calibri",
+    "logo": null
+  },
+  "skabelund": {
+    "name": "Ultimate Asset Protection",
+    "primary": "0E2557",
+    "secondary": "C8102E",
+    "tertiary": "B08D2E",
+    "displayFont": "Cormorant Garamond",
+    "bodyFont": "DM Sans",
+    "safeDisplayFont": "Cambria",
+    "safeBodyFont": "Calibri",
+    "logo": null
+  },
+  "f1": {
+    "name": "F1 Media Team",
+    "primary": "080808",
+    "secondary": "E01C2E",
+    "tertiary": null,
+    "displayFont": "Barlow Condensed",
+    "bodyFont": "Barlow",
+    "safeDisplayFont": "Century Schoolbook",
+    "safeBodyFont": "Arial",
+    "logo": null
+  },
+  "bucketsofink": {
+    "name": "Buckets of Ink",
+    "primary": "1A1A1A",
+    "secondary": "E63946",
+    "tertiary": null,
+    "displayFont": "Century Schoolbook",
+    "bodyFont": "Calibri",
+    "safeDisplayFont": "Century Schoolbook",
+    "safeBodyFont": "Calibri",
+    "logo": null
+  },
+  "precisiongraphics": {
+    "name": "Precision Graphics",
+    "primary": "1A1A1A",
+    "secondary": "C8102E",
+    "tertiary": null,
+    "displayFont": "Century Schoolbook",
+    "bodyFont": "Calibri",
+    "safeDisplayFont": "Century Schoolbook",
+    "safeBodyFont": "Calibri",
+    "logo": null
+  }
+}

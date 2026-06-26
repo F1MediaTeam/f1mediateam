@@ -6,6 +6,7 @@ import { setEmailPrefAction } from "../actions";
 import Time from "@/components/shared/Time";
 import { formatLocation } from "@/lib/utils";
 import PasswordChangeForm from "@/components/client/PasswordChangeForm";
+import ClientOnboardingPanel from "@/components/admin/ClientOnboardingPanel";
 
 export default async function ClientSettings() {
   const session = await requireClient();
@@ -65,6 +66,10 @@ export default async function ClientSettings() {
             )}
           </CardBody>
         </Card>
+      </div>
+
+      <div className="mt-6">
+        <ClientOnboardingPanel clientId={client.id} />
       </div>
     </ClientShell>
   );

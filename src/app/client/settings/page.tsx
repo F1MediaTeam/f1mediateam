@@ -6,16 +6,18 @@ import { setEmailPrefAction } from "../actions";
 import Time from "@/components/shared/Time";
 import { formatLocation } from "@/lib/utils";
 import PasswordChangeForm from "@/components/client/PasswordChangeForm";
+import ProfileForm from "@/components/client/ProfileForm";
 import ClientOnboardingPanel from "@/components/admin/ClientOnboardingPanel";
 
 export default async function ClientSettings() {
   const session = await requireClient();
   const client = await data.getClient(session.client_id!);
   if (!client) return null;
-  const [pref, audit] = await Promise.all([
+  const [pref, audit, profile] = await Promise.all([
     data.getEmailPref(session.user_id),
     // Filter by client_id — admin view-as never leaks into this list.
     data.listAudit({ clientId: session.client_id!, limit: 12 }),
+    data.getProfile(session.user_id),
   ]);
 
   return (
@@ -26,6 +28,17 @@ export default async function ClientSettings() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader title="Profile" subtitle="Your name and account details" />
+          <CardBody>
+            <ProfileForm
+              initialFullName={profile?.full_name ?? ""}
+              email={profile?.email ?? session.email}
+              companyName={client.company_name}
+            />
+          </CardBody>
+        </Card>
+
         <Card>
           <CardHeader title="Password" subtitle="Update the password you use to sign in" />
           <CardBody>

@@ -223,6 +223,24 @@ export async function getAttachmentDownloadUrl(attachmentId: string): Promise<st
   return signed?.signedUrl ?? null;
 }
 
+export async function updateProfileAction(
+  _prev: { error: string | null; ok?: string | null },
+  formData: FormData,
+): Promise<{ error: string | null; ok?: string | null }> {
+  const session = await requireClient();
+  const fullName = String(formData.get("full_name") ?? "").trim();
+  if (fullName.length < 2) return { error: "Please enter your full name.", ok: null };
+  const supabase = await createServiceClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ full_name: fullName })
+    .eq("id", session.user_id);
+  if (error) return { error: error.message, ok: null };
+  revalidatePath("/client/settings");
+  revalidatePath("/client");
+  return { error: null, ok: "Profile updated." };
+}
+
 export async function setEmailPrefAction(formData: FormData) {
   const session = await requireClient();
   const opted = String(formData.get("opted_out") ?? "false") === "true";

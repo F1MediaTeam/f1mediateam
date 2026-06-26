@@ -10,6 +10,7 @@ import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Button } from "@/components/ui";
 import { aiConfigured } from "@/lib/deck/ai-narrative";
+import FieldyPreviewButton from "@/components/admin/FieldyPreviewButton";
 
 export default async function AdminReports({
   searchParams,
@@ -125,6 +126,7 @@ export default async function AdminReports({
                 </div>
               </details>
               <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-end pt-2">
+                <FieldyPreviewButton />
                 <Button type="submit" name="dryrun" value="1" variant="secondary" className="px-6">
                   Dry-run (return JSON)
                 </Button>

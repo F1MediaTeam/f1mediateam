@@ -8,6 +8,7 @@ import MultiMetricCard from "@/components/shared/MultiMetricCard";
 import SeoMetricsRow from "@/components/shared/SeoMetricsRow";
 import SemrushGauges from "@/components/shared/SemrushGauges";
 import OrganicKeywordsPanel from "@/components/shared/OrganicKeywordsPanel";
+import ClientOnboardingPanel from "@/components/admin/ClientOnboardingPanel";
 import SemrushInsights from "@/components/shared/SemrushInsights";
 import WidgetBoard, { type WidgetSlot } from "@/components/shared/WidgetBoard";
 import { buildSemrushChartData } from "@/lib/semrush-charts";
@@ -227,6 +228,7 @@ export default async function ClientProfile({
           <SeoMetricsRow clientId={id} />
           <SemrushGauges clientId={id} />
           <OrganicKeywordsPanel clientId={id} />
+          <ClientOnboardingPanel clientId={id} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">

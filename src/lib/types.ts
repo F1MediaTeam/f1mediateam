@@ -282,6 +282,54 @@ export interface OnboardingData {
   brand_color_hex?: string;
   brand_fonts?: string;
   brand_guidelines_notes?: string;
+
+  // ----- Doc 2 extras: Additional Strategic Insights -----
+  ideal_client?: string;
+  highest_revenue_cases?: string;
+  cases_to_avoid?: string;
+  saturated_markets?: string;
+  growth_opportunity?: string;
+  perf_other?: string;
+  perf_other_explanation?: string;
+  perf_underperforming_channel?: string;
+  perf_underperforming_attempted?: string;
+  perf_additional_notes?: string;
+
+  // ----- Doc 1 extras: Social platform admin emails (per-platform username+email
+  //         is already covered by `socials`); the doc also requests counties /
+  //         statewide / out-of-state fields on doc 5 — see below. -----
+
+  // ----- Doc 5 extras: Detailed geographic targeting per the doc -----
+  primary_city?: {
+    name?: string;
+    has_office?: "yes" | "no" | "";
+    office_address?: string;
+    virtual_service?: "yes" | "no" | "";
+    priority?: "high" | "medium" | "low" | "";
+    revenue_market?: "yes" | "no" | "";
+    notes?: string;
+  };
+  counties_served?: Array<{
+    name?: string;
+    office_in_county?: "yes" | "no" | "";
+    priority?: "high" | "medium" | "low" | "";
+    notes?: string;
+  }>;
+  statewide_coverage?: {
+    provides?: "yes" | "no" | "";
+    limitations?: string;
+    priority?: "high" | "medium" | "low" | "";
+  };
+  out_of_state?: Array<{
+    state?: string;
+    service_type?: string;
+    licensed?: "yes" | "no" | "";
+    office?: "yes" | "no" | "";
+    priority?: "high" | "medium" | "low" | "";
+    notes?: string;
+  }>;
+  future_expansion_targets?: string;
+  future_expansion_timeline?: string;
 }
 
 export interface ConnectorToken {

@@ -5,7 +5,7 @@
 // checkbox. On submit, the server persists the answers, renders the PDF,
 // and saves the file so the client can download it from Settings.
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { submitOnboardingAction } from "@/app/client/actions";
 import { signOutAction } from "@/app/login/actions";
 import type { OnboardingData } from "@/lib/types";
@@ -112,18 +112,67 @@ const SOCIAL_PLATFORMS: { key: string; label: string; urlLabel: string }[] = [
 
 const PAGES = ["Account Access", "Company Bio", "Contacts", "Growth Strategy", "Services & Locations", "Brand Assets & Terms"] as const;
 
+// localStorage key for in-flight onboarding. Bump the version suffix if the
+// OnboardingData shape changes in an incompatible way.
+const STORAGE_KEY = "f1m_onboarding_draft_v1";
+const PREVIEW_STORAGE_KEY = "f1m_onboarding_draft_v1_preview";
+
+const EMPTY_DATA: OnboardingData = {
+  google_access: {}, microsoft_access: {}, socials: {},
+  contacts: [{}], services: [{}], service_locations: [{}],
+  counties_served: [{}], out_of_state: [{}],
+  primary_city: {}, statewide_coverage: {},
+};
+
 export default function OnboardingGate({ version, userName, preview = false }: Props) {
   const [pending, start] = useTransition();
-  const [page, setPage] = useState(0);
-  const [data, setData] = useState<OnboardingData>({
-    google_access: {}, microsoft_access: {}, socials: {},
-    contacts: [{}], services: [{}], service_locations: [{}],
-    counties_served: [{}], out_of_state: [{}],
-    primary_city: {}, statewide_coverage: {},
+  const storageKey = preview ? PREVIEW_STORAGE_KEY : STORAGE_KEY;
+  // Read the saved draft synchronously on first render so the user lands
+  // right back on the page they were filling out.
+  const [page, setPage] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (!raw) return 0;
+      const parsed = JSON.parse(raw);
+      const p = Number(parsed?.page);
+      return Number.isFinite(p) && p >= 0 && p < 6 ? p : 0;
+    } catch { return 0; }
   });
-  const [accepted, setAccepted] = useState(false);
+  const [data, setData] = useState<OnboardingData>(() => {
+    if (typeof window === "undefined") return EMPTY_DATA;
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (!raw) return EMPTY_DATA;
+      const parsed = JSON.parse(raw);
+      return parsed?.data && typeof parsed.data === "object"
+        ? { ...EMPTY_DATA, ...parsed.data }
+        : EMPTY_DATA;
+    } catch { return EMPTY_DATA; }
+  });
+  const [accepted, setAccepted] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      return Boolean(parsed?.accepted);
+    } catch { return false; }
+  });
   const [files, setFiles] = useState<File[]>([]);
   const [attempted, setAttempted] = useState(false); // user tried to advance with missing fields
+
+  // Persist on any change so refresh / accidental close don't drop the work.
+  // (File uploads can't be serialized — the user has to re-pick those.)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        storageKey,
+        JSON.stringify({ data, page, accepted, savedAt: Date.now() }),
+      );
+    } catch { /* quota / private mode — ignore */ }
+  }, [data, page, accepted, storageKey]);
   const err = (filledOK: boolean) => attempted && !filledOK; // show red if attempted AND not filled
 
   const set = <K extends keyof OnboardingData>(k: K, v: OnboardingData[K]) => setData((d) => ({ ...d, [k]: v }));
@@ -234,17 +283,11 @@ export default function OnboardingGate({ version, userName, preview = false }: P
         for (const c of co) {
           if (!filled(c.name) || !yn(c.office_in_county) || !c.priority || !filled(c.notes)) return false;
         }
-        // Statewide
-        const sw = data.statewide_coverage ?? {};
-        if (!yn(sw.provides) || !filled(sw.limitations) || !sw.priority) return false;
-        // Out-of-state — at least one row
-        const os = data.out_of_state ?? [];
-        if (os.length === 0) return false;
-        for (const o of os) {
-          if (!filled(o.state) || !filled(o.service_type) || !yn(o.licensed) || !yn(o.office) || !o.priority || !filled(o.notes)) return false;
-        }
-        // Future expansion
-        if (!filled(data.future_expansion_targets) || !filled(data.future_expansion_timeline)) return false;
+        // Statewide coverage — section header says "(if applicable)", so
+        // nothing here is required. Whatever the client fills in is captured.
+        // Out-of-state representation — same: "(if applicable)" → optional.
+        // Future expansion targets/timeline — the doc labels these "if known".
+        // Capture whatever they enter; do not block the page.
         // Market focus questions
         if (
           !filled(data.market_focus_main_city) || !filled(data.market_focus_competition) ||
@@ -280,6 +323,9 @@ export default function OnboardingGate({ version, userName, preview = false }: P
     fd.set("data", JSON.stringify(enriched));
     fd.set("accepted_terms", "on");
     for (const f of files) fd.append("brand_assets", f);
+    // Clear the saved draft once we hand the payload off — a future
+    // onboarding for this device should start clean.
+    try { window.localStorage.removeItem(storageKey); } catch { /* ignore */ }
     start(async () => { await submitOnboardingAction(fd); });
   }
 
@@ -829,20 +875,20 @@ export default function OnboardingGate({ version, userName, preview = false }: P
                 </Section>
 
                 <Section title="STATEWIDE COVERAGE (If Applicable)">
-                  <YesNo label="Do you provide services statewide?" value={(data.statewide_coverage?.provides ?? "") as "yes" | "no" | ""} onChange={(v) => set("statewide_coverage", { ...(data.statewide_coverage ?? {}), provides: v })} error={err(yn(data.statewide_coverage?.provides))} />
-                  <Area label="If yes, please specify limitations or exclusions" value={data.statewide_coverage?.limitations ?? ""} onChange={(v) => set("statewide_coverage", { ...(data.statewide_coverage ?? {}), limitations: v })} rows={3} error={err(filled(data.statewide_coverage?.limitations))} />
-                  <Priority label="Priority Level for Statewide Visibility" value={(data.statewide_coverage?.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => set("statewide_coverage", { ...(data.statewide_coverage ?? {}), priority: v })} error={err(Boolean(data.statewide_coverage?.priority))} />
+                  <YesNo label="Do you provide services statewide?" value={(data.statewide_coverage?.provides ?? "") as "yes" | "no" | ""} onChange={(v) => set("statewide_coverage", { ...(data.statewide_coverage ?? {}), provides: v })} />
+                  <Area label="If yes, please specify limitations or exclusions" value={data.statewide_coverage?.limitations ?? ""} onChange={(v) => set("statewide_coverage", { ...(data.statewide_coverage ?? {}), limitations: v })} rows={3} />
+                  <Priority label="Priority Level for Statewide Visibility" value={(data.statewide_coverage?.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => set("statewide_coverage", { ...(data.statewide_coverage ?? {}), priority: v })} />
                 </Section>
 
                 <Section title="OUT-OF-STATE REPRESENTATION (If Applicable)">
                   {(data.out_of_state ?? []).map((o, i) => (
                     <div key={i} className="rounded-xl border border-black/10 bg-[#FAFAFA] p-4 space-y-3 relative">
-                      <Field label="State" value={o.state ?? ""} onChange={(v) => updateRow("out_of_state", i, { state: v })} error={err(filled(o.state))} />
-                      <Field label="Service type provided in this state" value={o.service_type ?? ""} onChange={(v) => updateRow("out_of_state", i, { service_type: v })} error={err(filled(o.service_type))} />
-                      <YesNo label="Licensed to practice in this state?" value={(o.licensed ?? "") as "yes" | "no" | ""} onChange={(v) => updateRow("out_of_state", i, { licensed: v })} error={err(yn(o.licensed))} />
-                      <YesNo label="Physical office in this state?" value={(o.office ?? "") as "yes" | "no" | ""} onChange={(v) => updateRow("out_of_state", i, { office: v })} error={err(yn(o.office))} />
-                      <Priority label="Priority Level" value={(o.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => updateRow("out_of_state", i, { priority: v })} error={err(Boolean(o.priority))} />
-                      <Area label="Notes" value={o.notes ?? ""} onChange={(v) => updateRow("out_of_state", i, { notes: v })} rows={2} error={err(filled(o.notes))} />
+                      <Field label="State" value={o.state ?? ""} onChange={(v) => updateRow("out_of_state", i, { state: v })} />
+                      <Field label="Service type provided in this state" value={o.service_type ?? ""} onChange={(v) => updateRow("out_of_state", i, { service_type: v })} />
+                      <YesNo label="Licensed to practice in this state?" value={(o.licensed ?? "") as "yes" | "no" | ""} onChange={(v) => updateRow("out_of_state", i, { licensed: v })} />
+                      <YesNo label="Physical office in this state?" value={(o.office ?? "") as "yes" | "no" | ""} onChange={(v) => updateRow("out_of_state", i, { office: v })} />
+                      <Priority label="Priority Level" value={(o.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => updateRow("out_of_state", i, { priority: v })} />
+                      <Area label="Notes" value={o.notes ?? ""} onChange={(v) => updateRow("out_of_state", i, { notes: v })} rows={2} />
                       {(data.out_of_state ?? []).length > 1 ? (
                         <button type="button" onClick={() => removeRow("out_of_state", i)} className="absolute top-2 right-3 text-[11px] text-black/50 hover:text-red-600">Remove</button>
                       ) : null}
@@ -853,7 +899,7 @@ export default function OnboardingGate({ version, userName, preview = false }: P
 
                 <Section title="FUTURE EXPANSION TARGETS">
                   <Area label="List cities, counties, or states you plan to expand into within the next 6–24 months" value={data.future_expansion_targets ?? ""} onChange={(v) => set("future_expansion_targets", v)} rows={3} error={err(filled(data.future_expansion_targets))} />
-                  <Field label="Estimated expansion timeline (if known)" value={data.future_expansion_timeline ?? ""} onChange={(v) => set("future_expansion_timeline", v)} error={err(filled(data.future_expansion_timeline))} />
+                  <Field label="Estimated expansion timeline (if known)" value={data.future_expansion_timeline ?? ""} onChange={(v) => set("future_expansion_timeline", v)} />
                 </Section>
 
                 <Section title="Market focus">

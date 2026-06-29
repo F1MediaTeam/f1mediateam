@@ -113,12 +113,13 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 26,
     fontFamily: "Helvetica-Bold",
     color: C.ink,
     textAlign: "center",
     marginBottom: 4,
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
+    lineHeight: 1.15,
   },
   sectionTitleRule: {
     borderBottomWidth: 1,
@@ -127,13 +128,63 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
 
-  p: { fontSize: 10.5, color: C.ink_soft, marginBottom: 7 },
-  pSmall: { fontSize: 9.5, color: C.muted, marginBottom: 6 },
-  h3: { fontSize: 12, fontFamily: "Helvetica-Bold", color: C.ink, marginTop: 12, marginBottom: 6 },
+  p:     { fontSize: 10.5, color: C.ink_soft, marginBottom: 8 },
+  pSmall:{ fontSize: 9.5,  color: C.muted,    marginBottom: 6 },
+  em:    { fontSize: 10.5, color: C.ink_soft, marginBottom: 8, fontStyle: "italic" },
+  h2:    { fontSize: 16, fontFamily: "Helvetica-Bold", color: C.ink, marginTop: 16, marginBottom: 8 },
+  h3:    { fontSize: 13, fontFamily: "Helvetica-Bold", color: C.ink, marginTop: 12, marginBottom: 6 },
 
-  ulItem: { flexDirection: "row", marginBottom: 2 },
-  ulBullet: { width: 12, color: C.muted },
-  ulText: { flex: 1, fontSize: 10, color: C.ink_soft },
+  ulItem:   { flexDirection: "row", marginBottom: 3 },
+  ulBullet: { width: 12, color: C.ink_soft, fontSize: 10.5 },
+  ulText:   { flex: 1, fontSize: 10.5, color: C.ink_soft },
+
+  // 3-col field grid for credential rows (email | username | password)
+  row3:     { flexDirection: "row", marginHorizontal: -4 },
+  row3Cell: { width: "33.3333%", paddingHorizontal: 4 },
+
+  // Inline Yes/No: question label on the left, YES/NO pills right-aligned.
+  inlineYNRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 10,
+    paddingVertical: 2,
+  },
+  inlineYNText: { fontSize: 10.5, color: C.ink, flex: 1 },
+  inlineYNPills: { flexDirection: "row", alignItems: "center" },
+
+  // 2-col checkbox grid (Google Analytics | Google Search Console …)
+  checkGrid: { flexDirection: "row", flexWrap: "wrap", marginTop: 4 },
+  checkCell: { width: "50%", paddingVertical: 3 },
+
+  // Radio option (empty circle + label) for the authorization preference
+  radioRow:   { flexDirection: "row", flexWrap: "wrap", marginTop: 4 },
+  radioCell:  { width: "50%", paddingVertical: 4 },
+  radioInner: { flexDirection: "row", alignItems: "center" },
+  radioGlyph: {
+    width: 12,
+    height: 12,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.45)",
+    borderRadius: 6,
+    marginRight: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioGlyphOn:  { borderColor: C.ink },
+  radioGlyphDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.ink },
+  radioLabel:    { fontSize: 10.5, color: C.ink },
+
+  // Soft callout box used for the "Security Note" recommendation block.
+  noteBox: {
+    backgroundColor: "#F5F7FA",
+    borderWidth: 1,
+    borderColor: C.rule,
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 12,
+  },
+  noteTitle: { fontSize: 11, fontFamily: "Helvetica-Bold", color: C.ink, marginBottom: 4 },
 
   sectionCardEyebrow: {
     fontSize: 8,
@@ -301,6 +352,100 @@ function YesNoRow({ label, value }: { label: string; value: "yes" | "no" | "" })
   return <PillRow label={label} options={[{ v: "yes", label: "YES" }, { v: "no", label: "NO" }]} value={value} />;
 }
 
+// Wizard-style inline Yes/No: a question on the left, YES/NO pills on the right.
+function InlineYesNo({ question, value }: { question: string; value: "yes" | "no" | "" }) {
+  const options: { v: "yes" | "no"; label: string }[] = [
+    { v: "yes", label: "YES" },
+    { v: "no", label: "NO" },
+  ];
+  return (
+    <View style={styles.inlineYNRow}>
+      <Text style={styles.inlineYNText}>{question}</Text>
+      <View style={styles.inlineYNPills}>
+        {options.map((o) => {
+          const on = value === o.v;
+          return (
+            <View key={o.v} style={on ? [styles.pillBox, styles.pillBoxOn] : styles.pillBox}>
+              <Text style={on ? [styles.pillText, styles.pillTextOn] : styles.pillText}>
+                {o.label}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// Three-column field grid for credential rows (email / username / password).
+function Row3({ a, b, c }: { a: React.ReactNode; b: React.ReactNode; c: React.ReactNode }) {
+  return (
+    <View style={styles.row3}>
+      <View style={styles.row3Cell}>{a}</View>
+      <View style={styles.row3Cell}>{b}</View>
+      <View style={styles.row3Cell}>{c}</View>
+    </View>
+  );
+}
+
+// Wizard's "Access to the following:" 2-column checkbox grid.
+function CheckboxGrid({ items }: { items: { label: string; checked: boolean }[] }) {
+  return (
+    <View style={styles.checkGrid}>
+      {items.map((it, i) => (
+        <View key={i} style={styles.checkCell}>
+          <CheckboxLine label={it.label} checked={it.checked} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// Empty circle + filled-dot if selected — for the access-method radio group.
+function RadioOption({ label, selected }: { label: string; selected: boolean }) {
+  const glyphStyle = selected ? [styles.radioGlyph, styles.radioGlyphOn] : styles.radioGlyph;
+  return (
+    <View style={styles.radioInner}>
+      <View style={glyphStyle}>
+        {selected ? <View style={styles.radioGlyphDot} /> : null}
+      </View>
+      <Text style={styles.radioLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function RadioGrid({ options, value }: { options: { v: string; label: string }[]; value: string }) {
+  return (
+    <View style={styles.radioRow}>
+      {options.map((o) => (
+        <View key={o.v} style={styles.radioCell}>
+          <RadioOption label={o.label} selected={value === o.v} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function SecurityNote({ title, lines }: { title: string; lines: string[] }) {
+  return (
+    <View style={styles.noteBox}>
+      <Text style={styles.noteTitle}>{title}</Text>
+      <Text style={styles.p}>For security and compliance purposes, F1 Media Team recommends:</Text>
+      <UL items={lines} />
+    </View>
+  );
+}
+
+function H2({ children }: { children: React.ReactNode }) {
+  return <Text style={styles.h2}>{children}</Text>;
+}
+function P({ children }: { children: React.ReactNode }) {
+  return <Text style={styles.p}>{children}</Text>;
+}
+function Em({ children }: { children: React.ReactNode }) {
+  return <Text style={styles.em}>{children}</Text>;
+}
+
 function PriorityRow({ label, value }: { label: string; value: string }) {
   return (
     <PillRow
@@ -436,29 +581,98 @@ function Doc1AccountAccess({ d }: { d: OnboardingData }) {
   ];
   return (
     <View>
-      <Text style={styles.p}>
-        To properly optimize, monitor, and manage your digital presence, F1 Media Team requires visibility into the email accounts and administrative access connected to your website, search platforms, and social media properties.
-      </Text>
+      <P>To properly optimize, monitor, and manage your digital presence, F1 Media Team requires visibility into the email accounts and administrative access connected to your website, search platforms, and social media properties.</P>
+      <P>This ensures:</P>
+      <UL items={[
+        "Proper SEO configuration",
+        "Accurate analytics tracking",
+        "Search engine indexing",
+        "Profile verification",
+        "Campaign management",
+        "Platform compliance",
+        "Security continuity",
+      ]} />
+
+      <H2>Account Structure & Access Policy</H2>
+      <P>To streamline onboarding, prevent access delays, and ensure long-term operational continuity, F1 Media Team requires the creation of a dedicated marketing email address for your organization.</P>
+      <P>This email will serve as the centralized administrative account for all digital platforms and marketing-related services.</P>
+
+      <H2>Required Action</H2>
+      <P>Please create a dedicated email address such as:</P>
+      <UL items={[
+        "seo@yourcompany.com",
+        "marketing@yourcompany.com",
+        "media@yourcompany.com",
+        "social@yourcompany.com",
+      ]} />
+
+      <H2>Purpose of This Email</H2>
+      <P>This account should:</P>
+      <UL items={[
+        "Be created under your company's domain",
+        "Be owned by your company",
+        "Have full administrative access to all digital platforms",
+        "Be used exclusively for marketing and digital services",
+      ]} />
+      <P>This allows F1 Media Team to:</P>
+      <UL items={[
+        "Receive and accept platform invitations",
+        "Verify search engine accounts",
+        "Access analytics and webmaster tools",
+        "Manage social media permissions",
+        "Maintain secure and centralized control",
+        "Avoid repeated credential requests",
+      ]} />
+
+      <H2>Platforms This Email Should Have Access To</H2>
+      <P>Please assign this email administrative access to:</P>
+      <UL items={[
+        "Website CMS",
+        "Hosting provider",
+        "Domain registrar",
+        "Google Analytics",
+        "Google Search Console",
+        "Google Business Profile",
+        "Google Ads",
+        "Microsoft / Bing Webmaster Tools",
+        "Social media platforms (Instagram, Facebook, LinkedIn, X, YouTube, TikTok, Pinterest, Medium, Quora, Reddit, etc.)",
+        "Any additional marketing or advertising platforms",
+      ]} />
+
+      <H2>Why This Is Required</H2>
+      <P>Using a dedicated marketing email:</P>
+      <UL items={[
+        "Prevents disruptions if internal staff changes",
+        "Eliminates back-and-forth access requests",
+        "Protects personal employee accounts",
+        "Improves security structure",
+        "Simplifies scaling into future campaigns",
+        "Creates a professional digital infrastructure",
+      ]} />
+      <Em>This email will remain your property. F1 Media Team will only utilize granted administrative permissions necessary to execute the agreed-upon services.</Em>
+      <P>Please complete all applicable sections below.</P>
 
       <SectionCard eyebrow="1. Primary Administrative Email(s)">
-        <Text style={styles.h3}>Primary user</Text>
-        <FormField label="Email" value={safeStr(d.primary_admin_email)} />
-        <FormField label="Username" value={safeStr(d.primary_admin_username)} />
-        <FormField label="Password" value={d.primary_admin_password ? "[provided]" : ""} />
-        <YesNoRow label="Tied to a Google account?" value={yn(d.primary_tied_to_google)} />
-        <YesNoRow label="Tied to your hosting / domain?" value={yn(d.primary_tied_to_hosting)} />
-
-        <Text style={styles.h3}>Secondary user</Text>
-        <FormField label="Email" value={safeStr(d.secondary_admin_email)} />
-        <FormField label="Username" value={safeStr(d.secondary_admin_username)} />
-        <FormField label="Password" value={d.secondary_admin_password ? "[provided]" : ""} />
+        <P>List all email addresses that currently hold administrative access to your digital platforms.</P>
+        <Row3
+          a={<FormField label="Primary admin email" value={safeStr(d.primary_admin_email)} />}
+          b={<FormField label="Username" value={safeStr(d.primary_admin_username)} />}
+          c={<FormField label="Password" value={d.primary_admin_password ? "[provided]" : ""} />}
+        />
+        <Row3
+          a={<FormField label="Secondary admin email" value={safeStr(d.secondary_admin_email)} />}
+          b={<FormField label="Username" value={safeStr(d.secondary_admin_username)} />}
+          c={<FormField label="Password" value={d.secondary_admin_password ? "[provided]" : ""} />}
+        />
+        <InlineYesNo question="Is this email tied to Google services?" value={yn(d.primary_tied_to_google)} />
+        <InlineYesNo question="Is this email tied to website hosting?" value={yn(d.primary_tied_to_hosting)} />
       </SectionCard>
 
-      <SectionCard eyebrow="2. Website and Hosting Access">
-        <FormField label="Website URL" value={safeStr(d.website_url)} />
-        <TwoCol
-          left={<FormField label="Website username" value={safeStr(d.website_username)} />}
-          right={<FormField label="Website password" value={d.website_password ? "[provided]" : ""} />}
+      <SectionCard eyebrow="2. Website & Hosting Access">
+        <Row3
+          a={<FormField label="Website URL" value={safeStr(d.website_url)} />}
+          b={<FormField label="Username" value={safeStr(d.website_username)} />}
+          c={<FormField label="Password" value={d.website_password ? "[provided]" : ""} />}
         />
         <TwoCol
           left={<FormField label="Domain registrar (if known)" value={safeStr(d.domain_registrar)} />}
@@ -466,41 +680,41 @@ function Doc1AccountAccess({ d }: { d: OnboardingData }) {
         />
         <TwoCol
           left={<FormField label="Primary website access email" value={safeStr(d.website_admin_email)} />}
-          right={<FormField label="CMS platform" value={safeStr(d.cms_platform)} />}
+          right={<FormField label="CMS platform (WordPress, Webflow, custom, etc.)" value={safeStr(d.cms_platform)} />}
         />
         <FormField label="Developer contact (if applicable)" value={safeStr(d.developer_contact)} />
       </SectionCard>
 
       <SectionCard eyebrow="3. Search Engine Accounts">
-        <Text style={styles.h3}>Google Accounts</Text>
+        <H2>Google Accounts</H2>
         <FormField label="Google account email (admin)" value={safeStr(d.google_admin_email)} />
-        <Text style={styles.fieldLabel}>Access to the following:</Text>
-        <View>
-          <CheckboxLine label="Google Analytics"        checked={isOn(g, "analytics")} />
-          <CheckboxLine label="Google Search Console"   checked={isOn(g, "search_console")} />
-          <CheckboxLine label="Google Business Profile" checked={isOn(g, "business_profile")} />
-          <CheckboxLine label="Google Ads"              checked={isOn(g, "ads")} />
-          <CheckboxLine label="Tag Manager"             checked={isOn(g, "tag_manager")} />
-        </View>
+        <Text style={[styles.p, { marginTop: 10, marginBottom: 4 }]}>Access to the following:</Text>
+        <CheckboxGrid items={[
+          { label: "Google Analytics",        checked: isOn(g, "analytics") },
+          { label: "Google Search Console",   checked: isOn(g, "search_console") },
+          { label: "Google Business Profile", checked: isOn(g, "business_profile") },
+          { label: "Google Ads",              checked: isOn(g, "ads") },
+          { label: "Tag Manager",             checked: isOn(g, "tag_manager") },
+        ]} />
         <FormField label="Other" value={safeStr((g as { other?: unknown }).other)} />
 
-        <Text style={styles.h3}>Microsoft / Bing Accounts</Text>
+        <H2>Microsoft / Bing Accounts</H2>
         <FormField label="Microsoft account email (admin)" value={safeStr(d.microsoft_admin_email)} />
-        <Text style={styles.fieldLabel}>Access to:</Text>
-        <View>
-          <CheckboxLine label="Bing Webmaster Tools" checked={isOn(m, "bing_webmaster")} />
-          <CheckboxLine label="Microsoft Ads"        checked={isOn(m, "ads")} />
-        </View>
+        <Text style={[styles.p, { marginTop: 10, marginBottom: 4 }]}>Access to:</Text>
+        <CheckboxGrid items={[
+          { label: "Bing Webmaster Tools", checked: isOn(m, "bing_webmaster") },
+          { label: "Microsoft Ads",        checked: isOn(m, "ads") },
+        ]} />
         <FormField label="Other" value={safeStr((m as { other?: unknown }).other)} />
       </SectionCard>
 
       <SectionCard eyebrow="4. Social Media Account Access">
-        <Text style={styles.pSmall}>Please list the email address that holds administrative access for each platform.</Text>
+        <P>Please list the email address that holds administrative access for each platform.</P>
         {socialKeys.map(({ key, label, urlLabel }) => {
           const s = socials[key] ?? {};
           return (
-            <View key={key} wrap={false} style={{ marginTop: 4 }}>
-              <Text style={styles.h3}>{label}</Text>
+            <View key={key} wrap={false} style={{ marginTop: 6 }}>
+              <Text style={[styles.h3, { marginTop: 0, marginBottom: 4 }]}>{label}</Text>
               <TwoCol
                 left={<FormField label={urlLabel} value={safeStr(s.username)} />}
                 right={<FormField label="Admin email" value={safeStr(s.admin_email)} />}
@@ -510,16 +724,30 @@ function Doc1AccountAccess({ d }: { d: OnboardingData }) {
         })}
       </SectionCard>
 
-      <SectionCard eyebrow="5. Authorization Preference">
-        <Text style={styles.pSmall}>How would you like to grant access?</Text>
-        <CheckboxLine label="Direct credential sharing"                checked={d.authorization_preference === "direct_credentials"} />
-        <CheckboxLine label="Temporary password sharing"               checked={d.authorization_preference === "temporary_password"} />
-        <CheckboxLine label="Administrative invite to F1 Media Team"   checked={d.authorization_preference === "admin_invite"} />
-        <CheckboxLine label="Dedicated marketing email creation"       checked={d.authorization_preference === "dedicated_email"} />
-        <CheckboxLine label="Other"                                    checked={d.authorization_preference === "other"} />
+      <SectionCard eyebrow="5. Access Authorization Preference">
+        <P>Please indicate your preferred access method:</P>
+        <RadioGrid
+          value={safeStr(d.authorization_preference)}
+          options={[
+            { v: "direct_credentials", label: "Direct credential sharing" },
+            { v: "temporary_password", label: "Temporary password sharing" },
+            { v: "admin_invite",       label: "Administrative invite to F1 Media Team" },
+            { v: "dedicated_email",    label: "Dedicated marketing email creation" },
+            { v: "other",              label: "Other" },
+          ]}
+        />
         {d.authorization_preference === "other" ? (
           <FormField label="Please specify" value={safeStr(d.authorization_other)} />
         ) : null}
+        <SecurityNote
+          title="Security Note"
+          lines={[
+            "Granting administrative access via email invitation when possible",
+            "Avoiding long-term password sharing",
+            "Enabling two-factor authentication",
+            "Maintaining at least one internal administrator at all times",
+          ]}
+        />
       </SectionCard>
     </View>
   );

@@ -14,7 +14,7 @@ import { DISCLAIMER_VERSION } from "@/lib/types";
 
 // Bump this when the PDF renderer changes structurally — settings page will
 // wipe + regenerate any PDF whose filename predates the current version.
-const PDF_RENDERER_VERSION = "v6";
+const PDF_RENDERER_VERSION = "v7";
 
 export async function ensureOnboardingPdfPersisted(clientId: string): Promise<void> {
   try {

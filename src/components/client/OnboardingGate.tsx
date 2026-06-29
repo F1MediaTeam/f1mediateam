@@ -354,12 +354,11 @@ export default function OnboardingGate({ version, userName, preview = false }: P
     }
   }
 
-  function PageHeader({ idx, title, sub }: { idx: number; title: string; sub?: string }) {
+  function PageHeader({ idx, title }: { idx: number; title: string; sub?: string }) {
     return (
       <div className="px-10 pt-10 pb-6 text-center border-b border-black/10">
         <div className="text-[10px] uppercase tracking-[0.25em] font-mono text-black/45 mb-2">Section {idx + 1} of {PAGES.length}</div>
         <h1 className="text-3xl font-bold tracking-tight text-black">{title}</h1>
-        {sub ? <div className="text-sm text-black/60 mt-2">{sub}</div> : null}
       </div>
     );
   }
@@ -1005,12 +1004,8 @@ export default function OnboardingGate({ version, userName, preview = false }: P
           {/* ============== NAVIGATION ============== */}
           <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-black/10 px-10 py-4 flex items-center justify-between">
             <button type="button" onClick={back} disabled={page === 0 || pending} className="rounded-lg border border-black/20 px-5 py-2 text-sm font-medium text-black hover:bg-black/5 disabled:opacity-40 disabled:cursor-not-allowed">← Back</button>
-            <div className="text-center">
-              <div className="text-xs text-black/55 font-mono">{page + 1} / {PAGES.length} · {PAGES[page]}</div>
-              {!preview && !canAdvance ? (
-                <div className="mt-1 text-[11px] text-red-600 font-medium">Complete every field on this page to continue.</div>
-              ) : null}
-            </div>
+            <div />
+
             {page < PAGES.length - 1 ? (
               <button type="button" onClick={next} className="rounded-lg bg-black px-6 py-2 text-sm font-semibold text-white hover:bg-black/90">Next page →</button>
             ) : (

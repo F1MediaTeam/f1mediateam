@@ -67,16 +67,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "#C8CACE",
-    paddingLeft: 18,           // match wizard's tight left gutter
+    paddingLeft: 0,            // logo sits flush left like the wizard
     paddingRight: 28,
-    paddingVertical: 14,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderColor: "rgba(0,0,0,0.10)",
   },
-  // Fixed-width box so the Image renders at its full intended size and
-  // the right column doesn't squeeze the logo on narrower pages.
-  pageBandLogoBox: { width: 240, height: 64, alignItems: "flex-start", justifyContent: "center" },
-  pageBandLogo: { width: 240, height: 64, objectFit: "contain" },
+  // Bigger fixed-width box so the Image renders at full intended size and
+  // the right column can't squeeze the logo. width-only on the Image lets
+  // it scale naturally without the contain-mode shrink we saw before.
+  pageBandLogoBox: { width: 360, alignItems: "flex-start", justifyContent: "center", paddingLeft: 12 },
+  pageBandLogo: { width: 340 },
   pageBandLogoFallback: { fontSize: 22, fontFamily: "Helvetica-Bold", color: C.ink, letterSpacing: 2 },
   pageBandRightCol: { alignItems: "flex-end" },
   pageBandEyebrow: {
@@ -341,7 +342,7 @@ function FormField({ label, value, area = false }: { label: string; value: strin
 
 function PillRow({ label, options, value }: { label: string; options: { v: string; label: string }[]; value: string }) {
   return (
-    <View style={{ marginTop: 6 }}>
+    <View wrap={false} style={{ marginTop: 6 }}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.pillRow}>
         {options.map((o) => {

@@ -76,8 +76,8 @@ const styles = StyleSheet.create({
   // Bigger fixed-width box so the Image renders at full intended size and
   // the right column can't squeeze the logo. width-only on the Image lets
   // it scale naturally without the contain-mode shrink we saw before.
-  pageBandLogoBox: { width: 360, alignItems: "flex-start", justifyContent: "center", paddingLeft: 12 },
-  pageBandLogo: { width: 340 },
+  pageBandLogoBox: { width: 210, alignItems: "flex-start", justifyContent: "center", paddingLeft: 18 },
+  pageBandLogo: { width: 180 },
   pageBandLogoFallback: { fontSize: 22, fontFamily: "Helvetica-Bold", color: C.ink, letterSpacing: 2 },
   pageBandRightCol: { alignItems: "flex-end" },
   pageBandEyebrow: {

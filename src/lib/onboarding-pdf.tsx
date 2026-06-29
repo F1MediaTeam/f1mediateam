@@ -3,9 +3,25 @@
 // the client's answers populated inside each field "box" so the doc reads
 // like the form they filled out.
 
+import fs from "node:fs";
+import path from "node:path";
 import React from "react";
-import { Document, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import type { OnboardingData } from "@/lib/types";
+
+// Read the F1 Media logo once per cold start — react-pdf accepts a Buffer
+// or a data: URI. We use a Buffer so the file ships into the lambda via
+// outputFileTracingIncludes in next.config.ts.
+let LOGO_BUFFER: Buffer | null = null;
+function loadLogo(): Buffer | null {
+  if (LOGO_BUFFER) return LOGO_BUFFER;
+  try {
+    LOGO_BUFFER = fs.readFileSync(path.join(process.cwd(), "public", "logo-dark.png"));
+    return LOGO_BUFFER;
+  } catch {
+    return null;
+  }
+}
 
 // ---------- color tokens ----------
 
@@ -24,9 +40,14 @@ const C = {
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 32,
-    paddingBottom: 50,
-    paddingHorizontal: 44,
+    // The wizard popup is rendered against a white rounded card on a
+    // darker page. Inside that card the top is a gray "chrome" band and
+    // the body is white. To mirror that in a PDF page, we use no outer
+    // padding — the gray header sits flush at the top — and the body
+    // content has its own horizontal padding via the bodyPad container.
+    paddingTop: 0,
+    paddingBottom: 56,
+    paddingHorizontal: 0,
     backgroundColor: "#FFFFFF",
     color: C.ink,
     fontFamily: "Helvetica",
@@ -34,34 +55,72 @@ const styles = StyleSheet.create({
     lineHeight: 1.45,
   },
 
-  // Top header band — repeated on every page so the timestamp/location is
-  // visible no matter which page is in front of the reader.
+  // The gray header chrome from the wizard popup: F1 logo on the left,
+  // "ONBOARDING" eyebrow + welcome line + progress dots on the right,
+  // sitting against a soft gray block.
   pageBand: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingBottom: 8,
-    marginBottom: 14,
+    backgroundColor: "#C8CACE",
+    paddingHorizontal: 28,
+    paddingVertical: 18,
     borderBottomWidth: 1,
-    borderColor: C.rule,
+    borderColor: "rgba(0,0,0,0.10)",
   },
-  pageBandLeft: { fontSize: 9, color: C.ink, fontFamily: "Helvetica-Bold", letterSpacing: 1 },
-  pageBandRight: { fontSize: 8, color: C.muted, textAlign: "right" },
+  pageBandLogo: { width: 130, height: 36, objectFit: "contain" },
+  pageBandLogoFallback: { fontSize: 22, fontFamily: "Helvetica-Bold", color: C.ink, letterSpacing: 2 },
+  pageBandRightCol: { alignItems: "flex-end" },
+  pageBandEyebrow: {
+    fontSize: 8,
+    letterSpacing: 4,
+    color: "rgba(0,0,0,0.55)",
+    fontFamily: "Helvetica-Bold",
+    textTransform: "uppercase",
+  },
+  pageBandWelcome: {
+    fontSize: 10,
+    fontFamily: "Helvetica-Bold",
+    color: C.ink,
+    marginTop: 3,
+  },
+  pageBandTimestamp: {
+    fontSize: 8,
+    color: "rgba(0,0,0,0.55)",
+    marginTop: 2,
+  },
+  progressDotsRow: { flexDirection: "row", marginTop: 6 },
+  progressDot: { height: 4, borderRadius: 2, marginLeft: 3 },
+  progressDotInactive: { width: 14, backgroundColor: "rgba(0,0,0,0.18)" },
+  progressDotPast:     { width: 14, backgroundColor: "rgba(63,142,132,0.55)" },
+  progressDotCurrent:  { width: 26, backgroundColor: C.brand },
+
+  // Padded inner body that holds the wizard content. The PDF body grid
+  // matches the wizard's px-10 in the popup.
+  bodyPad: { paddingHorizontal: 36, paddingTop: 28 },
 
   sectionKicker: {
     fontSize: 8,
-    letterSpacing: 2.5,
-    color: C.muted,
+    letterSpacing: 4,
+    color: "rgba(0,0,0,0.45)",
+    fontFamily: "Helvetica-Bold",
     textTransform: "uppercase",
     textAlign: "center",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   sectionTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontFamily: "Helvetica-Bold",
     color: C.ink,
     textAlign: "center",
-    marginBottom: 14,
+    marginBottom: 4,
+    letterSpacing: -0.3,
+  },
+  sectionTitleRule: {
+    borderBottomWidth: 1,
+    borderColor: "rgba(0,0,0,0.10)",
+    marginTop: 18,
+    marginBottom: 16,
   },
 
   p: { fontSize: 10.5, color: C.ink_soft, marginBottom: 7 },
@@ -274,11 +333,42 @@ function UL({ items }: { items: string[] }) {
   );
 }
 
-function PageBand({ clientName, submittedLine }: { clientName: string; submittedLine: string }) {
+function PageBand({
+  clientName,
+  submittedLine,
+  pageIdx,
+  totalPages,
+  logoBuf,
+}: {
+  clientName: string;
+  submittedLine: string;
+  pageIdx: number;
+  totalPages: number;
+  logoBuf: Buffer | null;
+}) {
   return (
     <View style={styles.pageBand}>
-      <Text style={styles.pageBandLeft}>{clientName} — F1 Media Onboarding</Text>
-      <Text style={styles.pageBandRight}>{submittedLine}</Text>
+      {logoBuf ? (
+        <Image src={logoBuf as unknown as string} style={styles.pageBandLogo} />
+      ) : (
+        <Text style={styles.pageBandLogoFallback}>F1 / MEDIA TEAM</Text>
+      )}
+      <View style={styles.pageBandRightCol}>
+        <Text style={styles.pageBandEyebrow}>ONBOARDING</Text>
+        <Text style={styles.pageBandWelcome}>{clientName}</Text>
+        <Text style={styles.pageBandTimestamp}>{submittedLine}</Text>
+        <View style={styles.progressDotsRow}>
+          {Array.from({ length: totalPages }).map((_, i) => {
+            const dotStyle =
+              i === pageIdx
+                ? [styles.progressDot, styles.progressDotCurrent]
+                : i < pageIdx
+                ? [styles.progressDot, styles.progressDotPast]
+                : [styles.progressDot, styles.progressDotInactive];
+            return <View key={i} style={dotStyle} />;
+          })}
+        </View>
+      </View>
     </View>
   );
 }
@@ -288,6 +378,7 @@ function PageHeader({ idx, title }: { idx: number; title: string }) {
     <View>
       <Text style={styles.sectionKicker}>Section {idx + 1} of 6</Text>
       <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionTitleRule} />
     </View>
   );
 }
@@ -730,23 +821,32 @@ export async function renderOnboardingPdf(props: Props): Promise<Buffer> {
   const submittedLine = submittedLineParts.join("  ·  ");
 
   const TOTAL = 6;
+  const logoBuf = loadLogo();
 
   const sections: { idx: number; title: string; body: React.ReactNode }[] = [
-    { idx: 0, title: "Digital Account Access and Administrative Permissions", body: <Doc1AccountAccess d={data} /> },
-    { idx: 1, title: "Company Bio and Performance Insights", body: <Doc2Bio d={data} /> },
-    { idx: 2, title: "Primary Contact and Communication Directory", body: <Doc3Contacts d={data} /> },
-    { idx: 3, title: "Digital Authority and Growth Strategy", body: <Doc4Strategy /> },
-    { idx: 4, title: "List of Services and Service Locations", body: <Doc5Services d={data} /> },
-    { idx: 5, title: "Brand Assets and Media Files Required", body: <Doc6Assets d={data} termsVersion={termsVersion} /> },
+    { idx: 0, title: "Digital Account Access & Administrative Permissions", body: <Doc1AccountAccess d={data} /> },
+    { idx: 1, title: "Company Bio & Performance Insights", body: <Doc2Bio d={data} /> },
+    { idx: 2, title: "Primary Contact & Communication Directory", body: <Doc3Contacts d={data} /> },
+    { idx: 3, title: "Digital Authority & Growth Strategy", body: <Doc4Strategy /> },
+    { idx: 4, title: "List of Services & Service Locations", body: <Doc5Services d={data} /> },
+    { idx: 5, title: "Brand Assets & Media Files Required", body: <Doc6Assets d={data} termsVersion={termsVersion} /> },
   ];
 
   const doc = (
     <Document title={`${clientName} — F1 Media Onboarding`} author="F1 Media Team">
       {sections.map((s) => (
         <Page key={s.idx} size="LETTER" style={styles.page} wrap>
-          <PageBand clientName={clientName} submittedLine={submittedLine} />
-          <PageHeader idx={s.idx} title={s.title} />
-          {s.body}
+          <PageBand
+            clientName={clientName}
+            submittedLine={submittedLine}
+            pageIdx={s.idx}
+            totalPages={TOTAL}
+            logoBuf={logoBuf}
+          />
+          <View style={styles.bodyPad}>
+            <PageHeader idx={s.idx} title={s.title} />
+            {s.body}
+          </View>
           <Footer page={s.idx + 1} total={TOTAL} />
         </Page>
       ))}

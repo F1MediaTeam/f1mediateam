@@ -343,7 +343,7 @@ export default function OnboardingGate({ version, userName, preview = false }: P
                 <form action={signOutAction}>
                   <button
                     type="submit"
-                    className="rounded-md border border-black/30 bg-white/70 hover:bg-white px-2 py-1 text-[10px] uppercase tracking-widest font-semibold text-black/70 hover:text-black transition"
+                    className="rounded-md bg-red-600 hover:bg-red-700 px-3 py-1.5 text-[10px] uppercase tracking-widest font-semibold text-white shadow-sm transition"
                     title="Sign out and return to login"
                   >
                     Sign out

@@ -112,7 +112,7 @@ export default async function AdminDashboard() {
             </div>
             <h1 className="text-3xl font-semibold tracking-tight mt-1"><Greeting /></h1>
           </div>
-          <div className="text-xs text-[var(--color-text-muted)] font-mono text-right shrink-0">
+          <div className="text-base sm:text-lg font-bold text-[var(--color-text)] font-mono text-right shrink-0">
             <Time iso={new Date().toISOString()} dateOnly />
           </div>
         </div>

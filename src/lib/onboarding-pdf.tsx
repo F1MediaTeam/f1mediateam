@@ -178,19 +178,28 @@ const styles = StyleSheet.create({
   fieldValuePlaceholder: { fontSize: 10.5, color: C.subtle, fontStyle: "italic" },
 
   pillRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
-  pill: {
+  pillBox: {
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.30)",
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    fontSize: 8.5,
-    fontFamily: "Helvetica-Bold",
-    letterSpacing: 0.5,
-    color: "rgba(0,0,0,0.60)",
+    borderRadius: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 4,
     marginRight: 6,
+    minWidth: 36,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  pillOn: { borderColor: C.ink, backgroundColor: C.ink, color: "#FFFFFF" },
+  pillBoxOn: {
+    borderColor: C.ink,
+    backgroundColor: C.ink,
+  },
+  pillText: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: "rgba(0,0,0,0.65)",
+    textAlign: "center",
+  },
+  pillTextOn: { color: "#FFFFFF" },
 
   checkboxRow: { flexDirection: "row", alignItems: "center", marginVertical: 2 },
   checkboxGlyph: {
@@ -273,11 +282,16 @@ function PillRow({ label, options, value }: { label: string; options: { v: strin
     <View style={{ marginTop: 6 }}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.pillRow}>
-        {options.map((o) => (
-          <Text key={o.v} style={value === o.v ? [styles.pill, styles.pillOn] : styles.pill}>
-            {o.label}
-          </Text>
-        ))}
+        {options.map((o) => {
+          const on = value === o.v;
+          return (
+            <View key={o.v} style={on ? [styles.pillBox, styles.pillBoxOn] : styles.pillBox}>
+              <Text style={on ? [styles.pillText, styles.pillTextOn] : styles.pillText}>
+                {o.label}
+              </Text>
+            </View>
+          );
+        })}
       </View>
     </View>
   );
@@ -837,12 +851,10 @@ export async function renderOnboardingPdf(props: Props): Promise<Buffer> {
     }).format(submitted);
   }
   const tzSuffix = tz === "UTC" ? " UTC" : ` (${tz.split("/").pop()?.replace(/_/g, " ")})`;
-  const submittedLineParts = [
-    `Submitted ${formattedDate}${tzSuffix}`,
-    submittedLocation || null,
-    submittedIp ? `IP ${submittedIp}` : null,
-  ].filter(Boolean) as string[];
-  const submittedLine = submittedLineParts.join("  ·  ");
+  // The header band intentionally hides location and IP — those still live
+  // in client_onboarding.data._submit_meta for the admin audit if needed.
+  const submittedLine = `Submitted ${formattedDate}${tzSuffix}`;
+  void submittedLocation; void submittedIp; // suppress unused-prop lint
 
   const TOTAL = 6;
   const logoBuf = loadLogo();

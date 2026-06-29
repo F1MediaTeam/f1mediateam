@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
 import { data, usingMock } from "@/lib/data";
 import { requireClient } from "@/lib/auth/session";
@@ -360,6 +361,10 @@ export async function submitOnboardingAction(formData: FormData) {
   revalidatePath("/client/settings");
   revalidatePath("/client/files");
   revalidatePath(`/admin/clients/${session.client_id}`);
+  // Drop the client straight into their dashboard — the OnboardingGate
+  // will no longer mount because hasAcceptedDisclaimer is now true, and
+  // the saved PDF appears under Settings → Onboarding downloads.
+  redirect("/client");
 }
 
 // Local helper type to keep the action file's import surface tight.

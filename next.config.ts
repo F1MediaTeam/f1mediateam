@@ -9,6 +9,13 @@ const nextConfig: NextConfig = {
   // Prod has long-standing TS drift in admin/meetings — let the build through.
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
+  experimental: {
+    serverActions: {
+      // Onboarding submit can include multiple brand-asset images.
+      // 1MB default was rejecting realistic uploads.
+      bodySizeLimit: "25mb",
+    },
+  },
 };
 
 export default nextConfig;

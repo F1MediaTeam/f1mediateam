@@ -183,13 +183,16 @@ export default function OnboardingGate({ version, userName, preview = false }: P
         return true;
       }
       case 1: {
+        if (!filled(data.company_bio) || !filled(data.brand_diff) || !filled(data.brand_3words)) return false;
+        // Channel sub-fields are only required when the client has ticked
+        // that channel's checkbox (i.e. said "yes, we use this"). Unticked
+        // channels are skipped entirely.
+        if (data.perf_social_active   && (!filled(data.perf_social_used)      || !filled(data.perf_social_explanation)))   return false;
+        if (data.perf_website_active  && (!filled(data.perf_website_url)      || !filled(data.perf_website_explanation)))  return false;
+        if (data.perf_paid_active     && (!filled(data.perf_paid_platforms)   || !filled(data.perf_paid_explanation)))     return false;
+        if (data.perf_podcast_active  && (!filled(data.perf_podcast_name)     || !filled(data.perf_podcast_explanation)))  return false;
+        if (data.perf_other_active    && (!filled(data.perf_other)            || !filled(data.perf_other_explanation)))    return false;
         if (
-          !filled(data.company_bio) || !filled(data.brand_diff) || !filled(data.brand_3words) ||
-          !filled(data.perf_social_used) || !filled(data.perf_social_explanation) ||
-          !filled(data.perf_website_url) || !filled(data.perf_website_explanation) ||
-          !filled(data.perf_paid_platforms) || !filled(data.perf_paid_explanation) ||
-          !filled(data.perf_podcast_name) || !filled(data.perf_podcast_explanation) ||
-          !filled(data.perf_other) || !filled(data.perf_other_explanation) ||
           !filled(data.perf_underperforming_channel) || !filled(data.perf_underperforming_attempted) ||
           !filled(data.perf_underperforming) || !filled(data.perf_additional_notes) ||
           !filled(data.ideal_client) || !filled(data.highest_revenue_cases) ||
@@ -525,31 +528,51 @@ export default function OnboardingGate({ version, userName, preview = false }: P
                   <P>Please indicate all that apply and explain why you believe it performed well.</P>
 
                   <div className="space-y-4">
-                    <div>
-                      <div className="text-xs font-bold uppercase text-black/70 mb-1">☐ Social Media</div>
-                      <Field label="Platforms used" value={data.perf_social_used ?? ""} onChange={(v) => set("perf_social_used", v)} error={err(filled(data.perf_social_used))} />
-                      <Area label="Explanation" value={data.perf_social_explanation ?? ""} onChange={(v) => set("perf_social_explanation", v)} rows={4} error={err(filled(data.perf_social_explanation))} />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold uppercase text-black/70 mb-1">☐ Website</div>
-                      <Field label="Website URL(s)" value={data.perf_website_url ?? ""} onChange={(v) => set("perf_website_url", v)} error={err(filled(data.perf_website_url))} />
-                      <Area label="Explanation" value={data.perf_website_explanation ?? ""} onChange={(v) => set("perf_website_explanation", v)} rows={4} error={err(filled(data.perf_website_explanation))} />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold uppercase text-black/70 mb-1">☐ Paid Advertising</div>
-                      <Field label="Platforms used (Google Ads, Meta, etc.)" value={data.perf_paid_platforms ?? ""} onChange={(v) => set("perf_paid_platforms", v)} error={err(filled(data.perf_paid_platforms))} />
-                      <Area label="Explanation" value={data.perf_paid_explanation ?? ""} onChange={(v) => set("perf_paid_explanation", v)} rows={4} error={err(filled(data.perf_paid_explanation))} />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold uppercase text-black/70 mb-1">☐ Podcast</div>
-                      <Field label="Podcast name / platform" value={data.perf_podcast_name ?? ""} onChange={(v) => set("perf_podcast_name", v)} error={err(filled(data.perf_podcast_name))} />
-                      <Area label="Explanation" value={data.perf_podcast_explanation ?? ""} onChange={(v) => set("perf_podcast_explanation", v)} rows={4} error={err(filled(data.perf_podcast_explanation))} />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold uppercase text-black/70 mb-1">☐ Other</div>
-                      <Field label="Channel / source" value={data.perf_other ?? ""} onChange={(v) => set("perf_other", v)} error={err(filled(data.perf_other))} />
-                      <Area label="Explanation" value={data.perf_other_explanation ?? ""} onChange={(v) => set("perf_other_explanation", v)} rows={4} error={err(filled(data.perf_other_explanation))} />
-                    </div>
+                    {([
+                      { key: "perf_social_active",  label: "Social Media",
+                        fields: <>
+                          <Field label="Platforms used" value={data.perf_social_used ?? ""} onChange={(v) => set("perf_social_used", v)} error={data.perf_social_active ? err(filled(data.perf_social_used)) : false} />
+                          <Area label="Explanation" value={data.perf_social_explanation ?? ""} onChange={(v) => set("perf_social_explanation", v)} rows={4} error={data.perf_social_active ? err(filled(data.perf_social_explanation)) : false} />
+                        </>,
+                        active: data.perf_social_active },
+                      { key: "perf_website_active", label: "Website",
+                        fields: <>
+                          <Field label="Website URL(s)" value={data.perf_website_url ?? ""} onChange={(v) => set("perf_website_url", v)} error={data.perf_website_active ? err(filled(data.perf_website_url)) : false} />
+                          <Area label="Explanation" value={data.perf_website_explanation ?? ""} onChange={(v) => set("perf_website_explanation", v)} rows={4} error={data.perf_website_active ? err(filled(data.perf_website_explanation)) : false} />
+                        </>,
+                        active: data.perf_website_active },
+                      { key: "perf_paid_active",    label: "Paid Advertising",
+                        fields: <>
+                          <Field label="Platforms used (Google Ads, Meta, etc.)" value={data.perf_paid_platforms ?? ""} onChange={(v) => set("perf_paid_platforms", v)} error={data.perf_paid_active ? err(filled(data.perf_paid_platforms)) : false} />
+                          <Area label="Explanation" value={data.perf_paid_explanation ?? ""} onChange={(v) => set("perf_paid_explanation", v)} rows={4} error={data.perf_paid_active ? err(filled(data.perf_paid_explanation)) : false} />
+                        </>,
+                        active: data.perf_paid_active },
+                      { key: "perf_podcast_active", label: "Podcast",
+                        fields: <>
+                          <Field label="Podcast name / platform" value={data.perf_podcast_name ?? ""} onChange={(v) => set("perf_podcast_name", v)} error={data.perf_podcast_active ? err(filled(data.perf_podcast_name)) : false} />
+                          <Area label="Explanation" value={data.perf_podcast_explanation ?? ""} onChange={(v) => set("perf_podcast_explanation", v)} rows={4} error={data.perf_podcast_active ? err(filled(data.perf_podcast_explanation)) : false} />
+                        </>,
+                        active: data.perf_podcast_active },
+                      { key: "perf_other_active",   label: "Other",
+                        fields: <>
+                          <Field label="Channel / source" value={data.perf_other ?? ""} onChange={(v) => set("perf_other", v)} error={data.perf_other_active ? err(filled(data.perf_other)) : false} />
+                          <Area label="Explanation" value={data.perf_other_explanation ?? ""} onChange={(v) => set("perf_other_explanation", v)} rows={4} error={data.perf_other_active ? err(filled(data.perf_other_explanation)) : false} />
+                        </>,
+                        active: data.perf_other_active },
+                    ] as const).map(({ key, label, fields, active }) => (
+                      <div key={key} className={"rounded-lg border " + (active ? "border-black/15 bg-white p-3" : "border-black/10 p-3")}>
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(active)}
+                            onChange={(e) => set(key, e.target.checked)}
+                            className="h-4 w-4 accent-black"
+                          />
+                          <span className="text-xs font-bold uppercase text-black/70">{label}</span>
+                        </label>
+                        {active ? <div className="mt-3 space-y-3">{fields}</div> : null}
+                      </div>
+                    ))}
                   </div>
 
                   <H3>Where Have You Seen the Least Success?</H3>

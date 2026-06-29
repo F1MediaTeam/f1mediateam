@@ -233,12 +233,18 @@ export interface OnboardingData {
   company_bio?: string;
   brand_diff?: string;             // "What makes your firm different…"
   brand_3words?: string;           // "If a client had to describe your firm in three words…"
+  // "Indicate all that apply" — each *_active flag is the real checkbox state.
+  // Sub-fields are only required when the matching flag is true.
+  perf_social_active?: boolean;
   perf_social_used?: string;       // checkbox + free text
   perf_social_explanation?: string;
+  perf_website_active?: boolean;
   perf_website_url?: string;
   perf_website_explanation?: string;
+  perf_paid_active?: boolean;
   perf_paid_platforms?: string;
   perf_paid_explanation?: string;
+  perf_podcast_active?: boolean;
   perf_podcast_name?: string;
   perf_podcast_explanation?: string;
   perf_youtube?: string;
@@ -289,6 +295,7 @@ export interface OnboardingData {
   cases_to_avoid?: string;
   saturated_markets?: string;
   growth_opportunity?: string;
+  perf_other_active?: boolean;
   perf_other?: string;
   perf_other_explanation?: string;
   perf_underperforming_channel?: string;

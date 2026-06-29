@@ -6,8 +6,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import React from "react";
-import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Font, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import type { OnboardingData } from "@/lib/types";
+
+// Disable react-pdf's default hyphenation so long page titles wrap at word
+// boundaries instead of breaking words like "Permis-sions".
+Font.registerHyphenationCallback((word) => [word]);
 
 // Read the F1 Media logo once per cold start — react-pdf accepts a Buffer
 // or a data: URI. We use a Buffer so the file ships into the lambda via
@@ -68,7 +72,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: "rgba(0,0,0,0.10)",
   },
-  pageBandLogo: { width: 130, height: 36, objectFit: "contain" },
+  pageBandLogo: { width: 220, height: 58, objectFit: "contain" },
   pageBandLogoFallback: { fontSize: 22, fontFamily: "Helvetica-Bold", color: C.ink, letterSpacing: 2 },
   pageBandRightCol: { alignItems: "flex-end" },
   pageBandEyebrow: {
@@ -109,12 +113,12 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   sectionTitle: {
-    fontSize: 24,
+    fontSize: 18,
     fontFamily: "Helvetica-Bold",
     color: C.ink,
     textAlign: "center",
     marginBottom: 4,
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
   },
   sectionTitleRule: {
     borderBottomWidth: 1,
@@ -176,29 +180,32 @@ const styles = StyleSheet.create({
   pillRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
   pill: {
     borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 12,
-    paddingHorizontal: 9,
-    paddingVertical: 2,
-    fontSize: 9,
-    color: C.muted,
+    borderColor: "rgba(0,0,0,0.30)",
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    fontSize: 8.5,
+    fontFamily: "Helvetica-Bold",
+    letterSpacing: 0.5,
+    color: "rgba(0,0,0,0.60)",
     marginRight: 6,
   },
   pillOn: { borderColor: C.ink, backgroundColor: C.ink, color: "#FFFFFF" },
 
   checkboxRow: { flexDirection: "row", alignItems: "center", marginVertical: 2 },
   checkboxGlyph: {
-    width: 11,
-    height: 11,
+    width: 14,
+    height: 14,
     borderWidth: 1,
     borderColor: C.ink,
     borderRadius: 2,
-    marginRight: 7,
+    marginRight: 8,
     alignItems: "center",
     justifyContent: "center",
+    paddingTop: 1,
   },
   checkboxGlyphOn: { backgroundColor: C.ink },
-  checkboxMark: { color: "#FFFFFF", fontSize: 9, fontFamily: "Helvetica-Bold" },
+  checkboxMark: { color: "#FFFFFF", fontSize: 10, fontFamily: "Helvetica-Bold", lineHeight: 1, textAlign: "center" },
   checkboxLabel: { fontSize: 10, color: C.ink_soft },
 
   twoCol: { flexDirection: "row", marginHorizontal: -4 },
@@ -804,19 +811,36 @@ interface Props {
   submittedLocation?: string | null;
   /** Originating IP if available. */
   submittedIp?: string | null;
+  /** IANA timezone (e.g. "America/Phoenix") for formatting the timestamp.
+   *  When omitted, falls back to UTC and labels the time accordingly. */
+  submittedTimezone?: string | null;
 }
 
 export async function renderOnboardingPdf(props: Props): Promise<Buffer> {
-  const { clientName, submittedAt, data, termsVersion, submittedLocation, submittedIp } = props;
+  const { clientName, submittedAt, data, termsVersion, submittedLocation, submittedIp, submittedTimezone } = props;
   const submitted = new Date(submittedAt);
-  const date = submitted.toLocaleString("en-US", { dateStyle: "long", timeStyle: "short" });
-  // Single string that appears in the page-band on every page so the
-  // reader always sees when + where this was submitted from.
+  // Use the client's IANA timezone so the rendered time matches what they
+  // saw when they hit Submit. If we don't know the zone, render UTC + label.
+  const tz = submittedTimezone || "UTC";
+  let formattedDate: string;
+  try {
+    formattedDate = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      dateStyle: "long",
+      timeStyle: "short",
+    }).format(submitted);
+  } catch {
+    formattedDate = new Intl.DateTimeFormat("en-US", {
+      timeZone: "UTC",
+      dateStyle: "long",
+      timeStyle: "short",
+    }).format(submitted);
+  }
+  const tzSuffix = tz === "UTC" ? " UTC" : ` (${tz.split("/").pop()?.replace(/_/g, " ")})`;
   const submittedLineParts = [
-    `Submitted ${date}`,
+    `Submitted ${formattedDate}${tzSuffix}`,
     submittedLocation || null,
     submittedIp ? `IP ${submittedIp}` : null,
-    `Terms ${termsVersion}`,
   ].filter(Boolean) as string[];
   const submittedLine = submittedLineParts.join("  ·  ");
 

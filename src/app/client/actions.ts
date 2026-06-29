@@ -296,6 +296,26 @@ export async function submitOnboardingAction(formData: FormData) {
   let parsed: Record<string, unknown> = {};
   try { parsed = JSON.parse(dataField); } catch { parsed = {}; }
 
+  // Capture submission context (timezone + location) so the PDF can be
+  // regenerated later with the correct local time even when the heal-on-
+  // load runs from a different request.
+  const _hdrs = await headers();
+  const _city = _hdrs.get("x-vercel-ip-city");
+  const _region = _hdrs.get("x-vercel-ip-country-region");
+  const _country = _hdrs.get("x-vercel-ip-country");
+  const _ip =
+    _hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    _hdrs.get("x-real-ip") ||
+    null;
+  const _tz = _hdrs.get("x-vercel-ip-timezone");
+  parsed._submit_meta = {
+    timezone: _tz || null,
+    city: _city ? decodeURIComponent(_city) : null,
+    region: _region || null,
+    country: _country || null,
+    ip: _ip,
+  };
+
   const supabase = await createSupabase();
   const { data: row } = await supabase
     .from("client_onboarding")
@@ -317,22 +337,18 @@ export async function submitOnboardingAction(formData: FormData) {
   // Render the answers as a PDF and store it under client-attachments so
   // the client can download it from their Settings page later. Also upload
   // any brand-asset files that were dropped on the final wizard page.
-  // Best-effort geolocation of the submission — pulled from Vercel's edge
-  // headers so the PDF cover shows where the client clicked Submit from.
-  const hdrs = await headers();
-  const ip =
-    hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    hdrs.get("x-real-ip") ||
-    null;
-  const city = hdrs.get("x-vercel-ip-city");
-  const region = hdrs.get("x-vercel-ip-country-region");
-  const country = hdrs.get("x-vercel-ip-country");
-  const locationParts = [
-    city ? decodeURIComponent(city) : null,
-    region || null,
-    country || null,
-  ].filter(Boolean);
+  // Reuse the submit-time meta we captured into `parsed._submit_meta`.
+  const meta = (parsed._submit_meta ?? {}) as {
+    timezone?: string | null;
+    city?: string | null;
+    region?: string | null;
+    country?: string | null;
+    ip?: string | null;
+  };
+  const locationParts = [meta.city, meta.region, meta.country].filter(Boolean) as string[];
   const submittedLocation = locationParts.length > 0 ? locationParts.join(", ") : null;
+  const ip = meta.ip ?? null;
+  const timezone = meta.timezone ?? null;
 
   try {
     const client = await data.getClient(session.client_id);
@@ -344,6 +360,7 @@ export async function submitOnboardingAction(formData: FormData) {
       termsVersion: DISCLAIMER_VERSION,
       submittedLocation,
       submittedIp: ip,
+      submittedTimezone: timezone,
     });
     const service = await createServiceClient();
     const stamp = new Date().toISOString().slice(0, 10);

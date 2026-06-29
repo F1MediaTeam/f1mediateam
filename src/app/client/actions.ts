@@ -334,53 +334,12 @@ export async function submitOnboardingAction(formData: FormData) {
   // also satisfy the legacy disclaimer for callers that still check it
   await data.recordDisclaimer(session.user_id, DISCLAIMER_VERSION);
 
-  // Render the answers as a PDF and store it under client-attachments so
-  // the client can download it from their Settings page later. Also upload
-  // any brand-asset files that were dropped on the final wizard page.
-  // Reuse the submit-time meta we captured into `parsed._submit_meta`.
-  const meta = (parsed._submit_meta ?? {}) as {
-    timezone?: string | null;
-    city?: string | null;
-    region?: string | null;
-    country?: string | null;
-    ip?: string | null;
-  };
-  const locationParts = [meta.city, meta.region, meta.country].filter(Boolean) as string[];
-  const submittedLocation = locationParts.length > 0 ? locationParts.join(", ") : null;
-  const ip = meta.ip ?? null;
-  const timezone = meta.timezone ?? null;
+  // PDF is no longer pre-rendered on submit — the client portal's Settings
+  // page links to /api/onboarding-pdf which renders on demand from this row.
+  // We still keep submit-time meta on `parsed._submit_meta` so the on-demand
+  // render can label the timestamp with the right timezone / location.
+  void row;
 
-  try {
-    const client = await data.getClient(session.client_id);
-    const { renderOnboardingPdf } = await import("@/lib/onboarding-pdf");
-    const buf = await renderOnboardingPdf({
-      clientName: client?.company_name ?? "Client",
-      submittedAt: row?.submitted_at ?? new Date().toISOString(),
-      data: parsed as unknown as OnboardingDataLike,
-      termsVersion: DISCLAIMER_VERSION,
-      submittedLocation,
-      submittedIp: ip,
-      submittedTimezone: timezone,
-    });
-    const service = await createServiceClient();
-    const stamp = new Date().toISOString().slice(0, 10);
-    const path = `${session.client_id}/onboarding/${stamp}-onboarding-${randomUUID()}.pdf`;
-    await service.storage.from("client-attachments").upload(path, buf, {
-      contentType: "application/pdf",
-      upsert: false,
-    });
-    await service.from("files").insert({
-      client_id: session.client_id,
-      filename: `f1-onboarding-${stamp}.pdf`,
-      storage_path: path,
-      mime_type: "application/pdf",
-      size_bytes: buf.length,
-      category: "onboarding",
-      uploaded_by: session.user_id,
-    });
-  } catch (e) {
-    console.error("onboarding PDF persist failed", e);
-  }
   // Brand assets are uploaded independently — if PDF generation fails for
   // any reason, we still want the client's logo / brand files in storage so
   // they appear in the header and in Settings.

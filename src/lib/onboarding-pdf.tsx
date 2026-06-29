@@ -67,13 +67,16 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "#C8CACE",
-    paddingHorizontal: 32,
-    paddingVertical: 22,
+    paddingLeft: 18,           // match wizard's tight left gutter
+    paddingRight: 28,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderColor: "rgba(0,0,0,0.10)",
   },
-  pageBandLogoBox: { flex: 0, flexBasis: "auto", alignItems: "flex-start" },
-  pageBandLogo: { width: 300, height: 78, objectFit: "contain" },
+  // Fixed-width box so the Image renders at its full intended size and
+  // the right column doesn't squeeze the logo on narrower pages.
+  pageBandLogoBox: { width: 240, height: 64, alignItems: "flex-start", justifyContent: "center" },
+  pageBandLogo: { width: 240, height: 64, objectFit: "contain" },
   pageBandLogoFallback: { fontSize: 22, fontFamily: "Helvetica-Bold", color: C.ink, letterSpacing: 2 },
   pageBandRightCol: { alignItems: "flex-end" },
   pageBandEyebrow: {
@@ -323,7 +326,7 @@ const isOn = (obj: Record<string, unknown> | undefined, key: string) => Boolean(
 function FormField({ label, value, area = false }: { label: string; value: string; area?: boolean }) {
   const boxStyle = area ? [styles.fieldBox, styles.fieldBoxArea] : styles.fieldBox;
   return (
-    <View>
+    <View wrap={false}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={boxStyle}>
         {value ? (
@@ -367,7 +370,7 @@ function InlineYesNo({ question, value }: { question: string; value: "yes" | "no
     { v: "no", label: "NO" },
   ];
   return (
-    <View style={styles.inlineYNRow}>
+    <View wrap={false} style={styles.inlineYNRow}>
       <Text style={styles.inlineYNText}>{question}</Text>
       <View style={styles.inlineYNPills}>
         {options.map((o) => {
@@ -388,7 +391,7 @@ function InlineYesNo({ question, value }: { question: string; value: "yes" | "no
 // Three-column field grid for credential rows (email / username / password).
 function Row3({ a, b, c }: { a: React.ReactNode; b: React.ReactNode; c: React.ReactNode }) {
   return (
-    <View style={styles.row3}>
+    <View wrap={false} style={styles.row3}>
       <View style={styles.row3Cell}>{a}</View>
       <View style={styles.row3Cell}>{b}</View>
       <View style={styles.row3Cell}>{c}</View>
@@ -481,11 +484,14 @@ function CheckboxLine({ label, checked }: { label: string; checked: boolean }) {
 }
 
 function SectionCard({ eyebrow, children }: { eyebrow: string; children: React.ReactNode }) {
-  // wrap={false} keeps the eyebrow + the whole card body together: if the
-  // card would split across a page break, react-pdf pushes it to the next
-  // page intact. Prevents the wizard's "card cut off across pages" look.
+  // Cards may be taller than a single page (the social-media card has 13
+  // platforms, the services card can have many rows) so we DON'T set
+  // wrap={false} on the card itself — that caused react-pdf to compress
+  // the card and overlap labels with their inputs. The eyebrow alone is
+  // kept with the first child via the marginTop on the eyebrow style;
+  // individual sub-rows lock themselves together with their own wrap=false.
   return (
-    <View wrap={false}>
+    <View>
       <Text style={styles.sectionCardEyebrow}>{eyebrow}</Text>
       <View style={styles.sectionCard}>{children}</View>
     </View>
@@ -494,7 +500,7 @@ function SectionCard({ eyebrow, children }: { eyebrow: string; children: React.R
 
 function TwoCol({ left, right }: { left: React.ReactNode; right: React.ReactNode }) {
   return (
-    <View style={styles.twoCol}>
+    <View wrap={false} style={styles.twoCol}>
       <View style={styles.twoColCell}>{left}</View>
       <View style={styles.twoColCell}>{right}</View>
     </View>

@@ -4,6 +4,7 @@
 // this route.
 
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { requireClient } from "@/lib/auth/session";
 import { data as dataAdapter } from "@/lib/data";
 import { DISCLAIMER_VERSION } from "@/lib/types";
@@ -30,7 +31,16 @@ export async function GET() {
     country?: string | null;
     ip?: string | null;
   };
-  const locationParts = [meta.city, meta.region, meta.country].filter(Boolean) as string[];
+  // Fallback to the current request's Vercel edge headers when the stored
+  // _submit_meta is missing fields (older onboarding rows pre-date that
+  // capture). Same client device, so timezone usually matches.
+  const hdrs = await headers();
+  const timezone = meta.timezone || hdrs.get("x-vercel-ip-timezone") || null;
+  const cityRaw = meta.city || (hdrs.get("x-vercel-ip-city") ? decodeURIComponent(hdrs.get("x-vercel-ip-city")!) : null);
+  const region = meta.region || hdrs.get("x-vercel-ip-country-region") || null;
+  const country = meta.country || hdrs.get("x-vercel-ip-country") || null;
+  const ip = meta.ip || hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() || hdrs.get("x-real-ip") || null;
+  const locationParts = [cityRaw, region, country].filter(Boolean) as string[];
 
   const { renderOnboardingPdf } = await import("@/lib/onboarding-pdf");
   const buf = await renderOnboardingPdf({
@@ -39,8 +49,8 @@ export async function GET() {
     data: ob.data as Parameters<typeof renderOnboardingPdf>[0]["data"],
     termsVersion: ob.terms_version || DISCLAIMER_VERSION,
     submittedLocation: locationParts.length > 0 ? locationParts.join(", ") : null,
-    submittedIp: meta.ip ?? null,
-    submittedTimezone: meta.timezone ?? null,
+    submittedIp: ip,
+    submittedTimezone: timezone,
   });
 
   const safeName = (client?.company_name ?? "client")

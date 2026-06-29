@@ -147,6 +147,13 @@ input, select, textarea, button { font-family: inherit; }
 ::selection { background: rgba(63, 142, 132, 0.30); color: white; }
 [data-theme="light"] ::selection { background: rgba(63, 142, 132, 0.22); color: #0f172a; }
 
+/* Amber "change requested" / "heads up" text was tuned for the dark theme;
+   on the light theme the soft amber-200/300 reads as nearly invisible.
+   Push these to a darker, ink-on-cream amber so the warning is legible. */
+[data-theme="light"] .text-amber-200 { color: #78350f; }   /* amber-900 */
+[data-theme="light"] .text-amber-300 { color: #92400e; }   /* amber-800 */
+[data-theme="light"] .text-amber-400 { color: #b45309; }   /* amber-700 */
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #1d2430; border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: #29313f; }

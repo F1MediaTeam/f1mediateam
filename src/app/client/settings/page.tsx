@@ -1,5 +1,6 @@
 import { requireClient } from "@/lib/auth/session";
 import { data } from "@/lib/data";
+import { ensureOnboardingPdfPersisted } from "@/lib/ensure-onboarding-pdf";
 import ClientShell from "@/components/client/Shell";
 import { Card, CardBody, CardHeader, Button } from "@/components/ui";
 import { setEmailPrefAction } from "../actions";
@@ -14,6 +15,9 @@ export default async function ClientSettings() {
   const session = await requireClient();
   const client = await data.getClient(session.client_id!);
   if (!client) return null;
+  // Self-heal: if the submit action's PDF render/upload failed silently,
+  // regenerate and persist the PDF now so the download card isn't empty.
+  await ensureOnboardingPdfPersisted(session.client_id!);
   const [pref, audit, clientUser, allFiles] = await Promise.all([
     data.getEmailPref(session.user_id),
     // Filter by client_id — admin view-as never leaks into this list.

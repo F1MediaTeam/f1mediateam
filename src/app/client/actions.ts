@@ -361,7 +361,13 @@ export async function submitOnboardingAction(formData: FormData) {
       category: "onboarding",
       uploaded_by: session.user_id,
     });
-    // Brand assets uploaded on the final page
+  } catch (e) {
+    console.error("onboarding PDF persist failed", e);
+  }
+  // Brand assets are uploaded independently — if PDF generation fails for
+  // any reason, we still want the client's logo / brand files in storage so
+  // they appear in the header and in Settings.
+  try {
     const assets = formData.getAll("brand_assets");
     if (Array.isArray(assets) && assets.length > 0) {
       const { persistAttachments } = await import("@/lib/attachments");
@@ -374,7 +380,7 @@ export async function submitOnboardingAction(formData: FormData) {
       });
     }
   } catch (e) {
-    console.error("onboarding PDF persist failed", e);
+    console.error("onboarding brand-asset persist failed", e);
   }
 
   revalidatePath("/client");

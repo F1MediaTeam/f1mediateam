@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import React from "react";
-import { Document, Font, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Font, Image, Page, Path, StyleSheet, Svg, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import type { OnboardingData } from "@/lib/types";
 
 // Disable react-pdf's default hyphenation so long page titles wrap at word
@@ -67,12 +67,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "#C8CACE",
-    paddingHorizontal: 28,
-    paddingVertical: 18,
+    paddingHorizontal: 32,
+    paddingVertical: 22,
     borderBottomWidth: 1,
     borderColor: "rgba(0,0,0,0.10)",
   },
-  pageBandLogo: { width: 220, height: 58, objectFit: "contain" },
+  pageBandLogoBox: { flex: 0, flexBasis: "auto", alignItems: "flex-start" },
+  pageBandLogo: { width: 300, height: 78, objectFit: "contain" },
   pageBandLogoFallback: { fontSize: 22, fontFamily: "Helvetica-Bold", color: C.ink, letterSpacing: 2 },
   pageBandRightCol: { alignItems: "flex-end" },
   pageBandEyebrow: {
@@ -262,10 +263,17 @@ const styles = StyleSheet.create({
     marginRight: 8,
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 1,
   },
   checkboxGlyphOn: { backgroundColor: C.ink },
-  checkboxMark: { color: "#FFFFFF", fontSize: 10, fontFamily: "Helvetica-Bold", lineHeight: 1, textAlign: "center" },
+  // ✓ in Helvetica is U+2713. Rendering as a Text with no extra padding,
+  // centered inside a 14×14 box, gives a clean checkmark instead of an
+  // off-center "X".
+  checkboxMark: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontFamily: "Helvetica-Bold",
+    lineHeight: 1,
+  },
   checkboxLabel: { fontSize: 10, color: C.ink_soft },
 
   twoCol: { flexDirection: "row", marginHorizontal: -4 },
@@ -461,7 +469,11 @@ function CheckboxLine({ label, checked }: { label: string; checked: boolean }) {
   return (
     <View style={styles.checkboxRow}>
       <View style={glyphStyle}>
-        {checked ? <Text style={styles.checkboxMark}>X</Text> : null}
+        {checked ? (
+          <Svg width={9} height={9} viewBox="0 0 12 12">
+            <Path d="M2 6.5 L5 9.5 L10 3.5" stroke="#FFFFFF" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          </Svg>
+        ) : null}
       </View>
       <Text style={styles.checkboxLabel}>{label}</Text>
     </View>
@@ -469,8 +481,11 @@ function CheckboxLine({ label, checked }: { label: string; checked: boolean }) {
 }
 
 function SectionCard({ eyebrow, children }: { eyebrow: string; children: React.ReactNode }) {
+  // wrap={false} keeps the eyebrow + the whole card body together: if the
+  // card would split across a page break, react-pdf pushes it to the next
+  // page intact. Prevents the wizard's "card cut off across pages" look.
   return (
-    <View>
+    <View wrap={false}>
       <Text style={styles.sectionCardEyebrow}>{eyebrow}</Text>
       <View style={styles.sectionCard}>{children}</View>
     </View>
@@ -514,11 +529,13 @@ function PageBand({
 }) {
   return (
     <View style={styles.pageBand}>
-      {logoBuf ? (
-        <Image src={logoBuf as unknown as string} style={styles.pageBandLogo} />
-      ) : (
-        <Text style={styles.pageBandLogoFallback}>F1 / MEDIA TEAM</Text>
-      )}
+      <View style={styles.pageBandLogoBox}>
+        {logoBuf ? (
+          <Image src={logoBuf as unknown as string} style={styles.pageBandLogo} />
+        ) : (
+          <Text style={styles.pageBandLogoFallback}>F1 / MEDIA TEAM</Text>
+        )}
+      </View>
       <View style={styles.pageBandRightCol}>
         <Text style={styles.pageBandEyebrow}>ONBOARDING</Text>
         <Text style={styles.pageBandWelcome}>{clientName}</Text>

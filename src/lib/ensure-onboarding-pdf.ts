@@ -11,23 +11,48 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { data as dataAdapter } from "@/lib/data";
 import { DISCLAIMER_VERSION } from "@/lib/types";
 
+// Bump this when the PDF renderer changes structurally — settings page will
+// wipe + regenerate any PDF whose filename predates the current version.
+const PDF_RENDERER_VERSION = "v3";
+
 export async function ensureOnboardingPdfPersisted(clientId: string): Promise<void> {
   try {
-    // 1. Has the client actually submitted onboarding?
     const ob = await dataAdapter.getOnboarding(clientId);
     if (!ob) return;
 
-    // 2. Do we already have a persisted PDF for it?
     const service = await createServiceClient();
     const { data: existing } = await service
       .from("files")
-      .select("id")
+      .select("id, filename, storage_path, size_bytes")
       .eq("client_id", clientId)
-      .eq("category", "onboarding")
-      .limit(1);
-    if (existing && existing.length > 0) return;
+      .eq("category", "onboarding");
+    const rows = (existing as { id: string; filename: string | null; storage_path: string; size_bytes: number | null }[] | null) ?? [];
 
-    // 3. Render + upload + insert.
+    // Acceptable existing PDF = renamed with current version sentinel AND
+    // non-trivial size (truncated renders are tiny — cover-only is ~3-5KB).
+    const good = rows.find(
+      (r) =>
+        (r.filename ?? "").includes(PDF_RENDERER_VERSION) &&
+        typeof r.size_bytes === "number" &&
+        r.size_bytes > 15_000,
+    );
+    if (good) return;
+
+    // Stale or partial PDFs: wipe both storage and the files row so we
+    // can re-upload cleanly under a new path.
+    for (const r of rows) {
+      try {
+        await service.storage.from("client-attachments").remove([r.storage_path]);
+      } catch (e) {
+        console.error("ensureOnboardingPdf cleanup storage remove failed:", e);
+      }
+      try {
+        await service.from("files").delete().eq("id", r.id);
+      } catch (e) {
+        console.error("ensureOnboardingPdf cleanup files delete failed:", e);
+      }
+    }
+
     const client = await dataAdapter.getClient(clientId);
     const { renderOnboardingPdf } = await import("@/lib/onboarding-pdf");
     const buf = await renderOnboardingPdf({
@@ -36,8 +61,13 @@ export async function ensureOnboardingPdfPersisted(clientId: string): Promise<vo
       data: ob.data as Parameters<typeof renderOnboardingPdf>[0]["data"],
       termsVersion: ob.terms_version || DISCLAIMER_VERSION,
     });
+    console.log(`ensureOnboardingPdf rendered ${buf.length} bytes for ${clientId}`);
+    if (buf.length < 15_000) {
+      console.error(`ensureOnboardingPdf render produced suspiciously small PDF (${buf.length} bytes); aborting upload`);
+      return;
+    }
     const stamp = new Date(ob.submitted_at ?? Date.now()).toISOString().slice(0, 10);
-    const path = `${clientId}/onboarding/${stamp}-onboarding-${randomUUID()}.pdf`;
+    const path = `${clientId}/onboarding/${stamp}-onboarding-${PDF_RENDERER_VERSION}-${randomUUID()}.pdf`;
     const { error: uploadErr } = await service.storage
       .from("client-attachments")
       .upload(path, buf, { contentType: "application/pdf", upsert: false });
@@ -47,7 +77,7 @@ export async function ensureOnboardingPdfPersisted(clientId: string): Promise<vo
     }
     const { error: insertErr } = await service.from("files").insert({
       client_id: clientId,
-      filename: `f1-onboarding-${stamp}.pdf`,
+      filename: `f1-onboarding-${stamp}-${PDF_RENDERER_VERSION}.pdf`,
       storage_path: path,
       mime_type: "application/pdf",
       size_bytes: buf.length,

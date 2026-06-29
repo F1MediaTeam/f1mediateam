@@ -166,17 +166,12 @@ export default function OnboardingGate({ version, userName, preview = false }: P
           !filled(data.domain_registrar) || !filled(data.hosting_provider) || !filled(data.website_admin_email) ||
           !filled(data.cms_platform) || !filled(data.developer_contact)
         ) return false;
-        // Google + Microsoft
+        // Google + Microsoft — only the admin email is required.
+        // The platform checkboxes are intentionally optional: a client may
+        // not use every Google/Microsoft product, so they tick only the
+        // ones they actually want F1 Media to access.
         if (!filled(data.google_admin_email)) return false;
-        const g = data.google_access ?? {};
-        for (const k of ["analytics", "search_console", "business_profile", "ads", "tag_manager"]) {
-          if (!g[k as keyof typeof g]) return false;
-        }
         if (!filled(data.microsoft_admin_email)) return false;
-        const m = data.microsoft_access ?? {};
-        for (const k of ["bing_webmaster", "ads"]) {
-          if (!m[k as keyof typeof m]) return false;
-        }
         // Every social platform: username + admin email
         for (const p of SOCIAL_PLATFORMS) {
           const s = data.socials?.[p.key];
@@ -429,7 +424,7 @@ export default function OnboardingGate({ version, userName, preview = false }: P
                   <H3>Google Accounts</H3>
                   <Field label="Google account email (admin)" value={data.google_admin_email ?? ""} onChange={(v) => set("google_admin_email", v)} type="email" error={err(filled(data.google_admin_email))} />
                   <P>Access to the following:</P>
-                  <div className={"grid grid-cols-1 md:grid-cols-2 gap-1 " + (err(["analytics", "search_console", "business_profile", "ads", "tag_manager"].every((k) => (data.google_access ?? {})[k as keyof NonNullable<typeof data.google_access>])) ? "rounded-md border-2 border-red-500 bg-red-50 px-2 py-1" : "")}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
                     {[
                       { k: "analytics", l: "Google Analytics" },
                       { k: "search_console", l: "Google Search Console" },
@@ -448,7 +443,7 @@ export default function OnboardingGate({ version, userName, preview = false }: P
                   <H3>Microsoft / Bing Accounts</H3>
                   <Field label="Microsoft account email (admin)" value={data.microsoft_admin_email ?? ""} onChange={(v) => set("microsoft_admin_email", v)} type="email" error={err(filled(data.microsoft_admin_email))} />
                   <P>Access to:</P>
-                  <div className={"grid grid-cols-1 md:grid-cols-2 gap-1 " + (err(["bing_webmaster", "ads"].every((k) => (data.microsoft_access ?? {})[k as keyof NonNullable<typeof data.microsoft_access>])) ? "rounded-md border-2 border-red-500 bg-red-50 px-2 py-1" : "")}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
                     {[
                       { k: "bing_webmaster", l: "Bing Webmaster Tools" },
                       { k: "ads", l: "Microsoft Ads" },

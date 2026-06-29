@@ -154,6 +154,26 @@ input, select, textarea, button { font-family: inherit; }
 [data-theme="light"] .text-amber-300 { color: #92400e; }   /* amber-800 */
 [data-theme="light"] .text-amber-400 { color: #b45309; }   /* amber-700 */
 
+/* Client-color palette (admin dashboard legend, Upcoming card, calendar
+   event chips). The *-300 weights are tuned for the dark canvas and look
+   washed out on the light grey one — F1 Media's slate chip in particular
+   becomes nearly invisible. Push each hue to a deeper -700/-800 on light
+   and bump the chip background opacity so the pill reads as a tinted chip
+   rather than near-white-on-white. */
+[data-theme="light"] .text-emerald-300 { color: #047857; }    /* emerald-700 */
+[data-theme="light"] .text-orange-300  { color: #c2410c; }    /* orange-700 */
+[data-theme="light"] .text-violet-300  { color: #6d28d9; }    /* violet-700 */
+[data-theme="light"] .text-sky-300     { color: #0369a1; }    /* sky-700 */
+[data-theme="light"] .text-rose-300    { color: #be123c; }    /* rose-700 */
+[data-theme="light"] .text-slate-300   { color: #334155; }    /* slate-700 */
+
+[data-theme="light"] .bg-emerald-500\/10 { background-color: rgba(16, 185, 129, 0.18); }
+[data-theme="light"] .bg-orange-500\/10  { background-color: rgba(249, 115, 22, 0.18); }
+[data-theme="light"] .bg-violet-500\/10  { background-color: rgba(139, 92, 246, 0.18); }
+[data-theme="light"] .bg-sky-500\/10     { background-color: rgba(14, 165, 233, 0.18); }
+[data-theme="light"] .bg-rose-500\/10    { background-color: rgba(244, 63, 94, 0.18); }
+[data-theme="light"] .bg-slate-500\/10   { background-color: rgba(100, 116, 139, 0.18); }
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #1d2430; border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: #29313f; }

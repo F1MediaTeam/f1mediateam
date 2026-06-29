@@ -265,7 +265,7 @@ export default function OnboardingGate({ version, userName, preview = false }: P
   const canAdvance = validatePage(page);
 
   function submit() {
-    if (!accepted) return;
+    if (!preview && !accepted) return;
     const enriched: OnboardingData = { ...data, uploaded_asset_filenames: files.map((f) => f.name) };
     if (preview) {
       // eslint-disable-next-line no-console
@@ -285,7 +285,8 @@ export default function OnboardingGate({ version, userName, preview = false }: P
   }
 
   function next() {
-    if (!canAdvance) {
+    // Preview mode skips validation so you can click through every page.
+    if (!preview && !canAdvance) {
       setAttempted(true);
       // Scroll to the first red-outlined field so the customer sees what's missing.
       requestAnimationFrame(() => {
@@ -922,8 +923,8 @@ export default function OnboardingGate({ version, userName, preview = false }: P
           <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-black/10 px-10 py-4 flex items-center justify-between">
             <button type="button" onClick={back} disabled={page === 0 || pending} className="rounded-lg border border-black/20 px-5 py-2 text-sm font-medium text-black hover:bg-black/5 disabled:opacity-40 disabled:cursor-not-allowed">← Back</button>
             <div className="text-center">
-              <div className="text-xs text-black/55 font-mono">{page + 1} / {PAGES.length} · {PAGES[page]} · v{version}</div>
-              {!canAdvance ? (
+              <div className="text-xs text-black/55 font-mono">{page + 1} / {PAGES.length} · {PAGES[page]}</div>
+              {!preview && !canAdvance ? (
                 <div className="mt-1 text-[11px] text-red-600 font-medium">Complete every field on this page to continue.</div>
               ) : null}
             </div>
@@ -933,7 +934,7 @@ export default function OnboardingGate({ version, userName, preview = false }: P
               <button
                 type="button"
                 onClick={() => {
-                  if (!canAdvance) {
+                  if (!preview && !canAdvance) {
                     setAttempted(true);
                     requestAnimationFrame(() => {
                       const firstMissing = document.querySelector(".onboarding-body .\\!border-red-500, .onboarding-body .border-red-500");

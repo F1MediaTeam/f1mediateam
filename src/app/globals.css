@@ -166,6 +166,18 @@ input, select, textarea, button { font-family: inherit; }
 [data-theme="light"] .text-sky-300     { color: #0369a1; }    /* sky-700 */
 [data-theme="light"] .text-rose-300    { color: #be123c; }    /* rose-700 */
 [data-theme="light"] .text-slate-300   { color: #334155; }    /* slate-700 */
+[data-theme="light"] .text-blue-300    { color: #1d4ed8; }    /* blue-700  — GSC clicks */
+[data-theme="light"] .text-purple-300  { color: #7e22ce; }    /* purple-700 — GSC impressions */
+[data-theme="light"] .text-teal-300    { color: #0f766e; }    /* teal-700  — GSC CTR */
+[data-theme="light"] .text-cyan-300    { color: #0e7490; }    /* cyan-700 */
+[data-theme="light"] .text-indigo-300  { color: #4338ca; }    /* indigo-700 */
+[data-theme="light"] .text-fuchsia-300 { color: #a21caf; }    /* fuchsia-700 */
+[data-theme="light"] .text-pink-300    { color: #be185d; }    /* pink-700 */
+[data-theme="light"] .text-lime-300    { color: #4d7c0f; }    /* lime-700 */
+[data-theme="light"] .text-yellow-300  { color: #a16207; }    /* yellow-700 */
+[data-theme="light"] .text-green-300   { color: #15803d; }    /* green-700 */
+[data-theme="light"] .text-red-300     { color: #b91c1c; }    /* red-700 — "down" deltas, delete hover */
+[data-theme="light"] .text-red-400     { color: #b91c1c; }
 
 [data-theme="light"] .bg-emerald-500\/10 { background-color: rgba(16, 185, 129, 0.18); }
 [data-theme="light"] .bg-orange-500\/10  { background-color: rgba(249, 115, 22, 0.18); }

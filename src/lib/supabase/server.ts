@@ -4,6 +4,7 @@
 
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { createClient as createPlainClient } from "@supabase/supabase-js";
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -34,6 +35,12 @@ export async function createClient() {
 // Service-role client for admin-only operations (bypasses RLS).
 // Only call this from server actions / route handlers that have already
 // authorized the caller. Never expose this to the browser.
+//
+// Uses the plain @supabase/supabase-js client — NOT @supabase/ssr — so the
+// caller's auth cookie isn't attached to the request. The ssr wrapper sends
+// the user's JWT as the Authorization header even when given a service key,
+// which downgrades the effective role to `authenticated` and storage RLS
+// then rejects the upload.
 export async function createServiceClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key) {
@@ -42,14 +49,14 @@ export async function createServiceClient() {
         "Grab it from Supabase Dashboard → Project Settings → API → Secret keys.",
     );
   }
-  const cookieStore = await cookies();
-  return createServerClient(
+  return createPlainClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     key,
     {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() { /* no-op — service role doesn't need a user session */ },
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
       },
     },
   );

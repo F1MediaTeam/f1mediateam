@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { randomUUID } from "node:crypto";
 import { data, usingMock } from "@/lib/data";
 import { requireClient } from "@/lib/auth/session";
@@ -316,6 +317,23 @@ export async function submitOnboardingAction(formData: FormData) {
   // Render the answers as a PDF and store it under client-attachments so
   // the client can download it from their Settings page later. Also upload
   // any brand-asset files that were dropped on the final wizard page.
+  // Best-effort geolocation of the submission — pulled from Vercel's edge
+  // headers so the PDF cover shows where the client clicked Submit from.
+  const hdrs = await headers();
+  const ip =
+    hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    hdrs.get("x-real-ip") ||
+    null;
+  const city = hdrs.get("x-vercel-ip-city");
+  const region = hdrs.get("x-vercel-ip-country-region");
+  const country = hdrs.get("x-vercel-ip-country");
+  const locationParts = [
+    city ? decodeURIComponent(city) : null,
+    region || null,
+    country || null,
+  ].filter(Boolean);
+  const submittedLocation = locationParts.length > 0 ? locationParts.join(", ") : null;
+
   try {
     const client = await data.getClient(session.client_id);
     const { renderOnboardingPdf } = await import("@/lib/onboarding-pdf");
@@ -324,6 +342,8 @@ export async function submitOnboardingAction(formData: FormData) {
       submittedAt: row?.submitted_at ?? new Date().toISOString(),
       data: parsed as unknown as OnboardingDataLike,
       termsVersion: DISCLAIMER_VERSION,
+      submittedLocation,
+      submittedIp: ip,
     });
     const service = await createServiceClient();
     const stamp = new Date().toISOString().slice(0, 10);

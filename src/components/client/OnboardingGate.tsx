@@ -1009,24 +1009,31 @@ export default function OnboardingGate({ version, userName, preview = false }: P
             {page < PAGES.length - 1 ? (
               <button type="button" onClick={next} className="rounded-lg bg-black px-6 py-2 text-sm font-semibold text-white hover:bg-black/90">Next page →</button>
             ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  if (!preview && !canAdvance) {
-                    setAttempted(true);
-                    requestAnimationFrame(() => {
-                      const firstMissing = document.querySelector(".onboarding-body .\\!border-red-500, .onboarding-body .border-red-500");
-                      firstMissing?.scrollIntoView({ behavior: "smooth", block: "center" });
-                    });
-                    return;
-                  }
-                  submit();
-                }}
-                disabled={pending}
-                className="rounded-lg bg-[#3F8E84] px-6 py-2 text-sm font-semibold text-white hover:bg-[#3F8E84]/90 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {pending ? "Submitting…" : "Submit onboarding"}
-              </button>
+              <div className="flex flex-col items-end gap-1">
+                {!preview && !accepted ? (
+                  <div className="text-[11px] text-red-600 font-medium">
+                    You must check the Terms of Service &amp; Privacy Policy box to submit.
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!preview && !canAdvance) {
+                      setAttempted(true);
+                      requestAnimationFrame(() => {
+                        const firstMissing = document.querySelector(".onboarding-body .\\!border-red-500, .onboarding-body .border-red-500");
+                        firstMissing?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      });
+                      return;
+                    }
+                    submit();
+                  }}
+                  disabled={pending || (!preview && !accepted)}
+                  className="rounded-lg bg-[#3F8E84] px-6 py-2 text-sm font-semibold text-white hover:bg-[#3F8E84]/90 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {pending ? "Submitting…" : "Submit onboarding"}
+                </button>
+              </div>
             )}
           </div>
         </div>

@@ -560,8 +560,8 @@ export default function OnboardingGate({ version, userName, preview = false }: P
                         </>,
                         active: data.perf_other_active },
                     ] as const).map(({ key, label, fields, active }) => (
-                      <div key={key} className={"rounded-lg border " + (active ? "border-black/15 bg-white p-3" : "border-black/10 p-3")}>
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <div key={key}>
+                        <label className="flex items-center gap-2 cursor-pointer select-none mb-2">
                           <input
                             type="checkbox"
                             checked={Boolean(active)}
@@ -570,7 +570,7 @@ export default function OnboardingGate({ version, userName, preview = false }: P
                           />
                           <span className="text-xs font-bold uppercase text-black/70">{label}</span>
                         </label>
-                        {active ? <div className="mt-3 space-y-3">{fields}</div> : null}
+                        <div className="space-y-3 pl-6">{fields}</div>
                       </div>
                     ))}
                   </div>

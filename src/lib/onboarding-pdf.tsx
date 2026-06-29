@@ -1060,7 +1060,7 @@ function Doc6Assets({ d, termsVersion }: { d: OnboardingData; termsVersion: stri
       </SectionCard>
 
       <SectionCard eyebrow="3. Terms Acknowledgement">
-        <CheckboxLine label={`I have read and agree to the F1 Media portal terms (version ${termsVersion}).`} checked={true} />
+        <CheckboxLine label="I have read and agree to the F1 Media portal terms." checked={true} />
       </SectionCard>
     </View>
   );

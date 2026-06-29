@@ -12,6 +12,9 @@ import type { OnboardingData } from "@/lib/types";
 interface Props {
   version: string;
   userName: string;
+  /** When true, Submit does NOT call the server action — it logs the answers
+   *  to console + shows a success alert. Used by /admin/preview/onboarding. */
+  preview?: boolean;
 }
 
 // ---------- shared field primitives ----------
@@ -108,7 +111,7 @@ const SOCIAL_PLATFORMS: { key: string; label: string; urlLabel: string }[] = [
 
 const PAGES = ["Account Access", "Company Bio", "Contacts", "Growth Strategy", "Services & Locations", "Brand Assets & Terms"] as const;
 
-export default function OnboardingGate({ version, userName }: Props) {
+export default function OnboardingGate({ version, userName, preview = false }: Props) {
   const [pending, start] = useTransition();
   const [page, setPage] = useState(0);
   const [data, setData] = useState<OnboardingData>({
@@ -264,6 +267,16 @@ export default function OnboardingGate({ version, userName }: Props) {
   function submit() {
     if (!accepted) return;
     const enriched: OnboardingData = { ...data, uploaded_asset_filenames: files.map((f) => f.name) };
+    if (preview) {
+      // eslint-disable-next-line no-console
+      console.log("[onboarding preview] would submit:", enriched, "files:", files.map((f) => f.name));
+      window.alert(
+        "Preview mode — nothing was actually submitted.\n\n" +
+          `Captured ${Object.keys(enriched).length} fields and ${files.length} files. ` +
+          "Check the browser console for the full payload.",
+      );
+      return;
+    }
     const fd = new FormData();
     fd.set("data", JSON.stringify(enriched));
     fd.set("accepted_terms", "on");

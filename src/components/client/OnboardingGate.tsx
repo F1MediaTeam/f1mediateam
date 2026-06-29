@@ -335,22 +335,27 @@ export default function OnboardingGate({ version, userName, preview = false }: P
       <div className="w-full max-w-5xl my-4 rounded-2xl shadow-[0_30px_80px_-10px_rgba(0,0,0,0.6)] overflow-hidden border border-white/10 bg-white">
         <div className="relative px-7 py-5 flex items-center justify-between border-b border-black/10" style={{ background: "radial-gradient(120% 200% at 50% -20%, #e2e2e2 0%, #b4b4b4 60%, #8c8c8c 100%)" }}>
           <div role="img" aria-label="F1 Media Team" className="bg-no-repeat bg-center" style={{ height: 56, width: 200, backgroundImage: "url(/logo-dark.png)", backgroundSize: "220px auto" }} />
-          <div className="text-right">
-            <div className="text-[10px] uppercase tracking-[0.25em] text-black/55 font-mono">Onboarding</div>
-            <div className="text-sm font-semibold text-black mt-0.5 flex items-center justify-end gap-2">
-              <span>Welcome, {userName}</span>
+          <div className="text-right flex flex-col items-end">
+            <div className="flex items-center gap-3">
+              <div className="text-[10px] uppercase tracking-[0.25em] text-black/55 font-mono">Onboarding</div>
               {preview ? null : (
                 <form action={signOutAction}>
                   <button
                     type="submit"
-                    className="rounded-md bg-red-600 hover:bg-red-700 px-3 py-1.5 text-[10px] uppercase tracking-widest font-semibold text-white shadow-sm transition"
                     title="Sign out and return to login"
+                    className="group inline-flex items-center gap-1.5 rounded-full border border-red-600/40 bg-transparent px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] font-semibold text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600 transition-colors"
                   >
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M15 17l5-5-5-5" />
+                      <path d="M20 12H9" />
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    </svg>
                     Sign out
                   </button>
                 </form>
               )}
             </div>
+            <div className="text-sm font-semibold text-black mt-0.5">Welcome, {userName}</div>
             <ProgressDots />
           </div>
         </div>

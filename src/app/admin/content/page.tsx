@@ -78,14 +78,25 @@ export default async function AdminContent({
             three columns side-by-side. */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 mb-8 items-stretch">
           {STAGES.map(({ stage, label, tone }) => {
-            const col = cards.filter((c) => c.stage === stage);
-            const changeReqCount =
+            const rawCol = cards.filter((c) => c.stage === stage);
+            const hasOpenChangeRequest = (id: string) => {
+              const ev = (eventsByCard.get(id) ?? [])[0];
+              return Boolean(ev && (ev.note ?? "").startsWith("CHANGES REQUESTED"));
+            };
+            // Float change-requested cards to the top of Proposed; once the
+            // request is resolved (admin replies or advances the card) the
+            // card naturally falls back into normal updated_at order.
+            const col =
               stage === "proposed"
-                ? col.filter((c) => {
-                    const ev = (eventsByCard.get(c.id) ?? [])[0];
-                    return ev && (ev.note ?? "").startsWith("CHANGES REQUESTED");
-                  }).length
-                : 0;
+                ? [...rawCol].sort((a, b) => {
+                    const aReq = hasOpenChangeRequest(a.id) ? 1 : 0;
+                    const bReq = hasOpenChangeRequest(b.id) ? 1 : 0;
+                    if (aReq !== bReq) return bReq - aReq;
+                    return b.updated_at.localeCompare(a.updated_at);
+                  })
+                : rawCol;
+            const changeReqCount =
+              stage === "proposed" ? col.filter((c) => hasOpenChangeRequest(c.id)).length : 0;
             return (
               <Card key={stage} className="flex flex-col h-full">
                 <CardHeader

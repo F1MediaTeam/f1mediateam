@@ -630,10 +630,10 @@ export default function OnboardingGate({ version, userName, preview = false }: P
 
                 <Section title="4. Additional Strategic Insights (Optional but Recommended)">
                   <P>The following help us identify your ideal positioning and growth lanes:</P>
-                  <Area label="Who is your ideal client?" value={data.ideal_client ?? ""} onChange={(v) => set("ideal_client", v)} error={err(filled(data.ideal_client))} />
-                  <Area label="What type of cases generate the highest revenue?" value={data.highest_revenue_cases ?? ""} onChange={(v) => set("highest_revenue_cases", v)} error={err(filled(data.highest_revenue_cases))} />
-                  <Area label="What type of cases do you prefer not to take?" value={data.cases_to_avoid ?? ""} onChange={(v) => set("cases_to_avoid", v)} error={err(filled(data.cases_to_avoid))} />
-                  <Area label="What markets feel saturated?" value={data.saturated_markets ?? ""} onChange={(v) => set("saturated_markets", v)} error={err(filled(data.saturated_markets))} />
+                  <Area label="Who is your ideal customer?" value={data.ideal_client ?? ""} onChange={(v) => set("ideal_client", v)} error={err(filled(data.ideal_client))} />
+                  <Area label="Which products or services drive the most revenue?" value={data.highest_revenue_cases ?? ""} onChange={(v) => set("highest_revenue_cases", v)} error={err(filled(data.highest_revenue_cases))} />
+                  <Area label="Are there any customers or projects you prefer not to take on?" value={data.cases_to_avoid ?? ""} onChange={(v) => set("cases_to_avoid", v)} error={err(filled(data.cases_to_avoid))} />
+                  <Area label="Which markets or segments feel saturated?" value={data.saturated_markets ?? ""} onChange={(v) => set("saturated_markets", v)} error={err(filled(data.saturated_markets))} />
                   <Area label="Where do you see the greatest growth opportunity?" value={data.growth_opportunity ?? ""} onChange={(v) => set("growth_opportunity", v)} error={err(filled(data.growth_opportunity))} />
                 </Section>
               </div>

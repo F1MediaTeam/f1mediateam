@@ -858,10 +858,10 @@ function Doc2Bio({ d }: { d: OnboardingData }) {
       </SectionCard>
 
       <SectionCard eyebrow="4. Additional Strategic Insights (Optional but Recommended)">
-        <FormField label="Who is your ideal client?" value={safeStr(d.ideal_client)} area />
-        <FormField label="What type of cases generate the highest revenue?" value={safeStr(d.highest_revenue_cases)} area />
-        <FormField label="What type of cases do you prefer not to take?" value={safeStr(d.cases_to_avoid)} area />
-        <FormField label="What markets feel saturated?" value={safeStr(d.saturated_markets)} area />
+        <FormField label="Who is your ideal customer?" value={safeStr(d.ideal_client)} area />
+        <FormField label="Which products or services drive the most revenue?" value={safeStr(d.highest_revenue_cases)} area />
+        <FormField label="Are there any customers or projects you prefer not to take on?" value={safeStr(d.cases_to_avoid)} area />
+        <FormField label="Which markets or segments feel saturated?" value={safeStr(d.saturated_markets)} area />
         <FormField label="Where do you see the greatest growth opportunity?" value={safeStr(d.growth_opportunity)} area />
       </SectionCard>
     </View>

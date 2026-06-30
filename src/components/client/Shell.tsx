@@ -32,8 +32,8 @@ export default async function ClientShell({
     <div className="min-h-screen">
       {session.is_impersonating ? <ImpersonationBanner clientName={client.company_name} /> : null}
       <header className="border-b border-[var(--color-border)] bg-[var(--color-bg-elev)]/70 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-6">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 justify-self-start">
             <Link href="/client" aria-label="F1 Media Team — home" className="shrink-0">
               <Logo compact width={110} height={32} />
             </Link>
@@ -63,8 +63,8 @@ export default async function ClientShell({
               <span className="text-sm font-medium truncate hidden sm:inline">{client.company_name}</span>
             )}
           </div>
-          {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-1">
+          {/* Desktop nav — centered in the header */}
+          <nav className="hidden md:flex items-center gap-1 justify-self-center">
             {NAV.map((item) => (
               <Link
                 key={item.href}
@@ -80,7 +80,7 @@ export default async function ClientShell({
               </Link>
             ))}
           </nav>
-          <div className="flex items-center gap-1 sm:gap-2 text-xs">
+          <div className="flex items-center gap-1 sm:gap-2 text-xs justify-self-end">
             <Suspense fallback={<div className="w-9 h-9" />}>
               <NotificationBell clientId={client.id} />
             </Suspense>

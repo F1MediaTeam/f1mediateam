@@ -160,6 +160,7 @@ export default function OnboardingGate({ version, userName, preview = false }: P
     } catch { return false; }
   });
   const [files, setFiles] = useState<File[]>([]);
+  const [dragging, setDragging] = useState(false);
   const [attempted, setAttempted] = useState(false); // user tried to advance with missing fields
 
   // Persist on any change so refresh / accidental close don't drop the work.
@@ -374,7 +375,11 @@ export default function OnboardingGate({ version, userName, preview = false }: P
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-start justify-center px-4 py-6 overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-start justify-center px-4 py-6 overflow-y-auto"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => e.preventDefault()}
+    >
       <div className="w-full max-w-5xl my-4 rounded-2xl shadow-[0_30px_80px_-10px_rgba(0,0,0,0.6)] overflow-hidden border border-white/10 bg-white">
         <div className="relative px-7 py-5 flex items-center justify-between border-b border-black/10" style={{ background: "radial-gradient(120% 200% at 50% -20%, #e2e2e2 0%, #b4b4b4 60%, #8c8c8c 100%)" }}>
           <div role="img" aria-label="F1 Media Team" className="bg-no-repeat bg-center" style={{ height: 56, width: 200, backgroundImage: "url(/logo-dark.png)", backgroundSize: "220px auto" }} />
@@ -965,9 +970,24 @@ export default function OnboardingGate({ version, userName, preview = false }: P
                     tabIndex={0}
                     onClick={() => document.getElementById("brand-assets-input")?.click()}
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") document.getElementById("brand-assets-input")?.click(); }}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) setFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]); }}
-                    className={"cursor-pointer rounded-xl border-2 border-dashed bg-[#F8FAFC] hover:bg-white px-6 py-10 text-center transition " + (err(files.length > 0) ? "border-red-500 bg-red-50" : "border-black/25")}
+                    onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDragging(true); }}
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "copy"; setDragging(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); if (e.currentTarget === e.target) setDragging(false); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragging(false);
+                      const dropped = Array.from(e.dataTransfer.files ?? []);
+                      if (dropped.length) setFiles((prev) => [...prev, ...dropped]);
+                    }}
+                    className={
+                      "cursor-pointer rounded-xl border-2 border-dashed px-6 py-10 text-center transition " +
+                      (dragging
+                        ? "border-[#3F8E84] bg-[#3F8E84]/10"
+                        : err(files.length > 0)
+                        ? "border-red-500 bg-red-50"
+                        : "border-black/25 bg-[#F8FAFC] hover:bg-white")
+                    }
                   >
                     <div className="text-sm font-semibold text-black">Drop your logos, brand assets, photos, or videos here</div>
                     <div className="mt-1 text-[11px] text-black/60">or click to browse · .AI / .EPS / .SVG / .PDF / .PNG / .JPG / video</div>

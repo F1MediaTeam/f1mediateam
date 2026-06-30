@@ -3,8 +3,6 @@ import Image from "next/image";
 import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
-import { Stat } from "@/components/ui";
-import { formatPercentChange, formatNumber } from "@/lib/utils";
 import { createClientAction } from "../actions";
 import Time from "@/components/shared/Time";
 import DeleteClientButton from "@/components/admin/DeleteClientButton";
@@ -38,22 +36,7 @@ export default async function AdminClients() {
 }
 
 async function ClientCard({ client: c }: { client: Client }) {
-  const [baselineClicks, latestClicks, baselineSess, latestSess, logos] = await Promise.all([
-    data.getBaseline(c.id, "clicks"),
-    data.getLatest(c.id, "clicks"),
-    data.getBaseline(c.id, "sessions"),
-    data.getLatest(c.id, "sessions"),
-    getClientBrandLogoUrls(c.id, c.company_name),
-  ]);
-
-  const clicksChange =
-    baselineClicks && latestClicks
-      ? formatPercentChange(baselineClicks.value, latestClicks.value)
-      : null;
-  const sessChange =
-    baselineSess && latestSess
-      ? formatPercentChange(baselineSess.value, latestSess.value)
-      : null;
+  const logos = await getClientBrandLogoUrls(c.id, c.company_name);
 
   const website = c.websites[0] ?? "";
   const websiteLabel = website.replace(/^https?:\/\//, "").replace(/\/$/, "");
@@ -98,21 +81,6 @@ async function ClientCard({ client: c }: { client: Client }) {
               {c.company_name}
             </div>
           )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <Stat
-            label="Clicks"
-            value={formatNumber(latestClicks?.value ?? 0)}
-            trend={clicksChange ? { direction: clicksChange.direction, label: clicksChange.label } : undefined}
-            sub={`vs ${formatNumber(baselineClicks?.value ?? 0)} baseline`}
-          />
-          <Stat
-            label="Sessions"
-            value={formatNumber(latestSess?.value ?? 0)}
-            trend={sessChange ? { direction: sessChange.direction, label: sessChange.label } : undefined}
-            sub={`vs ${formatNumber(baselineSess?.value ?? 0)} baseline`}
-          />
         </div>
 
         <div className="text-xs text-[var(--color-text-muted)] flex items-center justify-between">

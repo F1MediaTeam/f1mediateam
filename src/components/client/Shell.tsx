@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { signOutAction } from "@/app/login/actions";
 import Logo from "@/components/shared/Logo";
 import MobileNavMenu from "@/components/shared/MobileNavMenu";
 import ThemeToggle from "@/components/shared/ThemeToggle";
@@ -86,9 +85,6 @@ export default async function ClientShell({
               <NotificationBell clientId={client.id} />
             </Suspense>
             <ThemeToggle />
-            <form action={signOutAction}>
-              <button className="text-[var(--color-text-muted)] hover:text-[var(--color-text)] px-2 py-1">Sign out</button>
-            </form>
             {/* Mobile hamburger — shows the same nav items as desktop. */}
             <MobileNavMenu items={NAV} active={active} heading={client.company_name} />
           </div>

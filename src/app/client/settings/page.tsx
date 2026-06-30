@@ -72,9 +72,14 @@ export default async function ClientSettings() {
         />
       </div>
 
-      <div className="mt-8 flex justify-end">
+      <div className="mt-10 flex justify-end">
         <form action={signOutAction}>
-          <Button variant="secondary" type="submit">Sign out</Button>
+          <button
+            type="submit"
+            className="inline-flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-300 hover:bg-red-500 hover:text-white hover:border-red-500 transition-colors"
+          >
+            Sign out
+          </button>
         </form>
       </div>
     </ClientShell>

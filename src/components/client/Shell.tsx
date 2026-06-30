@@ -112,7 +112,6 @@ export default async function ClientShell({
             ))}
           </nav>
           <div className="flex items-center gap-1 sm:gap-2 text-xs">
-            <span className="text-[var(--color-text-muted)] hidden lg:block">{session.email}</span>
             <Suspense fallback={<div className="w-9 h-9" />}>
               <NotificationBell clientId={client.id} />
             </Suspense>

@@ -84,7 +84,7 @@ export default function OrganicKeywordsPanel({ clientId, embedded = false }: { c
       {open ? (
         <CardBody>
           {loading ? (
-            <div className="py-10 text-center text-sm text-[var(--color-text-muted)]">Loading keywords from SEMrush…</div>
+            <div className="py-10 text-center text-sm text-[var(--color-text-muted)]">Loading…</div>
           ) : error ? (
             <div className="py-6 text-center text-sm text-[var(--color-danger,#ef4444)]">{error}</div>
           ) : sorted.length === 0 ? (

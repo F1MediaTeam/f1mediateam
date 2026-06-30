@@ -1,5 +1,7 @@
 // Find brand-asset logos uploaded during onboarding for a client and return
-// short-lived signed URLs for the light- and dark-theme variants.
+// short-lived signed URLs for the light- and dark-theme variants. Falls back
+// to hard-coded static SVGs in public/ for the legacy clients we shipped with
+// before onboarding existed (matched by company-name substring).
 //
 // Filename heuristic, applied to the most recent ~20 brand-asset images:
 //   * "light" / "white" / "for-dark" / "on-dark" → dark-theme variant
@@ -28,7 +30,20 @@ function classify(filename: string): "dark" | "light" | "any" {
   return "any";
 }
 
-export async function getClientBrandLogoUrls(clientId: string): Promise<ClientLogoUrls> {
+// Static logos we shipped before the onboarding upload flow existed. The keys
+// are matched as case-insensitive substrings against client.company_name.
+const STATIC_FALLBACKS: Array<{ match: string; dark: string; light: string }> = [
+  { match: "buckets",            dark: "/buckets-logo-dark.svg",     light: "/buckets-logo-light.svg" },
+  { match: "precision graphics", dark: "/precision-graphics-logo.svg", light: "/precision-graphics-logo.svg" },
+];
+
+export function getStaticBrandFallback(companyName: string): ClientLogoUrls {
+  const n = companyName.toLowerCase();
+  const hit = STATIC_FALLBACKS.find((f) => n.includes(f.match));
+  return hit ? { dark: hit.dark, light: hit.light } : { dark: null, light: null };
+}
+
+export async function getClientBrandLogoUrls(clientId: string, companyName?: string): Promise<ClientLogoUrls> {
   const supabase = await createServiceClient();
   const { data: rows } = await supabase
     .from("files")
@@ -43,7 +58,9 @@ export async function getClientBrandLogoUrls(clientId: string): Promise<ClientLo
     if (mt.startsWith("image/")) return true;
     return /\.(png|jpe?g|svg|webp|gif)$/i.test(r.filename ?? "");
   });
-  if (candidates.length === 0) return { dark: null, light: null };
+  if (candidates.length === 0) {
+    return companyName ? getStaticBrandFallback(companyName) : { dark: null, light: null };
+  }
 
   let darkPick: typeof candidates[number] | null = null;
   let lightPick: typeof candidates[number] | null = null;

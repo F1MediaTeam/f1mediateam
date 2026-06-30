@@ -43,7 +43,7 @@ async function ClientCard({ client: c }: { client: Client }) {
     data.getLatest(c.id, "clicks"),
     data.getBaseline(c.id, "sessions"),
     data.getLatest(c.id, "sessions"),
-    getClientBrandLogoUrls(c.id),
+    getClientBrandLogoUrls(c.id, c.company_name),
   ]);
 
   const clicksChange =

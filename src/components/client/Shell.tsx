@@ -27,7 +27,7 @@ export default async function ClientShell({
   active?: string;
   children: React.ReactNode;
 }) {
-  const onboardingLogos = await getClientBrandLogoUrls(client.id);
+  const onboardingLogos = await getClientBrandLogoUrls(client.id, client.company_name);
   const hasOnboardingLogo = Boolean(onboardingLogos.dark || onboardingLogos.light);
   return (
     <div className="min-h-screen">
@@ -39,51 +39,30 @@ export default async function ClientShell({
               <Logo compact width={110} height={32} />
             </Link>
             <span className="text-[var(--color-border-strong)] hidden sm:inline">/</span>
-            {(() => {
-              // Onboarding upload wins (the client picked their own logo);
-              // fall back to the hard-coded brand logos we shipped before
-              // onboarding existed; final fallback is the company name text.
-              if (hasOnboardingLogo) {
-                return (
-                  <span className="hidden sm:flex shrink-0 items-center" style={{ width: 110, height: 32 }}>
-                    {onboardingLogos.dark ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={onboardingLogos.dark}
-                        alt={client.company_name}
-                        className="logo-dark object-contain object-left"
-                        style={{ width: 110, height: 32 }}
-                      />
-                    ) : null}
-                    {onboardingLogos.light ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={onboardingLogos.light}
-                        alt={client.company_name}
-                        className="logo-light object-contain object-left"
-                        style={{ width: 110, height: 32 }}
-                      />
-                    ) : null}
-                  </span>
-                );
-              }
-              const name = client.company_name.toLowerCase();
-              const logoVar = name.includes("buckets")
-                ? "var(--buckets-logo-img)"
-                : name.includes("precision graphics")
-                ? "url(/precision-graphics-logo.svg)"
-                : null;
-              return logoVar ? (
-                <div
-                  role="img"
-                  aria-label={client.company_name}
-                  className="hidden sm:block shrink-0 bg-no-repeat bg-left bg-contain"
-                  style={{ width: 110, height: 32, backgroundImage: logoVar }}
-                />
-              ) : (
-                <span className="text-sm font-medium truncate hidden sm:inline">{client.company_name}</span>
-              );
-            })()}
+            {hasOnboardingLogo ? (
+              <span className="hidden sm:flex shrink-0 items-center" style={{ width: 110, height: 32 }}>
+                {onboardingLogos.dark ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={onboardingLogos.dark}
+                    alt={client.company_name}
+                    className="logo-dark object-contain object-left"
+                    style={{ width: 110, height: 32 }}
+                  />
+                ) : null}
+                {onboardingLogos.light ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={onboardingLogos.light}
+                    alt={client.company_name}
+                    className="logo-light object-contain object-left"
+                    style={{ width: 110, height: 32 }}
+                  />
+                ) : null}
+              </span>
+            ) : (
+              <span className="text-sm font-medium truncate hidden sm:inline">{client.company_name}</span>
+            )}
           </div>
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1">

@@ -14,6 +14,7 @@
 // both <img> tags and toggle visibility via [data-theme] selectors so the
 // theme switch is instant (no re-fetch).
 
+import { cache } from "react";
 import { createServiceClient } from "@/lib/supabase/server";
 
 const BUCKET = "client-attachments";
@@ -43,7 +44,9 @@ export function getStaticBrandFallback(companyName: string): ClientLogoUrls {
   return hit ? { dark: hit.dark, light: hit.light } : { dark: null, light: null };
 }
 
-export async function getClientBrandLogoUrls(clientId: string, companyName?: string): Promise<ClientLogoUrls> {
+// Per-request memoized: Shell is mounted by every /client/* page, and we don't
+// want a fresh files-table query + signed-URL pair per render of the same path.
+export const getClientBrandLogoUrls = cache(async (clientId: string, companyName?: string): Promise<ClientLogoUrls> => {
   const supabase = await createServiceClient();
   const { data: rows } = await supabase
     .from("files")
@@ -80,10 +83,13 @@ export async function getClientBrandLogoUrls(clientId: string, companyName?: str
 
   async function sign(path: string | undefined): Promise<string | null> {
     if (!path) return null;
-    const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60);
+    // 24h TTL — the URL is rebuilt on every cold path render anyway, and a
+    // longer window means re-rendering the same dashboard reuses the existing
+    // signed URL via the React.cache() wrapper for the function body.
+    const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60 * 24);
     return signed?.signedUrl ?? null;
   }
 
   const [dark, light] = await Promise.all([sign(darkPick?.storage_path), sign(lightPick?.storage_path)]);
   return { dark, light };
-}
+});

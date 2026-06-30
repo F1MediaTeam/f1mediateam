@@ -1,6 +1,7 @@
 // Auth session reader. Reads the current Supabase user + profile row and
 // returns the Session shape used everywhere in the app.
 
+import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -27,7 +28,12 @@ function decodeMock(v: string): Session | null {
   }
 }
 
-export async function getSession(): Promise<Session | null> {
+// React.cache() dedupes within a single React render: layout + page + Shell
+// all call getSession() but only one Supabase auth.getUser() + profiles read
+// fires per request now.
+export const getSession = cache(_getSession);
+
+async function _getSession(): Promise<Session | null> {
   if (usingMock) {
     const jar = await cookies();
     const c = jar.get(MOCK_COOKIE);

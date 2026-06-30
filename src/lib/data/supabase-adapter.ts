@@ -3,6 +3,7 @@
 // the multi-tenancy; admin operations rely on the admin role's full-table
 // policies that we shipped in 0002_rls_policies.sql.
 
+import { cache } from "react";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import type {
   CalendarEvent,
@@ -134,13 +135,14 @@ export async function logLogin(
 
 // ---------- profiles ----------
 
-export async function getProfile(userId: UUID): Promise<Profile | null> {
+// Per-request memoized: layout + page + Shell all read the same profile.
+export const getProfile = cache(async (userId: UUID): Promise<Profile | null> => {
   const supabase = await createClient();
   const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
   return (data as Profile) ?? null;
-}
+});
 
-export async function getClientUser(clientId: UUID): Promise<Profile | null> {
+export const getClientUser = cache(async (clientId: UUID): Promise<Profile | null> => {
   // Returns the customer-side user assigned to this client (if any). Used to
   // decide whether to show the "create customer account" form on a client's
   // admin profile page, or the content board (because the account exists).
@@ -152,7 +154,7 @@ export async function getClientUser(clientId: UUID): Promise<Profile | null> {
     .eq("role", "client")
     .maybeSingle();
   return (data as Profile) ?? null;
-}
+});
 
 // ---------- clients ----------
 
@@ -165,11 +167,11 @@ export async function listClients(): Promise<Client[]> {
   return (data as Client[]) ?? [];
 }
 
-export async function getClient(id: UUID): Promise<Client | null> {
+export const getClient = cache(async (id: UUID): Promise<Client | null> => {
   const supabase = await createClient();
   const { data } = await supabase.from("clients").select("*").eq("id", id).single();
   return (data as Client) ?? null;
-}
+});
 
 export async function updateClientConfig(
   id: UUID,
@@ -391,6 +393,35 @@ export async function listSnapshots(filter: {
   return (data as MetricSnapshot[]) ?? [];
 }
 
+// Batched variant: one round trip for several metrics on the same client,
+// partitioned by metric on return. Used by the dashboard's GSC chart which
+// needs clicks/impressions/avg_position/ctr together.
+export async function listSnapshotsByMetrics(filter: {
+  clientId: UUID;
+  metrics: string[];
+  from?: string;
+  to?: string;
+}): Promise<Map<string, MetricSnapshot[]>> {
+  const out = new Map<string, MetricSnapshot[]>();
+  if (filter.metrics.length === 0) return out;
+  const supabase = await createClient();
+  let q = supabase
+    .from("metric_snapshots")
+    .select("*")
+    .eq("client_id", filter.clientId)
+    .in("metric", filter.metrics)
+    .order("captured_at", { ascending: true });
+  if (filter.from) q = q.gte("captured_at", filter.from);
+  if (filter.to) q = q.lte("captured_at", filter.to);
+  const { data } = await q;
+  for (const m of filter.metrics) out.set(m, []);
+  for (const row of (data ?? []) as MetricSnapshot[]) {
+    const bucket = out.get(row.metric);
+    if (bucket) bucket.push(row);
+  }
+  return out;
+}
+
 export async function getBaseline(clientId: UUID, metric: string): Promise<MetricSnapshot | null> {
   const supabase = await createClient();
   const { data } = await supabase
@@ -541,6 +572,26 @@ export async function listContentEvents(cardId: UUID): Promise<ContentCardEvent[
     .eq("card_id", cardId)
     .order("created_at", { ascending: false });
   return (data as ContentCardEvent[]) ?? [];
+}
+
+// Batched variant: one round trip for a list of card IDs, partitioned by
+// card_id on return. Callers should prefer this over Promise.all over N
+// listContentEvents calls when rendering an entire board.
+export async function listContentEventsByCards(cardIds: UUID[]): Promise<Map<UUID, ContentCardEvent[]>> {
+  const out = new Map<UUID, ContentCardEvent[]>();
+  if (cardIds.length === 0) return out;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("content_card_events")
+    .select("*")
+    .in("card_id", cardIds)
+    .order("created_at", { ascending: false });
+  for (const id of cardIds) out.set(id, []);
+  for (const row of (data ?? []) as ContentCardEvent[]) {
+    const bucket = out.get(row.card_id);
+    if (bucket) bucket.push(row);
+  }
+  return out;
 }
 
 export async function createContent(input: {
@@ -764,7 +815,7 @@ export async function listAudit(filter?: {
 
 // ---------- disclaimer ----------
 
-export async function hasAcceptedDisclaimer(userId: UUID, version: string): Promise<boolean> {
+export const hasAcceptedDisclaimer = cache(async (userId: UUID, version: string): Promise<boolean> => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("disclaimer_acceptances")
@@ -773,7 +824,7 @@ export async function hasAcceptedDisclaimer(userId: UUID, version: string): Prom
     .eq("version", version)
     .maybeSingle();
   return Boolean(data);
-}
+});
 
 export async function recordDisclaimer(userId: UUID, version: string): Promise<void> {
   const supabase = await createClient();
@@ -784,7 +835,7 @@ export async function recordDisclaimer(userId: UUID, version: string): Promise<v
 
 // ---------- email prefs ----------
 
-export async function getEmailPref(userId: UUID): Promise<EmailPref> {
+export const getEmailPref = cache(async (userId: UUID): Promise<EmailPref> => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("email_prefs")
@@ -798,7 +849,7 @@ export async function getEmailPref(userId: UUID): Promise<EmailPref> {
       updated_at: new Date().toISOString(),
     }
   );
-}
+});
 
 export async function setEmailPref(userId: UUID, optedOut: boolean): Promise<EmailPref> {
   const supabase = await createClient();
@@ -837,7 +888,7 @@ export async function listImpersonations(filter: { clientId?: UUID; adminId?: UU
 
 // ---------- onboarding ----------
 
-export async function getOnboarding(clientId: UUID) {
+export const getOnboarding = cache(async (clientId: UUID) => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("client_onboarding")
@@ -853,11 +904,11 @@ export async function getOnboarding(clientId: UUID) {
     accepted_terms: boolean;
     submitted_at: string;
   } | null;
-}
+});
 
 // ---------- connectors ----------
 
-export async function listConnectors(clientId: UUID): Promise<ConnectorToken[]> {
+export const listConnectors = cache(async (clientId: UUID): Promise<ConnectorToken[]> => {
   // connector_tokens RLS is admin-only (sensitive). All callers are server-side
   // and gate access by clientId before invoking, so reading via the service
   // role is safe — without it, the on-demand /api/keywords and /api/gsc-breakdown
@@ -869,7 +920,7 @@ export async function listConnectors(clientId: UUID): Promise<ConnectorToken[]> 
     .select("*")
     .eq("client_id", clientId);
   return (data as ConnectorToken[]) ?? [];
-}
+});
 
 export async function deleteConnector(connectorId: UUID): Promise<void> {
   const supabase = await createServiceClient();

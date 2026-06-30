@@ -268,12 +268,15 @@ export default async function ClientHome() {
 // hands them to the interactive dashboard component. Falls back gracefully
 // when SEMrush isn't configured.
 async function GscSearchSection({ clientId }: { clientId: string }) {
-  const [clicks, impressions, position, ctr] = await Promise.all([
-    data.listSnapshots({ clientId, metric: "clicks" }),
-    data.listSnapshots({ clientId, metric: "impressions" }),
-    data.listSnapshots({ clientId, metric: "avg_position" }),
-    data.listSnapshots({ clientId, metric: "ctr" }),
-  ]);
+  // One round trip for all four series (was four parallel queries).
+  const grouped = await data.listSnapshotsByMetrics({
+    clientId,
+    metrics: ["clicks", "impressions", "avg_position", "ctr"],
+  });
+  const clicks = grouped.get("clicks") ?? [];
+  const impressions = grouped.get("impressions") ?? [];
+  const position = grouped.get("avg_position") ?? [];
+  const ctr = grouped.get("ctr") ?? [];
 
   // Most recent snapshot date across all series.
   const latest = [clicks, impressions, position]

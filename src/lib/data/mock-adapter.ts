@@ -324,6 +324,24 @@ export function listSnapshots(filter: {
     .sort((a, b) => a.captured_at.localeCompare(b.captured_at));
 }
 
+export function listSnapshotsByMetrics(filter: {
+  clientId: UUID;
+  metrics: string[];
+  from?: string;
+  to?: string;
+}): Map<string, MetricSnapshot[]> {
+  const out = new Map<string, MetricSnapshot[]>();
+  for (const m of filter.metrics) out.set(m, []);
+  const rows = getState()
+    .snapshots.filter((m) => m.client_id === filter.clientId)
+    .filter((m) => filter.metrics.includes(m.metric))
+    .filter((m) => (filter.from ? m.captured_at >= filter.from : true))
+    .filter((m) => (filter.to ? m.captured_at <= filter.to : true))
+    .sort((a, b) => a.captured_at.localeCompare(b.captured_at));
+  for (const r of rows) out.get(r.metric)?.push(r);
+  return out;
+}
+
 export function getBaseline(clientId: UUID, metric: string): MetricSnapshot | null {
   return (
     getState().snapshots.find(
@@ -377,6 +395,17 @@ export function listContentEvents(cardId: UUID): ContentCardEvent[] {
   return getState()
     .contentEvents.filter((e) => e.card_id === cardId)
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+export function listContentEventsByCards(cardIds: UUID[]): Map<UUID, ContentCardEvent[]> {
+  const out = new Map<UUID, ContentCardEvent[]>();
+  for (const id of cardIds) out.set(id, []);
+  for (const e of getState().contentEvents) {
+    const bucket = out.get(e.card_id);
+    if (bucket) bucket.push(e);
+  }
+  for (const bucket of out.values()) bucket.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return out;
 }
 
 export function createContent(input: {

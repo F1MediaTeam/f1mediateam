@@ -20,8 +20,8 @@ export default async function ClientContent() {
   const client = await data.getClient(session.client_id!);
   if (!client) return null;
   const cards = await data.listContent({ clientId: client.id });
-  const eventLists = await Promise.all(cards.map((c) => data.listContentEvents(c.id)));
-  const eventsByCard = new Map(cards.map((c, i) => [c.id, eventLists[i]]));
+  // Batched: one query instead of one-per-card (was an N+1).
+  const eventsByCard = await data.listContentEventsByCards(cards.map((c) => c.id));
 
   return (
     <ClientShell session={session} client={client} active="/client/content">

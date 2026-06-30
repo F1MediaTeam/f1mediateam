@@ -858,7 +858,12 @@ export async function getOnboarding(clientId: UUID) {
 // ---------- connectors ----------
 
 export async function listConnectors(clientId: UUID): Promise<ConnectorToken[]> {
-  const supabase = await createClient();
+  // connector_tokens RLS is admin-only (sensitive). All callers are server-side
+  // and gate access by clientId before invoking, so reading via the service
+  // role is safe — without it, the on-demand /api/keywords and /api/gsc-breakdown
+  // routes silently return empty for client-portal users (see resolveSite +
+  // fetchClientOrganicKeywords, which short-circuit when this returns []).
+  const supabase = await createServiceClient();
   const { data } = await supabase
     .from("connector_tokens")
     .select("*")

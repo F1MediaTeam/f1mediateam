@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
@@ -52,27 +51,23 @@ async function ClientCard({ client: c }: { client: Client }) {
           <div className="w-8" aria-hidden />
         </div>
 
-        <div className="my-5 flex h-24 items-center justify-center">
+        <div className="my-5 flex h-40 items-center justify-center px-2">
           {logos.dark || logos.light ? (
             <>
               {logos.dark ? (
-                <Image
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
                   src={logos.dark}
                   alt={`${c.company_name} logo`}
-                  width={220}
-                  height={88}
-                  unoptimized
-                  className="logo-dark max-h-24 w-auto object-contain"
+                  className="logo-dark max-h-full max-w-full object-contain"
                 />
               ) : null}
               {logos.light ? (
-                <Image
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
                   src={logos.light}
                   alt={`${c.company_name} logo`}
-                  width={220}
-                  height={88}
-                  unoptimized
-                  className="logo-light max-h-24 w-auto object-contain"
+                  className="logo-light max-h-full max-w-full object-contain"
                 />
               ) : null}
             </>

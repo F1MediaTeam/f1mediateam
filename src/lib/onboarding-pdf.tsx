@@ -538,7 +538,7 @@ function PageBand({
     <View style={styles.pageBand}>
       <View style={styles.pageBandLogoBox}>
         {logoBuf ? (
-          <Image src={logoBuf as unknown as string} style={styles.pageBandLogo} />
+          <Image alt="" src={logoBuf as unknown as string} style={styles.pageBandLogo} />
         ) : (
           <Text style={styles.pageBandLogoFallback}>F1 / MEDIA TEAM</Text>
         )}

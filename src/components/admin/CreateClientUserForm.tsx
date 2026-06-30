@@ -49,7 +49,7 @@ export default function CreateClientUserForm({ clientId }: { clientId: string })
       </div>
       <label className="block">
         <span className="block text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1.5">
-          Initial password (give to customer; they'll change it after first sign-in)
+          Initial password (give to customer; they&apos;ll change it after first sign-in)
         </span>
         <div className="flex gap-2">
           <input

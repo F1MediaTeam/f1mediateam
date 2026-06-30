@@ -20,11 +20,11 @@ export default async function ClientLayout({ children }: { children: React.React
             Account pending
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            You don't have a company assigned yet
+            You don&apos;t have a company assigned yet
           </h1>
           <p className="mt-3 text-sm text-[var(--color-text-muted)]">
             Your account manager needs to link your sign-in to a client company.
-            Once that's done, refresh this page to see your dashboard.
+            Once that&apos;s done, refresh this page to see your dashboard.
           </p>
           <form action={signOutAction} className="mt-6">
             <button className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">

@@ -3,6 +3,7 @@ import { data } from "@/lib/data";
 import ClientShell from "@/components/client/Shell";
 import { Card, CardBody, CardHeader, Button } from "@/components/ui";
 import { setEmailPrefAction } from "../actions";
+import { signOutAction } from "@/app/login/actions";
 import Time from "@/components/shared/Time";
 import OnboardingDownloadsCard from "@/components/client/OnboardingDownloadsCard";
 import SignInHistoryCard from "@/components/client/SignInHistoryCard";
@@ -69,6 +70,12 @@ export default async function ClientSettings() {
           clientName={client.company_name}
           submittedAt={onboarding?.submitted_at ?? null}
         />
+      </div>
+
+      <div className="mt-8 flex justify-end">
+        <form action={signOutAction}>
+          <Button variant="secondary" type="submit">Sign out</Button>
+        </form>
       </div>
     </ClientShell>
   );

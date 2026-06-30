@@ -53,7 +53,7 @@ export default async function AdminContent({
               Content approvals
             </div>
             <h1 className="text-3xl font-semibold tracking-tight mt-1">
-              Proposed → Pending → Posted
+              Content
             </h1>
           </div>
           <div className="flex items-center gap-2 flex-wrap">

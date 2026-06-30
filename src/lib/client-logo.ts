@@ -15,9 +15,28 @@
 // theme switch is instant (no re-fetch).
 
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 
 const BUCKET = "client-attachments";
+
+// Sign a storage URL and cache the result in Next.js's data cache, keyed by
+// path. The URL is valid for 7 days; we cache for 6 days so the same URL is
+// returned across requests, which means the browser's image cache + Vercel's
+// edge cache both hit for the entire window. Without this every request would
+// produce a fresh signed URL (new query string), invalidating browser cache
+// and forcing a full re-download of every logo on every page load.
+const signLogoUrl = unstable_cache(
+  async (path: string): Promise<string | null> => {
+    const supabase = await createServiceClient();
+    const { data: signed } = await supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(path, 60 * 60 * 24 * 7);
+    return signed?.signedUrl ?? null;
+  },
+  ["client-logo-signed-url"],
+  { revalidate: 60 * 60 * 24 * 6, tags: ["client-logos"] },
+);
 
 export interface ClientLogoUrls {
   dark: string | null;  // shown on dark theme (logo art is light-colored)
@@ -47,8 +66,8 @@ export function getStaticBrandFallback(companyName: string): ClientLogoUrls {
 // Per-request memoized: Shell is mounted by every /client/* page, and we don't
 // want a fresh files-table query + signed-URL pair per render of the same path.
 export const getClientBrandLogoUrls = cache(async (clientId: string, companyName?: string): Promise<ClientLogoUrls> => {
-  const supabase = await createServiceClient();
-  const { data: rows } = await supabase
+  const filesClient = await createServiceClient();
+  const { data: rows } = await filesClient
     .from("files")
     .select("storage_path, mime_type, filename, created_at")
     .eq("client_id", clientId)
@@ -81,16 +100,12 @@ export const getClientBrandLogoUrls = cache(async (clientId: string, companyName
   if (darkPick && !lightPick) lightPick = darkPick;
   if (lightPick && !darkPick) darkPick = lightPick;
 
-  async function sign(path: string | undefined): Promise<string | null> {
-    if (!path) return null;
-    // 24h TTL — the URL is rebuilt on every cold path render anyway, and a
-    // longer window means re-rendering the same dashboard reuses the existing
-    // signed URL via the React.cache() wrapper for the function body.
-    const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60 * 24);
-    return signed?.signedUrl ?? null;
-  }
-
-  const [dark, light] = await Promise.all([sign(darkPick?.storage_path), sign(lightPick?.storage_path)]);
+  // Cached signed URLs — stable across requests so the browser keeps the image
+  // in its cache instead of redownloading on every navigation.
+  const [dark, light] = await Promise.all([
+    darkPick?.storage_path ? signLogoUrl(darkPick.storage_path) : null,
+    lightPick?.storage_path ? signLogoUrl(lightPick.storage_path) : null,
+  ]);
   return { dark, light };
 });
 
@@ -102,8 +117,8 @@ export async function getClientBrandLogoUrlsByClients(
 ): Promise<Map<string, ClientLogoUrls>> {
   const out = new Map<string, ClientLogoUrls>();
   if (clients.length === 0) return out;
-  const supabase = await createServiceClient();
-  const { data: rows } = await supabase
+  const filesClient = await createServiceClient();
+  const { data: rows } = await filesClient
     .from("files")
     .select("client_id, storage_path, mime_type, filename, created_at")
     .in("client_id", clients.map((c) => c.id))
@@ -147,16 +162,11 @@ export async function getClientBrandLogoUrlsByClients(
     jobs.push({ clientId: c.id, darkPath: darkPick?.storage_path, lightPath: lightPick?.storage_path });
   }
 
-  async function sign(path: string | undefined): Promise<string | null> {
-    if (!path) return null;
-    const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60 * 24);
-    return signed?.signedUrl ?? null;
-  }
   const signed = await Promise.all(
     jobs.map(async (j) => ({
       clientId: j.clientId,
-      dark: await sign(j.darkPath),
-      light: await sign(j.lightPath),
+      dark: j.darkPath ? await signLogoUrl(j.darkPath) : null,
+      light: j.lightPath ? await signLogoUrl(j.lightPath) : null,
     })),
   );
   for (const s of signed) out.set(s.clientId, { dark: s.dark, light: s.light });

@@ -47,6 +47,9 @@ export default async function ClientShell({
                     alt={client.company_name}
                     className="logo-dark object-contain object-left"
                     style={{ width: 110, height: 32 }}
+                    loading="eager"
+                    fetchPriority="high"
+                    decoding="sync"
                   />
                 ) : null}
                 {onboardingLogos.light ? (
@@ -56,6 +59,9 @@ export default async function ClientShell({
                     alt={client.company_name}
                     className="logo-light object-contain object-left"
                     style={{ width: 110, height: 32 }}
+                    loading="eager"
+                    fetchPriority="high"
+                    decoding="sync"
                   />
                 ) : null}
               </span>

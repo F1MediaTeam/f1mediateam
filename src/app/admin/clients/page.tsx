@@ -70,6 +70,9 @@ function ClientCard({ client: c, logos }: { client: Client; logos: ClientLogoUrl
                   src={logos.dark}
                   alt={`${c.company_name} logo`}
                   className="logo-dark max-h-full max-w-full object-contain"
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="sync"
                 />
               ) : null}
               {logos.light ? (
@@ -78,6 +81,9 @@ function ClientCard({ client: c, logos }: { client: Client; logos: ClientLogoUrl
                   src={logos.light}
                   alt={`${c.company_name} logo`}
                   className="logo-light max-h-full max-w-full object-contain"
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="sync"
                 />
               ) : null}
             </>

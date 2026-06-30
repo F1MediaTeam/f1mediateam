@@ -205,15 +205,15 @@ export default function OnboardingGate({ version, userName, preview = false }: P
   function validatePage(idx: number): boolean {
     switch (idx) {
       case 0: {
-        // Primary + secondary admin
+        // Primary admin (secondary admin row is optional)
         if (!filled(data.primary_admin_email) || !filled(data.primary_admin_username) || !filled(data.primary_admin_password)) return false;
-        if (!filled(data.secondary_admin_email) || !filled(data.secondary_admin_username) || !filled(data.secondary_admin_password)) return false;
         if (!yn(data.primary_tied_to_google) || !yn(data.primary_tied_to_hosting)) return false;
-        // Website & hosting
+        // Website & hosting — hosting_provider and developer_contact are
+        // labelled "if known"/"if applicable" so they aren't required.
         if (
           !filled(data.website_url) || !filled(data.website_username) || !filled(data.website_password) ||
-          !filled(data.domain_registrar) || !filled(data.hosting_provider) || !filled(data.website_admin_email) ||
-          !filled(data.cms_platform) || !filled(data.developer_contact)
+          !filled(data.domain_registrar) || !filled(data.website_admin_email) ||
+          !filled(data.cms_platform)
         ) return false;
         // Google + Microsoft — only the admin email is required.
         // The platform checkboxes are intentionally optional: a client may
@@ -445,9 +445,9 @@ export default function OnboardingGate({ version, userName, preview = false }: P
                     <Field label="Password" value={data.primary_admin_password ?? ""} onChange={(v) => set("primary_admin_password", v)} type="password" error={err(filled(data.primary_admin_password))} />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <Field label="Secondary admin email" value={data.secondary_admin_email ?? ""} onChange={(v) => set("secondary_admin_email", v)} type="email" error={err(filled(data.secondary_admin_email))} />
-                    <Field label="Username" value={data.secondary_admin_username ?? ""} onChange={(v) => set("secondary_admin_username", v)} error={err(filled(data.secondary_admin_username))} />
-                    <Field label="Password" value={data.secondary_admin_password ?? ""} onChange={(v) => set("secondary_admin_password", v)} type="password" error={err(filled(data.secondary_admin_password))} />
+                    <Field label="Secondary admin email (optional)" value={data.secondary_admin_email ?? ""} onChange={(v) => set("secondary_admin_email", v)} type="email" />
+                    <Field label="Username (optional)" value={data.secondary_admin_username ?? ""} onChange={(v) => set("secondary_admin_username", v)} />
+                    <Field label="Password (optional)" value={data.secondary_admin_password ?? ""} onChange={(v) => set("secondary_admin_password", v)} type="password" />
                   </div>
                   <YesNo label="Is this email tied to Google services?" value={(data.primary_tied_to_google ?? "") as "yes" | "no" | ""} onChange={(v) => set("primary_tied_to_google", v)} error={err(yn(data.primary_tied_to_google))} />
                   <YesNo label="Is this email tied to website hosting?" value={(data.primary_tied_to_hosting ?? "") as "yes" | "no" | ""} onChange={(v) => set("primary_tied_to_hosting", v)} error={err(yn(data.primary_tied_to_hosting))} />
@@ -461,10 +461,10 @@ export default function OnboardingGate({ version, userName, preview = false }: P
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <Field label="Domain registrar (if known)" value={data.domain_registrar ?? ""} onChange={(v) => set("domain_registrar", v)} error={err(filled(data.domain_registrar))} />
-                    <Field label="Hosting provider (if known)" value={data.hosting_provider ?? ""} onChange={(v) => set("hosting_provider", v)} error={err(filled(data.hosting_provider))} />
+                    <Field label="Hosting provider (if known)" value={data.hosting_provider ?? ""} onChange={(v) => set("hosting_provider", v)} />
                     <Field label="Primary website access email" value={data.website_admin_email ?? ""} onChange={(v) => set("website_admin_email", v)} type="email" error={err(filled(data.website_admin_email))} />
                     <Field label="CMS platform (WordPress, Webflow, custom, etc.)" value={data.cms_platform ?? ""} onChange={(v) => set("cms_platform", v)} error={err(filled(data.cms_platform))} />
-                    <Field label="Developer contact (if applicable)" value={data.developer_contact ?? ""} onChange={(v) => set("developer_contact", v)} error={err(filled(data.developer_contact))} />
+                    <Field label="Developer contact (if applicable)" value={data.developer_contact ?? ""} onChange={(v) => set("developer_contact", v)} />
                   </div>
                 </Section>
 

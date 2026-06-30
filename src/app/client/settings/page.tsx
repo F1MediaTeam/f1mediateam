@@ -40,6 +40,16 @@ export default async function ClientSettings() {
             <ReadOnlyField label="Business name" value={client.company_name} />
             <ReadOnlyField label="Account email" value={clientUser?.email ?? "—"} />
             <ReadOnlyField label="Password" value={"•".repeat(12)} mono />
+            <div className="flex justify-end pt-2">
+              <form action={signOutAction}>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-300 hover:bg-red-500 hover:text-white hover:border-red-500 transition-colors"
+                >
+                  Sign out
+                </button>
+              </form>
+            </div>
           </CardBody>
         </Card>
 
@@ -72,16 +82,6 @@ export default async function ClientSettings() {
         />
       </div>
 
-      <div className="mt-10 flex justify-end">
-        <form action={signOutAction}>
-          <button
-            type="submit"
-            className="inline-flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-300 hover:bg-red-500 hover:text-white hover:border-red-500 transition-colors"
-          >
-            Sign out
-          </button>
-        </form>
-      </div>
     </ClientShell>
   );
 }

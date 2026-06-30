@@ -120,7 +120,6 @@ export default async function ClientProfile({
                 clientId={client.id}
                 userId={customerUser.id}
                 initialCompanyName={client.company_name}
-                initialFullName={customerUser.full_name}
                 initialEmail={customerUser.email}
               />
             </CardBody>

@@ -168,7 +168,6 @@ export async function updateClientUserAction(
   const client_id = String(formData.get("client_id") ?? "");
   const user_id = String(formData.get("user_id") ?? "");
   const company_name = String(formData.get("company_name") ?? "").trim();
-  const full_name = String(formData.get("full_name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
 
@@ -188,14 +187,11 @@ export async function updateClientUserAction(
 
   const { error: profileErr } = await admin
     .from("profiles")
-    .update({ full_name: full_name || null, email })
+    .update({ email })
     .eq("id", user_id);
   if (profileErr) return { error: `Profile update failed: ${profileErr.message}`, ok: null };
 
-  const authUpdate: { email?: string; password?: string; user_metadata?: Record<string, unknown> } = {
-    email,
-    user_metadata: full_name ? { full_name } : {},
-  };
+  const authUpdate: { email?: string; password?: string } = { email };
   if (password) authUpdate.password = password;
   const { error: authErr } = await admin.auth.admin.updateUserById(user_id, authUpdate);
   if (authErr) return { error: `Auth update failed: ${authErr.message}`, ok: null };

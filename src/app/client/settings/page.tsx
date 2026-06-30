@@ -37,7 +37,6 @@ export default async function ClientSettings() {
           />
           <CardBody className="space-y-4">
             <ReadOnlyField label="Business name" value={client.company_name} />
-            <ReadOnlyField label="Full name" value={clientUser?.full_name || "—"} />
             <ReadOnlyField label="Account email" value={clientUser?.email ?? "—"} />
             <ReadOnlyField label="Password" value={"•".repeat(12)} mono />
           </CardBody>

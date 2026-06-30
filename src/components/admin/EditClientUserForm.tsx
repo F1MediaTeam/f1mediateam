@@ -8,7 +8,6 @@ interface Props {
   clientId: string;
   userId: string;
   initialCompanyName: string;
-  initialFullName: string | null;
   initialEmail: string;
 }
 
@@ -27,7 +26,6 @@ export default function EditClientUserForm({
   clientId,
   userId,
   initialCompanyName,
-  initialFullName,
   initialEmail,
 }: Props) {
   const [state, formAction, pending] = useActionState(updateClientUserAction, initial);
@@ -41,28 +39,16 @@ export default function EditClientUserForm({
       <input type="hidden" name="client_id" value={clientId} />
       <input type="hidden" name="user_id" value={userId} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <label className="block">
-          <span className={labelCls}>Business name</span>
-          <input
-            name="company_name"
-            type="text"
-            required
-            defaultValue={initialCompanyName}
-            className={field}
-          />
-        </label>
-        <label className="block">
-          <span className={labelCls}>Full name</span>
-          <input
-            name="full_name"
-            type="text"
-            defaultValue={initialFullName ?? ""}
-            placeholder="First Last"
-            className={field}
-          />
-        </label>
-      </div>
+      <label className="block">
+        <span className={labelCls}>Business name</span>
+        <input
+          name="company_name"
+          type="text"
+          required
+          defaultValue={initialCompanyName}
+          className={field}
+        />
+      </label>
 
       <label className="block">
         <span className={labelCls}>Account email</span>

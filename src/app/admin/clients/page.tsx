@@ -9,7 +9,7 @@ import { createClientAction } from "../actions";
 import Time from "@/components/shared/Time";
 import DeleteClientButton from "@/components/admin/DeleteClientButton";
 import AdminClientAddModal from "@/components/admin/AdminClientAddModal";
-import { getClientBrandLogoUrl } from "@/lib/client-logo";
+import { getClientBrandLogoUrls } from "@/lib/client-logo";
 import type { Client } from "@/lib/types";
 
 export default async function AdminClients() {
@@ -38,12 +38,12 @@ export default async function AdminClients() {
 }
 
 async function ClientCard({ client: c }: { client: Client }) {
-  const [baselineClicks, latestClicks, baselineSess, latestSess, logoUrl] = await Promise.all([
+  const [baselineClicks, latestClicks, baselineSess, latestSess, logos] = await Promise.all([
     data.getBaseline(c.id, "clicks"),
     data.getLatest(c.id, "clicks"),
     data.getBaseline(c.id, "sessions"),
     data.getLatest(c.id, "sessions"),
-    getClientBrandLogoUrl(c.id),
+    getClientBrandLogoUrls(c.id),
   ]);
 
   const clicksChange =
@@ -70,15 +70,29 @@ async function ClientCard({ client: c }: { client: Client }) {
         </div>
 
         <div className="my-5 flex h-24 items-center justify-center">
-          {logoUrl ? (
-            <Image
-              src={logoUrl}
-              alt={`${c.company_name} logo`}
-              width={220}
-              height={88}
-              unoptimized
-              className="max-h-24 w-auto object-contain"
-            />
+          {logos.dark || logos.light ? (
+            <>
+              {logos.dark ? (
+                <Image
+                  src={logos.dark}
+                  alt={`${c.company_name} logo`}
+                  width={220}
+                  height={88}
+                  unoptimized
+                  className="logo-dark max-h-24 w-auto object-contain"
+                />
+              ) : null}
+              {logos.light ? (
+                <Image
+                  src={logos.light}
+                  alt={`${c.company_name} logo`}
+                  width={220}
+                  height={88}
+                  unoptimized
+                  className="logo-light max-h-24 w-auto object-contain"
+                />
+              ) : null}
+            </>
           ) : (
             <div className="text-2xl font-semibold tracking-tight text-center">
               {c.company_name}

@@ -138,6 +138,14 @@ svg text, svg tspan { font-family: var(--font-sans) !important; }
 /* Form controls don't inherit body font in all browsers. */
 input, select, textarea, button { font-family: inherit; }
 
+/* Client brand logos: render both variants from the server, swap visibility on
+   theme change so the toggle is instant. `.logo-dark` is the dark-theme art
+   (light-colored marks on dark backgrounds), `.logo-light` is its inverse. */
+.logo-dark { display: block; }
+.logo-light { display: none; }
+[data-theme="light"] .logo-dark { display: none; }
+[data-theme="light"] .logo-light { display: block; }
+
 [data-theme="light"] body {
   background-image:
     radial-gradient(800px 500px at 80% -10%, rgba(63, 142, 132, 0.06), transparent 60%),

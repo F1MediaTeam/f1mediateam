@@ -17,6 +17,7 @@ import Time from "@/components/shared/Time";
 import { setWidgetAction, disconnectConnectorAction, refreshConnectorAction, advanceContentAction, createContentAction, semrushDeepPullAction } from "@/app/admin/actions";
 import CreateClientUserForm from "@/components/admin/CreateClientUserForm";
 import EditClientUserForm from "@/components/admin/EditClientUserForm";
+import ReopenOnboardingButton from "@/components/admin/ReopenOnboardingButton";
 import AdminContentAddModal from "@/components/admin/AdminContentAddModal";
 import ImpersonateButton from "@/components/admin/ImpersonateButton";
 import LiveSyncTrigger from "@/components/admin/LiveSyncTrigger";
@@ -113,7 +114,8 @@ export default async function ClientProfile({
           <Card className="mb-8">
             <CardHeader
               title="Customer account"
-              subtitle="Edit the business name, login email, full name, and password the customer uses to access their portal."
+              subtitle="Edit the business name, login email, and password the customer uses to access their portal."
+              right={<ReopenOnboardingButton clientId={client.id} clientName={client.company_name} />}
             />
             <CardBody>
               <EditClientUserForm

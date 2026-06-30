@@ -203,6 +203,35 @@ export async function updateClientUserAction(
   return { error: null, ok: password ? "Customer account updated (password changed)." : "Customer account updated." };
 }
 
+export async function reopenOnboardingAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const client_id = String(formData.get("client_id") ?? "");
+  if (!client_id) return;
+
+  const admin = await createServiceClient();
+  // Pull every customer-side user attached to this client and drop their
+  // disclaimer acceptance — the client portal's layout gates the onboarding
+  // modal on hasAcceptedDisclaimer(user_id, DISCLAIMER_VERSION), so clearing
+  // that row brings the wizard back on next page load.
+  const { data: users } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("client_id", client_id)
+    .eq("role", "client");
+  const userIds = (users ?? []).map((u: { id: string }) => u.id);
+  if (userIds.length > 0) {
+    await admin.from("disclaimer_acceptances").delete().in("user_id", userIds);
+  }
+  // Wipe any previously submitted onboarding row so the customer starts
+  // fresh — the action upserts on client_id anyway, but a deleted row also
+  // hides the "Download onboarding PDF" tile from settings until they submit.
+  await admin.from("client_onboarding").delete().eq("client_id", client_id);
+
+  revalidatePath(`/admin/clients/${client_id}`);
+  revalidatePath("/client");
+  revalidatePath("/client/settings");
+}
+
 export async function deleteClientAction(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id") ?? "");

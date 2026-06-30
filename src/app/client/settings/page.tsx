@@ -4,8 +4,8 @@ import ClientShell from "@/components/client/Shell";
 import { Card, CardBody, CardHeader, Button } from "@/components/ui";
 import { setEmailPrefAction } from "../actions";
 import Time from "@/components/shared/Time";
-import { formatLocation } from "@/lib/utils";
 import OnboardingDownloadsCard from "@/components/client/OnboardingDownloadsCard";
+import SignInHistoryCard from "@/components/client/SignInHistoryCard";
 
 export default async function ClientSettings() {
   const session = await requireClient();
@@ -14,7 +14,7 @@ export default async function ClientSettings() {
   const [pref, audit, clientUser, onboarding] = await Promise.all([
     data.getEmailPref(session.user_id),
     // Filter by client_id — admin view-as never leaks into this list.
-    data.listAudit({ clientId: session.client_id!, limit: 12 }),
+    data.listAudit({ clientId: session.client_id!, limit: 500 }),
     // The CUSTOMER-side user assigned to this client. When an admin is
     // impersonating, session.user_id is the admin — this fetches the actual
     // client portal account so we show their email, not the impersonator's.
@@ -60,24 +60,10 @@ export default async function ClientSettings() {
           </CardBody>
         </Card>
 
-        <Card>
-          <CardHeader title="Sign-in history" subtitle="Latest 12 sign-ins to your portal" />
-          <CardBody className="space-y-1.5">
-            {audit.length === 0 ? (
-              <div className="text-xs text-[var(--color-text-muted)]">No history yet.</div>
-            ) : (
-              audit.map((a) => (
-                <div key={a.id} className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2 text-xs">
-                  <span className="font-mono"><Time iso={a.logged_in_at} /></span>
-                  <span className="text-[var(--color-text-muted)]">{formatLocation(a)}</span>
-                </div>
-              ))
-            )}
-          </CardBody>
-        </Card>
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6">
+        <SignInHistoryCard audit={audit} />
         <OnboardingDownloadsCard
           hasOnboarding={Boolean(onboarding)}
           clientName={client.company_name}

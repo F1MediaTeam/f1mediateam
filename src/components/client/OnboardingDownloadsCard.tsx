@@ -28,7 +28,6 @@ export default function OnboardingDownloadsCard({ hasOnboarding, clientName, sub
             className="w-full flex items-center justify-between rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 hover:bg-[var(--color-accent)]/20 px-3 py-3 text-sm transition"
           >
             <div className="flex items-center gap-3">
-              <span aria-hidden>📄</span>
               <div className="text-left">
                 <div className="font-medium">Download your onboarding (.pdf)</div>
                 {submittedAt ? (

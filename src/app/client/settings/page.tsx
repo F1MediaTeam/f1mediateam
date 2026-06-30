@@ -44,7 +44,7 @@ export default async function ClientSettings() {
               <form action={signOutAction}>
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-300 hover:bg-red-500 hover:text-white hover:border-red-500 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-lg border border-red-600 bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 hover:border-red-700 transition-colors"
                 >
                   Sign out
                 </button>

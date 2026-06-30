@@ -39,9 +39,8 @@ export default async function AdminContent({
     data.listClients(),
     data.listContent({ clientId: clientFilter }),
   ]);
-  const eventsByCard = new Map<string, Awaited<ReturnType<typeof data.listContentEvents>>>();
-  const eventLists = await Promise.all(cards.map((c) => data.listContentEvents(c.id)));
-  cards.forEach((c, i) => eventsByCard.set(c.id, eventLists[i]));
+  // Batched: one query for all cards instead of N parallel queries
+  const eventsByCard = await data.listContentEventsByCards(cards.map((c) => c.id));
   const clientNameOf = (id: string) => clients.find((c) => c.id === id)?.company_name ?? "—";
 
   return (

@@ -6,12 +6,17 @@ import { createClientAction } from "../actions";
 import Time from "@/components/shared/Time";
 import DeleteClientButton from "@/components/admin/DeleteClientButton";
 import AdminClientAddModal from "@/components/admin/AdminClientAddModal";
-import { getClientBrandLogoUrls } from "@/lib/client-logo";
+import { getClientBrandLogoUrlsByClients, type ClientLogoUrls } from "@/lib/client-logo";
 import type { Client } from "@/lib/types";
 
 export default async function AdminClients() {
   const session = await requireAdmin();
   const clients = await data.listClients();
+  // Batched: one files query for every client logo instead of N parallel
+  // per-card queries. Signed URLs still happen per file but in parallel.
+  const logosByClient = await getClientBrandLogoUrlsByClients(
+    clients.map((c) => ({ id: c.id, company_name: c.company_name })),
+  );
 
   return (
     <AdminShell session={session} active="/admin/clients">
@@ -27,15 +32,20 @@ export default async function AdminClients() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          {clients.map((c) => <ClientCard key={c.id} client={c} />)}
+          {clients.map((c) => (
+            <ClientCard
+              key={c.id}
+              client={c}
+              logos={logosByClient.get(c.id) ?? { dark: null, light: null }}
+            />
+          ))}
         </div>
       </div>
     </AdminShell>
   );
 }
 
-async function ClientCard({ client: c }: { client: Client }) {
-  const logos = await getClientBrandLogoUrls(c.id, c.company_name);
+function ClientCard({ client: c, logos }: { client: Client; logos: ClientLogoUrls }) {
 
   const website = c.websites[0] ?? "";
   const websiteLabel = website.replace(/^https?:\/\//, "").replace(/\/$/, "");

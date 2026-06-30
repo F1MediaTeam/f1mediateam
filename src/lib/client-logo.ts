@@ -93,3 +93,72 @@ export const getClientBrandLogoUrls = cache(async (clientId: string, companyName
   const [dark, light] = await Promise.all([sign(darkPick?.storage_path), sign(lightPick?.storage_path)]);
   return { dark, light };
 });
+
+// Batched variant: single files-table query for many clients, then sign in
+// parallel. Used by the admin clients grid to avoid N parallel files queries
+// (one per card) — drops it to 1 db round trip + 2N storage signs.
+export async function getClientBrandLogoUrlsByClients(
+  clients: Array<{ id: string; company_name: string }>,
+): Promise<Map<string, ClientLogoUrls>> {
+  const out = new Map<string, ClientLogoUrls>();
+  if (clients.length === 0) return out;
+  const supabase = await createServiceClient();
+  const { data: rows } = await supabase
+    .from("files")
+    .select("client_id, storage_path, mime_type, filename, created_at")
+    .in("client_id", clients.map((c) => c.id))
+    .eq("category", "onboarding-asset")
+    .order("created_at", { ascending: false });
+
+  // Bucket files per client_id.
+  const filesByClient = new Map<string, Array<{ storage_path: string; filename: string; mime_type: string | null }>>();
+  for (const c of clients) filesByClient.set(c.id, []);
+  for (const r of (rows ?? []) as Array<{ client_id: string; storage_path: string; filename: string; mime_type: string | null }>) {
+    filesByClient.get(r.client_id)?.push(r);
+  }
+
+  // For each client, classify + pick dark/light + queue the signing.
+  type Job = { clientId: string; darkPath?: string; lightPath?: string };
+  const jobs: Job[] = [];
+  for (const c of clients) {
+    const candidates = (filesByClient.get(c.id) ?? []).filter((r) => {
+      const mt = (r.mime_type ?? "").toLowerCase();
+      if (mt.startsWith("image/")) return true;
+      return /\.(png|jpe?g|svg|webp|gif)$/i.test(r.filename ?? "");
+    });
+    if (candidates.length === 0) {
+      out.set(c.id, getStaticBrandFallback(c.company_name));
+      continue;
+    }
+    let darkPick: typeof candidates[number] | null = null;
+    let lightPick: typeof candidates[number] | null = null;
+    for (const cand of candidates) {
+      const kind = classify(cand.filename ?? "");
+      if (kind === "dark" && !darkPick) darkPick = cand;
+      else if (kind === "light" && !lightPick) lightPick = cand;
+      else if (kind === "any") {
+        if (!darkPick) darkPick = cand;
+        else if (!lightPick) lightPick = cand;
+      }
+      if (darkPick && lightPick) break;
+    }
+    if (darkPick && !lightPick) lightPick = darkPick;
+    if (lightPick && !darkPick) darkPick = lightPick;
+    jobs.push({ clientId: c.id, darkPath: darkPick?.storage_path, lightPath: lightPick?.storage_path });
+  }
+
+  async function sign(path: string | undefined): Promise<string | null> {
+    if (!path) return null;
+    const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60 * 24);
+    return signed?.signedUrl ?? null;
+  }
+  const signed = await Promise.all(
+    jobs.map(async (j) => ({
+      clientId: j.clientId,
+      dark: await sign(j.darkPath),
+      light: await sign(j.lightPath),
+    })),
+  );
+  for (const s of signed) out.set(s.clientId, { dark: s.dark, light: s.light });
+  return out;
+}

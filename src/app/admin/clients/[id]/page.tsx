@@ -44,10 +44,10 @@ export default async function ClientProfile({
     bing: "Bing Webmaster Tools",
     semrush: "Semrush",
   };
-  const client = await data.getClient(id);
-  if (!client) notFound();
-
-  const [tasks, events, files, audit, content, connectors, customerUser, semrushReports] = await Promise.all([
+  // Parallelize getClient with the rest of the per-client fan-out — was a
+  // sequential round trip before the Promise.all kicked off.
+  const [client, tasks, events, files, audit, content, connectors, customerUser, semrushReports] = await Promise.all([
+    data.getClient(id),
     data.listTasks({ clientId: id }),
     data.listCalendar({ clientId: id }),
     data.listFiles(id),
@@ -57,6 +57,7 @@ export default async function ClientProfile({
     data.getClientUser(id),
     data.listSemrushReports(id),
   ]);
+  if (!client) notFound();
   const semrushConnected = connectors.some((c) => c.provider === "semrush");
   const semrushUnits = semrushReports.reduce((a, r) => a + (Number((r.meta as Record<string, unknown>)?.units_estimate) || 0), 0);
   const semrushLastPulled = semrushReports.reduce<string | null>((acc, r) => (!acc || r.pulled_at > acc ? r.pulled_at : acc), null);

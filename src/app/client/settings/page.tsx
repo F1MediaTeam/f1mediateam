@@ -7,7 +7,6 @@ import Time from "@/components/shared/Time";
 import { formatLocation } from "@/lib/utils";
 import PasswordChangeForm from "@/components/client/PasswordChangeForm";
 import ProfileForm from "@/components/client/ProfileForm";
-import ClientOnboardingPanel from "@/components/admin/ClientOnboardingPanel";
 import OnboardingDownloadsCard from "@/components/client/OnboardingDownloadsCard";
 
 export default async function ClientSettings() {
@@ -91,7 +90,6 @@ export default async function ClientSettings() {
           clientName={client.company_name}
           submittedAt={onboarding?.submitted_at ?? null}
         />
-        <ClientOnboardingPanel clientId={client.id} />
       </div>
     </ClientShell>
   );

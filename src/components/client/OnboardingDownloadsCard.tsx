@@ -15,7 +15,7 @@ interface Props {
 export default function OnboardingDownloadsCard({ hasOnboarding, clientName, submittedAt }: Props) {
   return (
     <Card>
-      <CardHeader title="Submitted onboarding" />
+      <CardHeader title="Submitted Onboarding" />
       <CardBody className="space-y-2">
         {!hasOnboarding ? (
           <div className="text-sm text-[var(--color-text-muted)]">

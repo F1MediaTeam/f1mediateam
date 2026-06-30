@@ -16,6 +16,7 @@ import { formatBytes, formatLocation } from "@/lib/utils";
 import Time from "@/components/shared/Time";
 import { setWidgetAction, disconnectConnectorAction, refreshConnectorAction, advanceContentAction, createContentAction, semrushDeepPullAction } from "@/app/admin/actions";
 import CreateClientUserForm from "@/components/admin/CreateClientUserForm";
+import EditClientUserForm from "@/components/admin/EditClientUserForm";
 import AdminContentAddModal from "@/components/admin/AdminContentAddModal";
 import ImpersonateButton from "@/components/admin/ImpersonateButton";
 import LiveSyncTrigger from "@/components/admin/LiveSyncTrigger";
@@ -106,6 +107,24 @@ export default async function ClientProfile({
           <div className="mb-6 rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 px-4 py-3 text-sm text-[var(--color-accent)]">
             Connected to {providerLabel[oauthConnected] ?? oauthConnected}.
           </div>
+        ) : null}
+
+        {customerUser ? (
+          <Card className="mb-8">
+            <CardHeader
+              title="Customer account"
+              subtitle="Edit the business name, login email, full name, and password the customer uses to access their portal."
+            />
+            <CardBody>
+              <EditClientUserForm
+                clientId={client.id}
+                userId={customerUser.id}
+                initialCompanyName={client.company_name}
+                initialFullName={customerUser.full_name}
+                initialEmail={customerUser.email}
+              />
+            </CardBody>
+          </Card>
         ) : null}
 
         {customerUser ? (

@@ -160,6 +160,53 @@ export async function createClientUserAction(formData: FormData): Promise<{ erro
   return { error: null, ok: `Account created for ${email}. Share the initial password with them — they can change it after first sign-in.` };
 }
 
+export async function updateClientUserAction(
+  _prev: { error: string | null; ok?: string | null },
+  formData: FormData,
+): Promise<{ error: string | null; ok?: string | null }> {
+  await requireAdmin();
+  const client_id = String(formData.get("client_id") ?? "");
+  const user_id = String(formData.get("user_id") ?? "");
+  const company_name = String(formData.get("company_name") ?? "").trim();
+  const full_name = String(formData.get("full_name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+
+  if (!client_id || !user_id) return { error: "Missing client or user id.", ok: null };
+  if (company_name.length < 2) return { error: "Business name is required.", ok: null };
+  if (!email) return { error: "Email is required.", ok: null };
+  if (password && password.length < 8) {
+    return { error: "Password must be at least 8 characters (leave blank to keep current).", ok: null };
+  }
+
+  const admin = await createServiceClient();
+  const { error: clientErr } = await admin
+    .from("clients")
+    .update({ company_name })
+    .eq("id", client_id);
+  if (clientErr) return { error: `Business name update failed: ${clientErr.message}`, ok: null };
+
+  const { error: profileErr } = await admin
+    .from("profiles")
+    .update({ full_name: full_name || null, email })
+    .eq("id", user_id);
+  if (profileErr) return { error: `Profile update failed: ${profileErr.message}`, ok: null };
+
+  const authUpdate: { email?: string; password?: string; user_metadata?: Record<string, unknown> } = {
+    email,
+    user_metadata: full_name ? { full_name } : {},
+  };
+  if (password) authUpdate.password = password;
+  const { error: authErr } = await admin.auth.admin.updateUserById(user_id, authUpdate);
+  if (authErr) return { error: `Auth update failed: ${authErr.message}`, ok: null };
+
+  revalidatePath(`/admin/clients/${client_id}`);
+  revalidatePath("/admin/clients");
+  revalidatePath("/client/settings");
+  revalidatePath("/client");
+  return { error: null, ok: password ? "Customer account updated (password changed)." : "Customer account updated." };
+}
+
 export async function deleteClientAction(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id") ?? "");

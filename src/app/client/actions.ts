@@ -244,47 +244,11 @@ export async function getFileDownloadUrl(fileId: string): Promise<string | null>
   return signed?.signedUrl ?? null;
 }
 
-export async function updateProfileAction(
-  _prev: { error: string | null; ok?: string | null },
-  formData: FormData,
-): Promise<{ error: string | null; ok?: string | null }> {
-  const session = await requireClient();
-  if (!session.client_id) return { error: "No client linked to this session.", ok: null };
-  const companyName = String(formData.get("company_name") ?? "").trim();
-  if (companyName.length < 2) return { error: "Please enter the business name.", ok: null };
-  const supabase = await createServiceClient();
-  const { error } = await supabase
-    .from("clients")
-    .update({ company_name: companyName })
-    .eq("id", session.client_id);
-  if (error) return { error: error.message, ok: null };
-  revalidatePath("/client/settings");
-  revalidatePath("/client");
-  revalidatePath(`/admin/clients/${session.client_id}`);
-  return { error: null, ok: "Profile updated." };
-}
-
 export async function setEmailPrefAction(formData: FormData) {
   const session = await requireClient();
   const opted = String(formData.get("opted_out") ?? "false") === "true";
   await data.setEmailPref(session.user_id, opted);
   revalidatePath("/client/settings");
-}
-
-export async function changePasswordAction(
-  _prev: { error: string | null; ok?: string | null },
-  formData: FormData,
-): Promise<{ error: string | null; ok?: string | null }> {
-  await requireClient();
-  const next = String(formData.get("password") ?? "");
-  const confirm = String(formData.get("confirm") ?? "");
-  if (next.length < 8) return { error: "Password must be at least 8 characters.", ok: null };
-  if (next !== confirm) return { error: "Passwords don't match.", ok: null };
-  const supabase = await createSupabase();
-  const { error } = await supabase.auth.updateUser({ password: next });
-  if (error) return { error: error.message, ok: null };
-  revalidatePath("/client/settings");
-  return { error: null, ok: "Password updated." };
 }
 
 export async function submitOnboardingAction(formData: FormData) {

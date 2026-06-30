@@ -5,8 +5,6 @@ import { Card, CardBody, CardHeader, Button } from "@/components/ui";
 import { setEmailPrefAction } from "../actions";
 import Time from "@/components/shared/Time";
 import { formatLocation } from "@/lib/utils";
-import PasswordChangeForm from "@/components/client/PasswordChangeForm";
-import ProfileForm from "@/components/client/ProfileForm";
 import OnboardingDownloadsCard from "@/components/client/OnboardingDownloadsCard";
 
 export default async function ClientSettings() {
@@ -33,19 +31,15 @@ export default async function ClientSettings() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader title="Profile" subtitle="Your business name and account email" />
-          <CardBody>
-            <ProfileForm
-              initialCompanyName={client.company_name}
-              accountEmail={clientUser?.email ?? null}
-            />
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader title="Password" subtitle="Update the password you use to sign in" />
-          <CardBody>
-            <PasswordChangeForm />
+          <CardHeader
+            title="Account"
+            subtitle="Your portal account details. Contact your F1 Media account manager to change any of these."
+          />
+          <CardBody className="space-y-4">
+            <ReadOnlyField label="Business name" value={client.company_name} />
+            <ReadOnlyField label="Full name" value={clientUser?.full_name || "—"} />
+            <ReadOnlyField label="Account email" value={clientUser?.email ?? "—"} />
+            <ReadOnlyField label="Password" value={"•".repeat(12)} mono />
           </CardBody>
         </Card>
 
@@ -92,5 +86,23 @@ export default async function ClientSettings() {
         />
       </div>
     </ClientShell>
+  );
+}
+
+function ReadOnlyField({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
+        {label}
+      </div>
+      <div
+        className={
+          "w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2.5 text-sm text-[var(--color-text)] select-none" +
+          (mono ? " font-mono tracking-[0.2em]" : "")
+        }
+      >
+        {value}
+      </div>
+    </div>
   );
 }

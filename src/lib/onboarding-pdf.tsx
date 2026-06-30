@@ -800,8 +800,8 @@ function Doc2Bio({ d }: { d: OnboardingData }) {
       </SectionCard>
 
       <SectionCard eyebrow="2. Brand Positioning">
-        <FormField label="What makes your firm different from other firms in your market?" value={safeStr(d.brand_diff)} area />
-        <FormField label="If a client had to describe your firm in three words, what would they say?" value={safeStr(d.brand_3words)} />
+        <FormField label="What makes your company different from competitors in your market?" value={safeStr(d.brand_diff)} area />
+        <FormField label="If a customer had to describe your company in three words, what would they say?" value={safeStr(d.brand_3words)} />
       </SectionCard>
 
       <SectionCard eyebrow="3. Marketing Performance Analysis">
@@ -929,7 +929,7 @@ function Doc5Services({ d }: { d: OnboardingData }) {
   const sw = d.statewide_coverage ?? {};
   return (
     <View>
-      <Text style={styles.p}>Services offered, the geographies they cover today, and where the firm is heading.</Text>
+      <Text style={styles.p}>Services offered, the geographies they cover today, and where the company is heading.</Text>
 
       <SectionCard eyebrow="1. List of Services">
         {svcs.length === 0 ? (
@@ -995,7 +995,7 @@ function Doc5Services({ d }: { d: OnboardingData }) {
         <PriorityRow label="Priority level for statewide visibility" value={safeStr(sw.priority)} />
       </SectionCard>
 
-      <SectionCard eyebrow="6. Out-of-State Representation (if applicable)">
+      <SectionCard eyebrow="6. Out-of-State Service (if applicable)">
         {out.length === 0 ? (
           <Text style={styles.fieldValuePlaceholder}>—</Text>
         ) : (
@@ -1004,7 +1004,7 @@ function Doc5Services({ d }: { d: OnboardingData }) {
               <Text style={styles.rowCardTitle}>State #{i + 1}</Text>
               <FormField label="State" value={safeStr(o.state)} />
               <FormField label="Service type provided in this state" value={safeStr(o.service_type)} />
-              <YesNoRow label="Licensed to practice in this state?" value={yn(o.licensed)} />
+              <YesNoRow label="Authorized to operate in this state?" value={yn(o.licensed)} />
               <YesNoRow label="Physical office in this state?" value={yn(o.office)} />
               <PriorityRow label="Priority" value={safeStr(o.priority)} />
               <FormField label="Notes" value={safeStr(o.notes)} area />
@@ -1020,7 +1020,7 @@ function Doc5Services({ d }: { d: OnboardingData }) {
 
       <SectionCard eyebrow="8. Market Focus">
         <FormField label="Main city or multiple equally?" value={safeStr(d.market_focus_main_city)} area />
-        <FormField label="Competing against large firms or local boutiques?" value={safeStr(d.market_focus_competition)} area />
+        <FormField label="Competing against large national companies or local competitors?" value={safeStr(d.market_focus_competition)} area />
         <FormField label="Which cities do you want to dominate first?" value={safeStr(d.market_focus_priority_cities)} area />
         <FormField label="Markets to avoid" value={safeStr(d.market_focus_avoid)} area />
       </SectionCard>

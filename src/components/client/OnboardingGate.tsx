@@ -549,21 +549,21 @@ export default function OnboardingGate({ version, userName, preview = false }: P
             <>
               <PageHeader idx={1} title="Company Bio & Performance Insights" sub="F1 Media Team Onboarding – Brand Positioning & Growth Analysis" />
               <div className="px-10 py-8">
-                <P>To effectively position your firm, develop authoritative messaging, and structure a high-performance digital strategy, we require a comprehensive understanding of your company&apos;s identity, voice, history, and past marketing performance.</P>
+                <P>To effectively position your company, develop authoritative messaging, and structure a high-performance digital strategy, we require a comprehensive understanding of your company&apos;s identity, voice, history, and past marketing performance.</P>
                 <P>This section helps us:</P>
-                <UL items={["Strengthen brand authority", "Align your messaging with your ideal client", "Identify high-performing channels", "Eliminate underperforming strategies"]} />
+                <UL items={["Strengthen brand authority", "Align your messaging with your ideal customer", "Identify high-performing channels", "Eliminate underperforming strategies"]} />
                 <P>Please complete all sections in detail.</P>
 
                 <Section title="1. Official Company Bio">
                   <P>Please provide a detailed company bio including:</P>
-                  <UL items={["When the firm was founded", "Why it was founded", "Mission and core values", "Practice focus and philosophy", "What differentiates your firm from competitors", "Notable achievements, recognitions, or milestones", "Community involvement (if applicable)", "Target clientele"]} />
+                  <UL items={["When the company was founded", "Why it was founded", "Mission and core values", "Business focus and philosophy", "What differentiates your company from competitors", "Notable achievements, recognitions, or milestones", "Community involvement (if applicable)", "Target customers"]} />
                   <Area label="Company bio" value={data.company_bio ?? ""} onChange={(v) => set("company_bio", v)} rows={9} error={err(filled(data.company_bio))} />
                 </Section>
 
                 <Section title="2. Two Strategic Brand Questions">
-                  <P><strong>Question 1:</strong> What makes your firm different from other firms in your market? (Examples: client experience, case strategy, responsiveness, niche focus, fee structure, trial experience, etc.)</P>
+                  <P><strong>Question 1:</strong> What makes your company different from competitors in your market? (Examples: customer experience, product quality, responsiveness, niche focus, pricing, expertise, etc.)</P>
                   <Area label="Response" value={data.brand_diff ?? ""} onChange={(v) => set("brand_diff", v)} rows={5} error={err(filled(data.brand_diff))} />
-                  <P><strong>Question 2:</strong> If a client had to describe your firm in three words, what would they say and why?</P>
+                  <P><strong>Question 2:</strong> If a customer had to describe your company in three words, what would they say and why?</P>
                   <Area label="Response" value={data.brand_3words ?? ""} onChange={(v) => set("brand_3words", v)} rows={5} error={err(filled(data.brand_3words))} />
                 </Section>
 
@@ -656,7 +656,7 @@ export default function OnboardingGate({ version, userName, preview = false }: P
                   <><strong>Email:</strong> Direct professional email address (no shared inboxes unless intentional)</>,
                   <><strong>Name (First & Last):</strong> Full legal name of the individual</>,
                   <><strong>Phone Number:</strong> Direct line or mobile number</>,
-                  <><strong>Role & Notes:</strong> Title within the company and their specific responsibility in relation to this project (Examples: Managing Attorney – Final Approvals | Office Manager – Scheduling & Documents | Marketing Liaison – Content Review)</>,
+                  <><strong>Role & Notes:</strong> Title within the company and their specific responsibility in relation to this project (Examples: Owner – Final Approvals | Office Manager – Scheduling & Documents | Marketing Lead – Content Review)</>,
                 ]} />
 
                 <H2>Recommended Roles to Include</H2>
@@ -676,7 +676,7 @@ export default function OnboardingGate({ version, userName, preview = false }: P
                         <Field label="Full name (First & Last)" value={c.name ?? ""} onChange={(v) => updateRow("contacts", i, { name: v })} error={err(filled(c.name))} />
                         <Field label="Direct email" value={c.email ?? ""} onChange={(v) => updateRow("contacts", i, { email: v })} type="email" error={err(filled(c.email))} />
                         <Field label="Phone number" value={c.phone ?? ""} onChange={(v) => updateRow("contacts", i, { phone: v })} error={err(filled(c.phone))} />
-                        <Field label="Role & notes" value={c.role ?? ""} onChange={(v) => updateRow("contacts", i, { role: v })} placeholder="e.g. Managing Attorney – Final Approvals" error={err(filled(c.role))} />
+                        <Field label="Role & notes" value={c.role ?? ""} onChange={(v) => updateRow("contacts", i, { role: v })} placeholder="e.g. Owner – Final Approvals" error={err(filled(c.role))} />
                       </div>
                       {(data.contacts ?? []).length > 1 ? (
                         <button type="button" onClick={() => removeRow("contacts", i)} className="absolute top-2 right-3 text-[11px] text-black/50 hover:text-red-600">Remove</button>
@@ -791,7 +791,7 @@ export default function OnboardingGate({ version, userName, preview = false }: P
 
                 <H2>1. Complete List of Services</H2>
                 <P>Please provide a full breakdown of:</P>
-                <UL items={["Core practice areas", "Sub-services within each practice area", "Specialized offerings", "High-ticket or priority services", "New or expanding services", "Services you want to phase out (if any)"]} />
+                <UL items={["Core service categories", "Sub-services within each category", "Specialized offerings", "High-ticket or priority services", "New or expanding services", "Services you want to phase out (if any)"]} />
                 <P>For each service, please indicate:</P>
                 <UL items={["Is this a primary revenue driver?", "Is this a competitive market?", "Is this a priority for growth?"]} />
                 <P><em>Example format: Service Name · Brief Description · Priority Level (High / Medium / Low) · Primary Target Audience</em></P>
@@ -814,22 +814,22 @@ export default function OnboardingGate({ version, userName, preview = false }: P
                 </Section>
 
                 <H2>2. Geographic Service Areas</H2>
-                <P>Please list all areas where your firm actively provides services.</P>
+                <P>Please list all areas where your company actively provides services.</P>
                 <P>Include:</P>
-                <UL items={["Primary city", "Surrounding cities", "Counties", "Statewide coverage (if applicable)", "Nationwide representation (if applicable)"]} />
+                <UL items={["Primary city", "Surrounding cities", "Counties", "Statewide coverage (if applicable)", "Nationwide coverage (if applicable)"]} />
                 <P>For each location, indicate:</P>
                 <UL items={["Physical office location (if applicable)", "Virtual service area", "Priority markets", "Expansion targets"]} />
 
                 <H2>3. Market Focus Clarification</H2>
                 <P>To properly structure local SEO, please clarify:</P>
-                <UL items={["Are you targeting one main city or multiple cities equally?", "Are you competing against large firms or local competitors?", "Are there cities you want to dominate first?", "Are there markets you want to avoid?"]} />
+                <UL items={["Are you targeting one main city or multiple cities equally?", "Are you competing against large national companies or local competitors?", "Are there cities you want to dominate first?", "Are there markets you want to avoid?"]} />
                 <P>This helps us determine whether to build:</P>
-                <UL items={["City-specific landing pages", "Practice-area + city combinations", "Statewide authority content", "Local directory optimization", "Google Business Profile expansion strategy"]} />
+                <UL items={["City-specific landing pages", "Service + city combinations", "Statewide authority content", "Local directory optimization", "Google Business Profile expansion strategy"]} />
 
                 <H2>Why This Matters</H2>
                 <P>Search engines rank relevance and consistency. If your services and locations are not clearly structured, indexed, and strategically mapped, your competitors will outrank you in key markets.</P>
                 <P>This section allows F1 Media Team to:</P>
-                <UL items={["Build a keyword strategy aligned with real revenue goals", "Create targeted location-based landing pages", "Develop content clusters around each service", "Optimize for both local and statewide visibility", "Strengthen authority within specific practice areas"]} />
+                <UL items={["Build a keyword strategy aligned with real revenue goals", "Create targeted location-based landing pages", "Develop content clusters around each service", "Optimize for both local and statewide visibility", "Strengthen authority within specific service categories"]} />
                 <P><em>Clear structure = stronger rankings, higher visibility, and better-qualified leads.</em></P>
 
                 <Section title="PRIMARY CITY">
@@ -839,7 +839,7 @@ export default function OnboardingGate({ version, userName, preview = false }: P
                   <YesNo label="Virtual Service Area" value={(data.primary_city?.virtual_service ?? "") as "yes" | "no" | ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), virtual_service: v })} error={err(yn(data.primary_city?.virtual_service))} />
                   <Priority label="Priority Level" value={(data.primary_city?.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), priority: v })} error={err(Boolean(data.primary_city?.priority))} />
                   <YesNo label="Is this a Primary Revenue Market?" value={(data.primary_city?.revenue_market ?? "") as "yes" | "no" | ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), revenue_market: v })} error={err(yn(data.primary_city?.revenue_market))} />
-                  <Area label="Notes (competitiveness, target clientele, special focus, etc.)" value={data.primary_city?.notes ?? ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), notes: v })} rows={3} error={err(filled(data.primary_city?.notes))} />
+                  <Area label="Notes (competitiveness, target customers, special focus, etc.)" value={data.primary_city?.notes ?? ""} onChange={(v) => set("primary_city", { ...(data.primary_city ?? {}), notes: v })} rows={3} error={err(filled(data.primary_city?.notes))} />
                 </Section>
 
                 <Section title="SURROUNDING CITIES">
@@ -879,12 +879,12 @@ export default function OnboardingGate({ version, userName, preview = false }: P
                   <Priority label="Priority Level for Statewide Visibility" value={(data.statewide_coverage?.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => set("statewide_coverage", { ...(data.statewide_coverage ?? {}), priority: v })} />
                 </Section>
 
-                <Section title="OUT-OF-STATE REPRESENTATION (If Applicable)">
+                <Section title="OUT-OF-STATE SERVICE (If Applicable)">
                   {(data.out_of_state ?? []).map((o, i) => (
                     <div key={i} className="rounded-xl border border-black/10 bg-[#FAFAFA] p-4 space-y-3 relative">
                       <Field label="State" value={o.state ?? ""} onChange={(v) => updateRow("out_of_state", i, { state: v })} />
                       <Field label="Service type provided in this state" value={o.service_type ?? ""} onChange={(v) => updateRow("out_of_state", i, { service_type: v })} />
-                      <YesNo label="Licensed to practice in this state?" value={(o.licensed ?? "") as "yes" | "no" | ""} onChange={(v) => updateRow("out_of_state", i, { licensed: v })} />
+                      <YesNo label="Authorized to operate in this state?" value={(o.licensed ?? "") as "yes" | "no" | ""} onChange={(v) => updateRow("out_of_state", i, { licensed: v })} />
                       <YesNo label="Physical office in this state?" value={(o.office ?? "") as "yes" | "no" | ""} onChange={(v) => updateRow("out_of_state", i, { office: v })} />
                       <Priority label="Priority Level" value={(o.priority ?? "") as "high" | "medium" | "low" | ""} onChange={(v) => updateRow("out_of_state", i, { priority: v })} />
                       <Area label="Notes" value={o.notes ?? ""} onChange={(v) => updateRow("out_of_state", i, { notes: v })} rows={2} />
@@ -903,7 +903,7 @@ export default function OnboardingGate({ version, userName, preview = false }: P
 
                 <Section title="Market focus">
                   <Area label="Are you targeting one main city or multiple cities equally?" value={data.market_focus_main_city ?? ""} onChange={(v) => set("market_focus_main_city", v)} rows={2} error={err(filled(data.market_focus_main_city))} />
-                  <Area label="Are you competing against large firms or local competitors?" value={data.market_focus_competition ?? ""} onChange={(v) => set("market_focus_competition", v)} rows={2} error={err(filled(data.market_focus_competition))} />
+                  <Area label="Are you competing against large national companies or local competitors?" value={data.market_focus_competition ?? ""} onChange={(v) => set("market_focus_competition", v)} rows={2} error={err(filled(data.market_focus_competition))} />
                   <Area label="Cities you want to dominate first" value={data.market_focus_priority_cities ?? ""} onChange={(v) => set("market_focus_priority_cities", v)} rows={2} error={err(filled(data.market_focus_priority_cities))} />
                   <Area label="Markets to avoid" value={data.market_focus_avoid ?? ""} onChange={(v) => set("market_focus_avoid", v)} rows={2} error={err(filled(data.market_focus_avoid))} />
                 </Section>

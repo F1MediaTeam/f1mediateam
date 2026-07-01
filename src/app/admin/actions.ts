@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "node:crypto";
 import { data } from "@/lib/data";
 import { requireAdmin, getSession } from "@/lib/auth/session";
 import { createServiceClient, createClient } from "@/lib/supabase/server";
@@ -237,6 +238,40 @@ export async function reopenOnboardingAction(formData: FormData): Promise<void> 
 // ---------- messages (admin → client) ----------
 
 const MAX_ADMIN_MESSAGE_LEN = 4000;
+const ADMIN_MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
+const ADMIN_MAX_ATTACHMENTS = 10;
+
+async function uploadAdminAttachments(
+  files: File[],
+  clientId: string,
+): Promise<Array<{ path: string; name: string; mime_type: string; size: number }>> {
+  if (files.length === 0) return [];
+  const supabase = await createServiceClient();
+  const out: Array<{ path: string; name: string; mime_type: string; size: number }> = [];
+  for (const file of files) {
+    if (!file || file.size === 0) continue;
+    if (file.size > ADMIN_MAX_ATTACHMENT_BYTES) {
+      throw new Error(`File "${file.name}" is too big (max 15 MB).`);
+    }
+    const safeName = file.name.replace(/[^\w.\-]/g, "_").slice(0, 120) || "file";
+    const path = `messages/${clientId}/${randomUUID()}-${safeName}`;
+    const buf = Buffer.from(await file.arrayBuffer());
+    const { error } = await supabase.storage
+      .from("client-attachments")
+      .upload(path, buf, {
+        contentType: file.type || "application/octet-stream",
+        upsert: false,
+      });
+    if (error) throw new Error(`Upload failed for "${file.name}": ${error.message}`);
+    out.push({
+      path,
+      name: file.name,
+      mime_type: file.type || "application/octet-stream",
+      size: file.size,
+    });
+  }
+  return out;
+}
 
 export async function sendAdminMessageAction(
   formData: FormData,
@@ -245,16 +280,22 @@ export async function sendAdminMessageAction(
   const client_id = String(formData.get("client_id") ?? "");
   if (!client_id) return { error: "Missing client id." };
   const body = String(formData.get("body") ?? "").trim();
-  if (!body) return { error: "Message can't be empty." };
+  const rawFiles = formData.getAll("attachments").filter((f): f is File => f instanceof File && f.size > 0);
+  if (rawFiles.length > ADMIN_MAX_ATTACHMENTS) {
+    return { error: `Too many attachments (max ${ADMIN_MAX_ATTACHMENTS} per message).` };
+  }
+  if (!body && rawFiles.length === 0) return { error: "Message can't be empty." };
   if (body.length > MAX_ADMIN_MESSAGE_LEN) {
     return { error: `Message too long (max ${MAX_ADMIN_MESSAGE_LEN} characters).` };
   }
   try {
+    const attachments = await uploadAdminAttachments(rawFiles, client_id);
     const row = await data.sendMessage({
       client_id,
       from_user_id: session.user_id,
       from_role: "admin",
       body,
+      attachments,
     });
     revalidatePath(`/admin/messages`);
     revalidatePath(`/admin/messages/${client_id}`);

@@ -9,7 +9,7 @@ import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader } from "@/components/ui";
 import AdminReplyForm from "@/components/admin/AdminReplyForm";
-import { markMessagesRead } from "@/lib/data/supabase-adapter";
+import { markMessagesRead, signMessageAttachments } from "@/lib/data/supabase-adapter";
 import Time from "@/components/shared/Time";
 
 export default async function AdminMessageThread({
@@ -22,7 +22,13 @@ export default async function AdminMessageThread({
   const client = await data.getClient(clientId);
   if (!client) notFound();
 
-  const messages = await data.listMessages(clientId);
+  const rawMessages = await data.listMessages(clientId);
+  const messages = await Promise.all(
+    rawMessages.map(async (m) => ({
+      ...m,
+      signedAttachments: await signMessageAttachments(m.attachments ?? []),
+    })),
+  );
   // Mark all client-origin messages as read now that the admin is on the page.
   // Fire-and-forget so we don't hold up the render.
   markMessagesRead(clientId, "admin").catch(() => undefined);
@@ -52,23 +58,48 @@ export default async function AdminMessageThread({
                     key={m.id}
                     className={"flex " + (m.from_role === "admin" ? "justify-end" : "justify-start")}
                   >
-                    <div
-                      className={
-                        "max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-snug " +
-                        (m.from_role === "admin"
-                          ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] rounded-br-md"
-                          : "bg-[var(--color-bg-elev)] text-[var(--color-text)] rounded-bl-md")
-                      }
-                    >
-                      <div className="whitespace-pre-wrap break-words">{m.body}</div>
-                      <div
-                        className={
-                          "mt-1 text-[10px] font-mono " +
-                          (m.from_role === "admin"
-                            ? "text-[var(--color-on-accent)]/70"
-                            : "text-[var(--color-text-muted)]")
-                        }
-                      >
+                    <div className={"flex flex-col gap-1.5 max-w-[80%] " + (m.from_role === "admin" ? "items-end" : "items-start")}>
+                      {m.signedAttachments.length > 0 ? (
+                        <div className={"flex flex-wrap gap-1.5 " + (m.from_role === "admin" ? "justify-end" : "justify-start")}>
+                          {m.signedAttachments.map((a, i) =>
+                            a.mime_type.startsWith("image/") && a.url ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <a key={i} href={a.url} target="_blank" rel="noreferrer" className="block rounded-xl overflow-hidden border border-[var(--color-border)] hover:opacity-90 transition">
+                                <img src={a.url} alt={a.name} className="max-w-[240px] max-h-[240px] object-cover" />
+                              </a>
+                            ) : (
+                              <a
+                                key={i}
+                                href={a.url ?? "#"}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs bg-[var(--color-bg-elev)] border border-[var(--color-border)] hover:bg-[var(--color-bg-hover)] transition"
+                              >
+                                <span aria-hidden>📄</span>
+                                <div className="min-w-0 max-w-[200px]">
+                                  <div className="truncate">{a.name}</div>
+                                  <div className="text-[10px] text-[var(--color-text-muted)] font-mono">
+                                    {a.size < 1024 ? `${a.size} B` : a.size < 1024 * 1024 ? `${(a.size / 1024).toFixed(1)} KB` : `${(a.size / 1024 / 1024).toFixed(1)} MB`}
+                                  </div>
+                                </div>
+                              </a>
+                            ),
+                          )}
+                        </div>
+                      ) : null}
+                      {m.body.trim().length > 0 ? (
+                        <div
+                          className={
+                            "rounded-2xl px-3 py-2 text-sm leading-snug " +
+                            (m.from_role === "admin"
+                              ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] rounded-br-md"
+                              : "bg-[var(--color-bg-elev)] text-[var(--color-text)] rounded-bl-md")
+                          }
+                        >
+                          <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                        </div>
+                      ) : null}
+                      <div className="text-[10px] font-mono text-[var(--color-text-muted)]">
                         {m.from_role === "admin" ? "F1 Media" : client.company_name} · <Time iso={m.created_at} />
                       </div>
                     </div>

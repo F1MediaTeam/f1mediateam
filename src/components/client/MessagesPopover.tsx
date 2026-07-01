@@ -11,11 +11,20 @@ import {
   markClientMessagesReadAction,
 } from "@/app/client/actions";
 
+interface Attachment {
+  path: string;
+  name: string;
+  mime_type: string;
+  size: number;
+  url: string | null;
+}
+
 interface MessageRow {
   id: string;
   from_role: "client" | "admin";
   body: string;
   created_at: string;
+  attachments?: Attachment[];
 }
 
 interface Props {
@@ -47,10 +56,12 @@ export default function MessagesPopover({ clientId, userId, initialUnread, initi
   const [messages, setMessages] = useState<MessageRow[]>(initialMessages);
   const [unread, setUnread] = useState(initialUnread);
   const [body, setBody] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -93,30 +104,50 @@ export default function MessagesPopover({ clientId, userId, initialUnread, initi
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const trimmed = body.trim();
-    if (!trimmed || pending) return;
+    if ((!trimmed && files.length === 0) || pending) return;
     setError(null);
     const fd = new FormData();
     fd.set("client_id", clientId);
     fd.set("body", trimmed);
+    for (const f of files) fd.append("attachments", f);
     startTransition(async () => {
       const result = await sendClientMessageAction(fd);
       if (result.error) {
         setError(result.error);
         return;
       }
-      // Optimistic append with server timestamp when we got one back.
+      // Optimistic append. Attachments show as local blob previews until the
+      // server-signed URL comes back on the next refresh.
       const localRow: MessageRow = {
         id: result.id ?? crypto.randomUUID(),
         from_role: "client",
         body: trimmed,
         created_at: result.created_at ?? new Date().toISOString(),
+        attachments: files.map((f) => ({
+          path: "",
+          name: f.name,
+          mime_type: f.type || "application/octet-stream",
+          size: f.size,
+          url: URL.createObjectURL(f),
+        })),
       };
       setMessages((prev) => [...prev, localRow]);
       setBody("");
+      setFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       requestAnimationFrame(() => {
         listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
       });
     });
+  }
+
+  function addFiles(list: FileList | null) {
+    if (!list || list.length === 0) return;
+    const incoming = Array.from(list);
+    setFiles((prev) => [...prev, ...incoming].slice(0, 10));
+  }
+  function removeFile(idx: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== idx));
   }
   // touch userId so it doesn't lint as unused (kept in the signature for
   // future features that reference the sender directly).
@@ -202,6 +233,7 @@ export default function MessagesPopover({ clientId, userId, initialUnread, initi
                     key={m.id}
                     from={m.from_role}
                     body={m.body}
+                    attachments={m.attachments ?? []}
                     time={fmt(m.created_at)}
                     grouped={grouped}
                   />
@@ -210,12 +242,40 @@ export default function MessagesPopover({ clientId, userId, initialUnread, initi
             )}
           </div>
 
-          {/* Compose — pill input with inline send */}
+          {/* Compose */}
           <form
             onSubmit={submit}
             className="border-t border-[var(--color-border)] p-3 bg-[var(--color-bg-elev)]"
           >
-            <div className="flex items-end gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 focus-within:ring-2 focus-within:ring-[var(--color-accent)]/40 focus-within:border-[var(--color-accent)]/50 transition">
+            {/* Attached-file chips shown above the pill. */}
+            {files.length > 0 ? (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {files.map((f, i) => (
+                  <AttachmentChip key={i} file={f} onRemove={() => removeFile(i)} />
+                ))}
+              </div>
+            ) : null}
+
+            <div className="flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-bg)] pl-1.5 pr-1.5 py-1.5 focus-within:ring-2 focus-within:ring-[var(--color-accent)]/40 focus-within:border-[var(--color-accent)]/50 transition">
+              {/* Attach button — opens native file picker */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Attach files"
+                title="Attach photos or files"
+                className="shrink-0 w-9 h-9 flex items-center justify-center rounded-full text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)] transition"
+                disabled={pending}
+              >
+                <PlusIcon />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => addFiles(e.target.files)}
+              />
+
               <textarea
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
@@ -227,14 +287,15 @@ export default function MessagesPopover({ clientId, userId, initialUnread, initi
                 }}
                 rows={1}
                 placeholder="Type a message…"
-                className="flex-1 bg-transparent text-sm resize-none max-h-32 min-h-[22px] focus:outline-none placeholder:text-[var(--color-text-muted)]"
+                className="flex-1 bg-transparent text-sm resize-none max-h-32 focus:outline-none placeholder:text-[var(--color-text-muted)] py-1.5 leading-[1.4] self-center"
                 disabled={pending}
               />
+
               <button
                 type="submit"
-                disabled={pending || body.trim().length === 0}
+                disabled={pending || (body.trim().length === 0 && files.length === 0)}
                 aria-label={pending ? "Sending" : "Send message"}
-                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                className="shrink-0 w-9 h-9 flex items-center justify-center rounded-full bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition"
               >
                 {pending ? (
                   <span className="inline-block w-3 h-3 border-2 border-current border-r-transparent rounded-full animate-spin" />
@@ -262,15 +323,20 @@ export default function MessagesPopover({ clientId, userId, initialUnread, initi
 function MessageRow({
   from,
   body,
+  attachments,
   time,
   grouped,
 }: {
   from: "client" | "admin";
   body: string;
+  attachments: Attachment[];
   time: string;
   grouped: boolean;
 }) {
   const isClient = from === "client";
+  const images = attachments.filter((a) => a.mime_type.startsWith("image/") && a.url);
+  const nonImages = attachments.filter((a) => !a.mime_type.startsWith("image/") && a.url);
+  const hasBody = body.trim().length > 0;
   return (
     <div className={"flex items-end gap-2 " + (isClient ? "justify-end" : "justify-start")}>
       {!isClient ? (
@@ -278,18 +344,64 @@ function MessageRow({
           <F1Avatar size={26} />
         </div>
       ) : null}
-      <div className={"flex flex-col " + (isClient ? "items-end" : "items-start") + " max-w-[78%]"}>
-        <div
-          className={
-            "px-3.5 py-2 text-sm leading-snug shadow-sm " +
-            (isClient
-              ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] rounded-2xl rounded-br-md"
-              : "bg-[var(--color-bg-elev)] text-[var(--color-text)] border border-[var(--color-border)] rounded-2xl rounded-bl-md")
-          }
-        >
-          <div className="whitespace-pre-wrap break-words">{body}</div>
-        </div>
-        <div className="mt-1 px-1 text-[10px] text-[var(--color-text-subtle)] font-mono">
+      <div className={"flex flex-col " + (isClient ? "items-end" : "items-start") + " max-w-[78%] gap-1.5"}>
+        {images.length > 0 ? (
+          <div className={"flex gap-1.5 flex-wrap " + (isClient ? "justify-end" : "justify-start")}>
+            {images.map((a, i) => (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <a
+                key={i}
+                href={a.url ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+                className="block rounded-xl overflow-hidden border border-[var(--color-border)] hover:opacity-90 transition"
+              >
+                <img
+                  src={a.url ?? undefined}
+                  alt={a.name}
+                  className="max-w-[220px] max-h-[220px] object-cover"
+                />
+              </a>
+            ))}
+          </div>
+        ) : null}
+        {nonImages.length > 0 ? (
+          <div className={"flex flex-col gap-1 " + (isClient ? "items-end" : "items-start")}>
+            {nonImages.map((a, i) => (
+              <a
+                key={i}
+                href={a.url ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+                className={
+                  "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs border transition " +
+                  (isClient
+                    ? "bg-[var(--color-accent)]/10 border-[var(--color-accent)]/30 text-[var(--color-text)] hover:bg-[var(--color-accent)]/20"
+                    : "bg-[var(--color-bg-elev)] border-[var(--color-border)] hover:bg-[var(--color-bg-hover)]")
+                }
+              >
+                <FileIcon />
+                <div className="min-w-0 max-w-[180px]">
+                  <div className="truncate">{a.name}</div>
+                  <div className="text-[10px] text-[var(--color-text-muted)] font-mono">{formatBytes(a.size)}</div>
+                </div>
+              </a>
+            ))}
+          </div>
+        ) : null}
+        {hasBody ? (
+          <div
+            className={
+              "px-3.5 py-2 text-sm leading-snug shadow-sm " +
+              (isClient
+                ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] rounded-2xl rounded-br-md"
+                : "bg-[var(--color-bg-elev)] text-[var(--color-text)] border border-[var(--color-border)] rounded-2xl rounded-bl-md")
+            }
+          >
+            <div className="whitespace-pre-wrap break-words">{body}</div>
+          </div>
+        ) : null}
+        <div className="mt-0.5 px-1 text-[10px] text-[var(--color-text-subtle)] font-mono">
           {time}
         </div>
       </div>
@@ -310,20 +422,69 @@ function F1Avatar({ size = 32 }: { size?: number }) {
 }
 
 function SendIcon() {
+  // Upward arrow — classic iMessage-style send affordance.
   return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M22 2 11 13" />
-      <path d="M22 2 15 22l-4-9-9-4z" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 19V5" />
+      <path d="m5 12 7-7 7 7" />
     </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function FileIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+    </svg>
+  );
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function AttachmentChip({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const isImage = file.type.startsWith("image/");
+  const [preview, setPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isImage) return;
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file, isImage]);
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] pl-1.5 pr-2 py-1 text-xs">
+      {isImage && preview ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img src={preview} alt={file.name} className="w-8 h-8 rounded-md object-cover" />
+      ) : (
+        <span className="w-8 h-8 rounded-md bg-[var(--color-bg-elev)] flex items-center justify-center text-[var(--color-text-muted)]">
+          <FileIcon />
+        </span>
+      )}
+      <div className="min-w-0 max-w-[140px]">
+        <div className="truncate">{file.name}</div>
+        <div className="text-[10px] text-[var(--color-text-muted)] font-mono">{formatBytes(file.size)}</div>
+      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${file.name}`}
+        className="ml-1 text-[var(--color-text-muted)] hover:text-red-500 text-base leading-none"
+      >
+        ×
+      </button>
+    </div>
   );
 }

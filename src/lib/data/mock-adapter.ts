@@ -660,6 +660,7 @@ export function sendMessage(_input: {
   from_user_id: UUID;
   from_role: "client" | "admin";
   body: string;
+  attachments?: Array<{ path: string; name: string; mime_type: string; size: number }>;
 }) {
   return null;
 }

@@ -908,12 +908,20 @@ export const getOnboarding = cache(async (clientId: UUID) => {
 
 // ---------- client messages (two-way client ↔ admin thread) ----------
 
+export interface ClientMessageAttachment {
+  path: string;      // storage_path in client-attachments bucket
+  name: string;      // original filename
+  mime_type: string;
+  size: number;      // bytes
+}
+
 export interface ClientMessage {
   id: UUID;
   client_id: UUID;
   from_user_id: UUID | null;
   from_role: "client" | "admin";
   body: string;
+  attachments: ClientMessageAttachment[];
   created_at: string;
   read_at: string | null;
 }
@@ -934,6 +942,7 @@ export async function sendMessage(input: {
   from_user_id: UUID;
   from_role: "client" | "admin";
   body: string;
+  attachments?: ClientMessageAttachment[];
 }): Promise<ClientMessage | null> {
   const supabase = await createServiceClient();
   const { data, error } = await supabase
@@ -943,11 +952,30 @@ export async function sendMessage(input: {
       from_user_id: input.from_user_id,
       from_role: input.from_role,
       body: input.body,
+      attachments: input.attachments ?? [],
     })
     .select()
     .single();
   if (error) throw new Error(`sendMessage failed: ${error.message}`);
   return (data as ClientMessage) ?? null;
+}
+
+/** Sign the storage paths on a message's attachments so the client can render
+ *  images / download files. Reuses the 6-day cached signer from client-logo. */
+export async function signMessageAttachments(
+  attachments: ClientMessageAttachment[],
+): Promise<Array<ClientMessageAttachment & { url: string | null }>> {
+  if (!attachments || attachments.length === 0) return [];
+  const supabase = await createServiceClient();
+  const signed = await Promise.all(
+    attachments.map(async (a) => {
+      const { data } = await supabase.storage
+        .from("client-attachments")
+        .createSignedUrl(a.path, 60 * 60 * 24 * 7);
+      return { ...a, url: data?.signedUrl ?? null };
+    }),
+  );
+  return signed;
 }
 
 /** Mark every unread message from the OTHER side as read for this client. */

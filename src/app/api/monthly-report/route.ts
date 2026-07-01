@@ -134,6 +134,7 @@ function avgInRange(series: { captured_at: string; value: number }[], from: stri
 
 interface ClaudeResp {
   content: Array<{ type: string; text?: string }>;
+  stop_reason?: string;
 }
 
 async function synthesize(args: {
@@ -163,8 +164,13 @@ async function synthesize(args: {
     body: JSON.stringify({
       // claude-opus-4-7 dropped the `temperature` param — omitting it lets the
       // model pick its own default (sampling was tuned during training).
+      // max_tokens: 4000 truncated Tier-3 responses mid-JSON — a full deck
+      // (executive summary + rankings + competitive snapshot + traffic +
+      // cross-channel/AI + content + backlinks + social + ranking detail +
+      // whatsNext + charts) blows past 4k output tokens. 16000 gives generous
+      // headroom for any tier.
       model: ANTHROPIC_MODEL,
-      max_tokens: 4000,
+      max_tokens: 16000,
       system: SYNTHESIS_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userMsg }],
     }),
@@ -182,7 +188,12 @@ async function synthesize(args: {
   try {
     return JSON.parse(cleaned) as MonthlyContent;
   } catch {
-    throw new Error("Claude response was not valid JSON. First 200 chars: " + cleaned.slice(0, 200));
+    const hint = json.stop_reason === "max_tokens"
+      ? " (stop_reason=max_tokens — the response was cut off; raise max_tokens)"
+      : "";
+    throw new Error(
+      `Claude response was not valid JSON${hint}. Length ${cleaned.length}, first 200: ${cleaned.slice(0, 200)}`,
+    );
   }
 }
 

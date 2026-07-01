@@ -159,88 +159,171 @@ export default function MessagesPopover({ clientId, userId, initialUnread, initi
         <div
           role="dialog"
           aria-label="Messages with F1 Media"
-          className="absolute right-0 top-full mt-2 z-40 w-[380px] max-w-[calc(100vw-1.5rem)] rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg-card)] shadow-2xl overflow-hidden flex flex-col"
+          className="absolute right-0 top-full mt-2 z-40 w-[540px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg-card)] shadow-2xl overflow-hidden flex flex-col"
         >
-          <div className="px-4 py-3 border-b border-[var(--color-border)] flex items-center justify-between">
-            <div>
-              <div className="text-sm font-semibold">Message F1 Media</div>
+          {/* Header — F1 avatar + title + presence dot */}
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-bg-elev)]">
+            <F1Avatar />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold truncate">F1 Media Team</span>
+                <span
+                  className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]"
+                  aria-label="Online"
+                  title="Online"
+                />
+              </div>
               <div className="text-[11px] text-[var(--color-text-muted)]">
-                Anything you send goes to your account manager.
+                Your account manager
               </div>
             </div>
           </div>
 
+          {/* Thread */}
           <div
             ref={listRef}
-            className="flex-1 min-h-[220px] max-h-[400px] overflow-y-auto px-4 py-3 space-y-3 bg-[var(--color-bg)]"
+            className="flex-1 min-h-[440px] max-h-[65vh] overflow-y-auto px-5 py-5 space-y-3 bg-[var(--color-bg)]"
           >
             {messages.length === 0 ? (
-              <div className="text-center text-xs text-[var(--color-text-muted)] py-8">
-                No messages yet. Say hi 👋
+              <div className="flex flex-col items-center justify-center h-full py-8 text-center">
+                <F1Avatar size={44} />
+                <div className="mt-3 text-sm font-medium">Say hello to F1 Media Team</div>
+                <div className="mt-1 text-xs text-[var(--color-text-muted)] max-w-[240px]">
+                  Ask a question, share a link, or send an update — replies land here.
+                </div>
               </div>
             ) : (
-              messages.map((m) => (
-                <div
-                  key={m.id}
-                  className={
-                    "flex " + (m.from_role === "client" ? "justify-end" : "justify-start")
-                  }
-                >
-                  <div
-                    className={
-                      "max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-snug " +
-                      (m.from_role === "client"
-                        ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] rounded-br-md"
-                        : "bg-[var(--color-bg-elev)] text-[var(--color-text)] rounded-bl-md")
-                    }
-                  >
-                    <div className="whitespace-pre-wrap break-words">{m.body}</div>
-                    <div
-                      className={
-                        "mt-1 text-[10px] font-mono " +
-                        (m.from_role === "client"
-                          ? "text-[var(--color-on-accent)]/70"
-                          : "text-[var(--color-text-muted)]")
-                      }
-                    >
-                      {m.from_role === "client" ? "You" : "F1 Media"} · {fmt(m.created_at)}
-                    </div>
-                  </div>
-                </div>
-              ))
+              messages.map((m, i) => {
+                const prev = messages[i - 1];
+                const grouped = prev && prev.from_role === m.from_role &&
+                  new Date(m.created_at).getTime() - new Date(prev.created_at).getTime() < 5 * 60_000;
+                return (
+                  <MessageRow
+                    key={m.id}
+                    from={m.from_role}
+                    body={m.body}
+                    time={fmt(m.created_at)}
+                    grouped={grouped}
+                  />
+                );
+              })
             )}
           </div>
 
-          <form onSubmit={submit} className="border-t border-[var(--color-border)] p-3 space-y-2">
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault();
-                  (e.currentTarget.form as HTMLFormElement).requestSubmit();
-                }
-              }}
-              rows={2}
-              placeholder="Type a message… (Cmd/Ctrl+Enter to send)"
-              className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40 resize-none"
-              disabled={pending}
-            />
-            {error ? (
-              <div className="text-[11px] text-red-400">{error}</div>
-            ) : null}
-            <div className="flex items-center justify-end gap-2">
+          {/* Compose — pill input with inline send */}
+          <form
+            onSubmit={submit}
+            className="border-t border-[var(--color-border)] p-3 bg-[var(--color-bg-elev)]"
+          >
+            <div className="flex items-end gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 focus-within:ring-2 focus-within:ring-[var(--color-accent)]/40 focus-within:border-[var(--color-accent)]/50 transition">
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    (e.currentTarget.form as HTMLFormElement).requestSubmit();
+                  }
+                }}
+                rows={1}
+                placeholder="Type a message…"
+                className="flex-1 bg-transparent text-sm resize-none max-h-32 min-h-[22px] focus:outline-none placeholder:text-[var(--color-text-muted)]"
+                disabled={pending}
+              />
               <button
                 type="submit"
                 disabled={pending || body.trim().length === 0}
-                className="rounded-lg bg-[var(--color-accent)] text-[var(--color-on-accent)] px-4 py-1.5 text-xs font-semibold hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                aria-label={pending ? "Sending" : "Send message"}
+                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition"
               >
-                {pending ? "Sending…" : "Send"}
+                {pending ? (
+                  <span className="inline-block w-3 h-3 border-2 border-current border-r-transparent rounded-full animate-spin" />
+                ) : (
+                  <SendIcon />
+                )}
               </button>
             </div>
+            {error ? (
+              <div className="mt-2 text-[11px] text-red-400">{error}</div>
+            ) : (
+              <div className="mt-2 text-[10px] text-[var(--color-text-subtle)] text-right">
+                Cmd/Ctrl+Enter to send
+              </div>
+            )}
           </form>
         </div>
       ) : null}
     </div>
+  );
+}
+
+// ---------- Bubble + avatar primitives ----------
+
+function MessageRow({
+  from,
+  body,
+  time,
+  grouped,
+}: {
+  from: "client" | "admin";
+  body: string;
+  time: string;
+  grouped: boolean;
+}) {
+  const isClient = from === "client";
+  return (
+    <div className={"flex items-end gap-2 " + (isClient ? "justify-end" : "justify-start")}>
+      {!isClient ? (
+        <div className={"shrink-0 " + (grouped ? "invisible" : "")}>
+          <F1Avatar size={26} />
+        </div>
+      ) : null}
+      <div className={"flex flex-col " + (isClient ? "items-end" : "items-start") + " max-w-[78%]"}>
+        <div
+          className={
+            "px-3.5 py-2 text-sm leading-snug shadow-sm " +
+            (isClient
+              ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] rounded-2xl rounded-br-md"
+              : "bg-[var(--color-bg-elev)] text-[var(--color-text)] border border-[var(--color-border)] rounded-2xl rounded-bl-md")
+          }
+        >
+          <div className="whitespace-pre-wrap break-words">{body}</div>
+        </div>
+        <div className="mt-1 px-1 text-[10px] text-[var(--color-text-subtle)] font-mono">
+          {time}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function F1Avatar({ size = 32 }: { size?: number }) {
+  return (
+    <div
+      className="shrink-0 rounded-full bg-gradient-to-br from-[#E11D48] to-[#0F172A] flex items-center justify-center text-white font-bold shadow-sm ring-1 ring-black/10"
+      style={{ width: size, height: size, fontSize: size * 0.42 }}
+      aria-hidden
+    >
+      F1
+    </div>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M22 2 11 13" />
+      <path d="M22 2 15 22l-4-9-9-4z" />
+    </svg>
   );
 }

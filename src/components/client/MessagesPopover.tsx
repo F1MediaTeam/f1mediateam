@@ -341,18 +341,19 @@ function MessageRow({
         {images.length > 0 ? (
           <div className={"flex gap-1.5 flex-wrap " + (isClient ? "justify-end" : "justify-start")}>
             {images.map((a, i) => (
-              /* eslint-disable-next-line @next/next/no-img-element */
               <a
                 key={i}
                 href={a.url ?? "#"}
                 target="_blank"
                 rel="noreferrer"
-                className="block rounded-xl overflow-hidden border border-[var(--color-border)] hover:opacity-90 transition"
+                className="block rounded-xl overflow-hidden border border-[var(--color-border)] hover:opacity-90 transition bg-white"
+                style={{ width: 240, height: 180 }}
               >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={a.url ?? undefined}
                   alt={a.name}
-                  className="max-w-[220px] max-h-[220px] object-cover"
+                  className="w-full h-full object-contain"
                 />
               </a>
             ))}

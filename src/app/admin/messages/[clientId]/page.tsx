@@ -63,9 +63,16 @@ export default async function AdminMessageThread({
                         <div className={"flex flex-wrap gap-1.5 " + (m.from_role === "admin" ? "justify-end" : "justify-start")}>
                           {m.signedAttachments.map((a, i) =>
                             a.mime_type.startsWith("image/") && a.url ? (
-                              /* eslint-disable-next-line @next/next/no-img-element */
-                              <a key={i} href={a.url} target="_blank" rel="noreferrer" className="block rounded-xl overflow-hidden border border-[var(--color-border)] hover:opacity-90 transition">
-                                <img src={a.url} alt={a.name} className="max-w-[240px] max-h-[240px] object-cover" />
+                              <a
+                                key={i}
+                                href={a.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block rounded-xl overflow-hidden border border-[var(--color-border)] hover:opacity-90 transition bg-white"
+                                style={{ width: 260, height: 200 }}
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={a.url} alt={a.name} className="w-full h-full object-contain" />
                               </a>
                             ) : (
                               <a

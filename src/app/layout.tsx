@@ -29,8 +29,8 @@ export const metadata: Metadata = {
 // column responsive fallback. Pinch-zoom stays enabled so a customer can zoom
 // in to read small text or interact with tightly-packed controls.
 export const viewport: Viewport = {
-  width: 1280,
-  initialScale: 0.28,   // 360 / 1280 ≈ 0.28 — fits a typical phone width
+  width: 1024,
+  initialScale: 0.36,   // 375 / 1024 ≈ 0.36 — bigger text, still hits lg: breakpoint
   minimumScale: 0.1,
   maximumScale: 4,
   userScalable: true,

@@ -10,6 +10,7 @@ import {
   sendClientMessageAction,
   markClientMessagesReadAction,
 } from "@/app/client/actions";
+import Logo from "@/components/shared/Logo";
 
 interface Attachment {
   path: string;
@@ -192,21 +193,16 @@ export default function MessagesPopover({ clientId, userId, initialUnread, initi
           aria-label="Messages with F1 Media"
           className="absolute right-0 top-full mt-2 z-40 w-[540px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg-card)] shadow-2xl overflow-hidden flex flex-col"
         >
-          {/* Header — F1 avatar + title + presence dot */}
+          {/* Header — F1 Media Team logo + title + presence dot */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-bg-elev)]">
-            <F1Avatar />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold truncate">F1 Media Team</span>
-                <span
-                  className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]"
-                  aria-label="Online"
-                  title="Online"
-                />
-              </div>
-              <div className="text-[11px] text-[var(--color-text-muted)]">
-                Your account manager
-              </div>
+            <F1Avatar size={38} />
+            <div className="min-w-0 flex-1 flex items-center gap-2">
+              <span className="text-sm font-semibold truncate">F1 Media Team</span>
+              <span
+                className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]"
+                aria-label="Online"
+                title="Online"
+              />
             </div>
           </div>
 
@@ -333,17 +329,15 @@ function MessageRow({
   time: string;
   grouped: boolean;
 }) {
+  // grouped is kept in the signature for future spacing tweaks between
+  // rapid-fire messages from the same side.
+  void grouped;
   const isClient = from === "client";
   const images = attachments.filter((a) => a.mime_type.startsWith("image/") && a.url);
   const nonImages = attachments.filter((a) => !a.mime_type.startsWith("image/") && a.url);
   const hasBody = body.trim().length > 0;
   return (
-    <div className={"flex items-end gap-2 " + (isClient ? "justify-end" : "justify-start")}>
-      {!isClient ? (
-        <div className={"shrink-0 " + (grouped ? "invisible" : "")}>
-          <F1Avatar size={26} />
-        </div>
-      ) : null}
+    <div className={"flex " + (isClient ? "justify-end" : "justify-start")}>
       <div className={"flex flex-col " + (isClient ? "items-end" : "items-start") + " max-w-[78%] gap-1.5"}>
         {images.length > 0 ? (
           <div className={"flex gap-1.5 flex-wrap " + (isClient ? "justify-end" : "justify-start")}>
@@ -410,15 +404,11 @@ function MessageRow({
 }
 
 function F1Avatar({ size = 32 }: { size?: number }) {
-  return (
-    <div
-      className="shrink-0 rounded-full bg-gradient-to-br from-[#E11D48] to-[#0F172A] flex items-center justify-center text-white font-bold shadow-sm ring-1 ring-black/10"
-      style={{ width: size, height: size, fontSize: size * 0.42 }}
-      aria-hidden
-    >
-      F1
-    </div>
-  );
+  // Delegate to the shared theme-aware <Logo compact /> so the F1 Media Team
+  // lockup swaps between /logo.png and /logo-light.png with data-theme.
+  // The lockup is a wide horizontal band — pick a width proportional to size.
+  const width = Math.round(size * 3.2);
+  return <Logo compact width={width} height={size} className="shrink-0" />;
 }
 
 function SendIcon() {

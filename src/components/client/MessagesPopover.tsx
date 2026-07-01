@@ -235,7 +235,7 @@ export default function MessagesPopover({ clientId, userId, initialUnread, initi
         <div
           role="dialog"
           aria-label="Messages with F1 Media"
-          className="absolute right-0 top-full mt-2 z-40 w-[540px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg-card)] shadow-2xl overflow-hidden flex flex-col"
+          className="absolute right-0 top-full mt-2 z-40 w-[calc(100vw-1rem)] sm:w-[540px] max-w-[calc(100vw-0.5rem)] rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg-card)] shadow-2xl overflow-hidden flex flex-col"
         >
           {/* Header — F1 Media Team logo + title + presence dot */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-bg-elev)]">

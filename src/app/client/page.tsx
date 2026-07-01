@@ -80,7 +80,7 @@ export default async function ClientHome() {
         <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
           Overview
         </div>
-        <h1 className="mt-1 text-4xl font-semibold tracking-tight">Welcome back.</h1>
+        <h1 className="mt-1 text-3xl sm:text-4xl font-semibold tracking-tight">Welcome back.</h1>
       </div>
 
       {widgets.content ? (
@@ -120,12 +120,12 @@ export default async function ClientHome() {
                 <CalendarAddModal action={createClientCalendarEventAction} />
               </div>
             </div>
-            <div className="grid grid-cols-7 text-xs uppercase tracking-wider text-[var(--color-text-muted)] mb-2">
+            <div className="grid grid-cols-7 text-[10px] sm:text-xs uppercase tracking-wider text-[var(--color-text-muted)] mb-2">
               {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
-                <div key={d} className="px-2 py-1">{d}</div>
+                <div key={d} className="px-0.5 sm:px-2 py-1 text-center sm:text-left">{d}</div>
               ))}
             </div>
-            <div className="grid grid-cols-7 gap-1.5 mb-6">
+            <div className="grid grid-cols-7 gap-1 sm:gap-1.5 mb-6">
               {monthDays.map((d) => {
                 const key = isoDate(d);
                 const isCurrentMonth = d.getMonth() === now.getMonth();
@@ -135,13 +135,13 @@ export default async function ClientHome() {
                   <div
                     key={key}
                     className={
-                      "rounded-lg border p-2 min-h-[80px] " +
+                      "rounded-md sm:rounded-lg border p-1 sm:p-2 min-h-[54px] sm:min-h-[80px] " +
                       (isCurrentMonth
                         ? "border-[var(--color-border)] bg-[var(--color-bg-elev)]"
                         : "border-[var(--color-border)]/40 bg-[var(--color-bg-elev)]/40 opacity-50")
                     }
                   >
-                    <div className="flex items-center justify-between text-[11px] mb-1">
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] mb-1">
                       <span className={isToday ? "text-[var(--color-accent)] font-semibold" : "text-[var(--color-text-muted)]"}>
                         {d.getDate()}
                       </span>

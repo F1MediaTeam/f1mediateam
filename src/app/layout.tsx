@@ -22,17 +22,12 @@ export const metadata: Metadata = {
   },
 };
 
-// Force desktop-width rendering on mobile: the browser lays out at 1280 CSS
-// pixels and scales the whole page down to fit the physical screen. That
-// means every sm:/md:/lg:/xl: breakpoint activates the same way it does on a
-// laptop — the customer sees the same layout on a phone, no shrunk-to-single-
-// column responsive fallback. Pinch-zoom stays enabled so a customer can zoom
-// in to read small text or interact with tightly-packed controls.
+// Standard responsive viewport — surfaces stack cleanly on phone widths and
+// use the full desktop layout at md: and above. Pinch-zoom stays enabled.
 export const viewport: Viewport = {
-  width: 1024,
-  initialScale: 0.36,   // 375 / 1024 ≈ 0.36 — bigger text, still hits lg: breakpoint
-  minimumScale: 0.1,
-  maximumScale: 4,
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
   userScalable: true,
 };
 

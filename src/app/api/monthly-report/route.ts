@@ -29,7 +29,11 @@ import type { Client, OnboardingData } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Opus 4.7 with max_tokens: 16000 can take 90–120s to finish a Tier-3 deck's
+// worth of JSON. The default Vercel 60s window returns FUNCTION_INVOCATION_TIMEOUT
+// before the model finishes; bump to 300s (5 min) which is the Pro/Fluid Compute
+// ceiling and leaves headroom for the PPTX render + storage upload after.
+export const maxDuration = 300;
 
 const ANTHROPIC_MODEL = "claude-opus-4-7";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";

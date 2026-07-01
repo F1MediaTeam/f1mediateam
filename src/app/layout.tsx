@@ -22,15 +22,18 @@ export const metadata: Metadata = {
   },
 };
 
-// Lock the viewport: no pinch-zoom, no double-tap zoom. The layout is
-// designed to fit phone widths natively; pinch-zoom on a webapp UX makes
-// fixed elements (header, modals, hamburger drawer) drift off-screen.
+// Force desktop-width rendering on mobile: the browser lays out at 1280 CSS
+// pixels and scales the whole page down to fit the physical screen. That
+// means every sm:/md:/lg:/xl: breakpoint activates the same way it does on a
+// laptop — the customer sees the same layout on a phone, no shrunk-to-single-
+// column responsive fallback. Pinch-zoom stays enabled so a customer can zoom
+// in to read small text or interact with tightly-packed controls.
 export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  minimumScale: 1,
-  userScalable: false,
+  width: 1280,
+  initialScale: 0.28,   // 360 / 1280 ≈ 0.28 — fits a typical phone width
+  minimumScale: 0.1,
+  maximumScale: 4,
+  userScalable: true,
 };
 
 export default function RootLayout({

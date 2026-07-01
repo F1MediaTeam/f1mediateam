@@ -178,7 +178,19 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
   const bcell = (o: { color?: string; bold?: boolean; fontFace?: string; fontSize?: number; align?: string } = {}) => ({
     color: o.color || C.ink, bold: !!o.bold, fontFace: o.fontFace, fontSize: o.fontSize || 12, align: o.align || "left", margin: [3, 5, 3, 5], fill: { color: C.white },
   });
-  const stripDomain = (u: string | undefined) => (u || "").replace(/^https?:\/\/[^/]+/, "");
+  // Accept string or {url}-object — Claude occasionally emits pagesCreated /
+  // pagesOptimized as [{url, ...}] instead of ["/path", ...]. Coerce either
+  // shape into a string before running the replace so we don't 500 on a
+  // downstream .replace-on-non-string TypeError.
+  const stripDomain = (u: unknown): string => {
+    let s = "";
+    if (typeof u === "string") s = u;
+    else if (u && typeof u === "object" && "url" in u) {
+      const inner = (u as { url: unknown }).url;
+      if (typeof inner === "string") s = inner;
+    }
+    return s.replace(/^https?:\/\/[^/]+/, "");
+  };
 
   // ===== SLIDE 1 — Title =====
   {

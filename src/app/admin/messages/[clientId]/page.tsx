@@ -10,6 +10,7 @@ import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader } from "@/components/ui";
 import AdminReplyForm from "@/components/admin/AdminReplyForm";
 import { markMessagesRead } from "@/lib/data/supabase-adapter";
+import Time from "@/components/shared/Time";
 
 export default async function AdminMessageThread({
   params,
@@ -68,7 +69,7 @@ export default async function AdminMessageThread({
                             : "text-[var(--color-text-muted)]")
                         }
                       >
-                        {m.from_role === "admin" ? "F1 Media" : client.company_name} · {new Date(m.created_at).toLocaleString()}
+                        {m.from_role === "admin" ? "F1 Media" : client.company_name} · <Time iso={m.created_at} />
                       </div>
                     </div>
                   </div>

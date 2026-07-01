@@ -11,6 +11,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui";
 import AdminReplyForm from "@/components/admin/AdminReplyForm";
 import { markMessagesRead, signMessageAttachments } from "@/lib/data/supabase-adapter";
 import Time from "@/components/shared/Time";
+import LightboxImage from "@/components/shared/LightboxImage";
 
 export default async function AdminMessageThread({
   params,
@@ -63,17 +64,7 @@ export default async function AdminMessageThread({
                         <div className={"flex flex-wrap gap-1.5 " + (m.from_role === "admin" ? "justify-end" : "justify-start")}>
                           {m.signedAttachments.map((a, i) =>
                             a.mime_type.startsWith("image/") && a.url ? (
-                              <a
-                                key={i}
-                                href={a.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="block rounded-xl overflow-hidden border border-[var(--color-border)] hover:opacity-90 transition bg-white"
-                                style={{ width: 260, height: 200 }}
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={a.url} alt={a.name} className="w-full h-full object-contain" />
-                              </a>
+                              <LightboxImage key={i} src={a.url} alt={a.name} width={260} height={200} />
                             ) : (
                               <a
                                 key={i}

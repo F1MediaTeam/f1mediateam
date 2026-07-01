@@ -10,6 +10,7 @@ import {
   sendClientMessageAction,
   markClientMessagesReadAction,
 } from "@/app/client/actions";
+import ImageLightbox from "@/components/shared/ImageLightbox";
 
 interface Attachment {
   path: string;
@@ -59,6 +60,7 @@ export default function MessagesPopover({ clientId, userId, initialUnread, initi
   const [files, setFiles] = useState<File[]>([]);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ src: string; alt: string } | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -231,6 +233,7 @@ export default function MessagesPopover({ clientId, userId, initialUnread, initi
                     attachments={m.attachments ?? []}
                     time={fmt(m.created_at)}
                     grouped={grouped}
+                    onPreview={(src, alt) => setPreview({ src, alt })}
                   />
                 );
               })
@@ -309,6 +312,10 @@ export default function MessagesPopover({ clientId, userId, initialUnread, initi
           </form>
         </div>
       ) : null}
+
+      {preview ? (
+        <ImageLightbox src={preview.src} alt={preview.alt} onClose={() => setPreview(null)} />
+      ) : null}
     </div>
   );
 }
@@ -321,12 +328,14 @@ function MessageRow({
   attachments,
   time,
   grouped,
+  onPreview,
 }: {
   from: "client" | "admin";
   body: string;
   attachments: Attachment[];
   time: string;
   grouped: boolean;
+  onPreview: (src: string, alt: string) => void;
 }) {
   // grouped is kept in the signature for future spacing tweaks between
   // rapid-fire messages from the same side.
@@ -341,13 +350,13 @@ function MessageRow({
         {images.length > 0 ? (
           <div className={"flex gap-1.5 flex-wrap " + (isClient ? "justify-end" : "justify-start")}>
             {images.map((a, i) => (
-              <a
+              <button
                 key={i}
-                href={a.url ?? "#"}
-                target="_blank"
-                rel="noreferrer"
-                className="block rounded-xl overflow-hidden border border-[var(--color-border)] hover:opacity-90 transition bg-white"
+                type="button"
+                onClick={() => a.url && onPreview(a.url, a.name)}
+                className="block rounded-xl overflow-hidden border border-[var(--color-border)] hover:opacity-90 transition cursor-zoom-in checker-bg"
                 style={{ width: 240, height: 180 }}
+                aria-label={`Preview ${a.name}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -355,7 +364,7 @@ function MessageRow({
                   alt={a.name}
                   className="w-full h-full object-contain"
                 />
-              </a>
+              </button>
             ))}
           </div>
         ) : null}

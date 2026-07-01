@@ -161,9 +161,10 @@ async function synthesize(args: {
       "content-type": "application/json",
     },
     body: JSON.stringify({
+      // claude-opus-4-7 dropped the `temperature` param — omitting it lets the
+      // model pick its own default (sampling was tuned during training).
       model: ANTHROPIC_MODEL,
       max_tokens: 4000,
-      temperature: 0.2,
       system: SYNTHESIS_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userMsg }],
     }),

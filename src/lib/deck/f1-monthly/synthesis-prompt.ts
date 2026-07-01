@@ -1,6 +1,8 @@
 // Master Presentation Bot — system prompt for the F1 Media monthly report
-// synthesis call. Mirrors MASTER_PRESENTATION_BOT_PROMPT.md verbatim. Use a
-// low temperature (0–0.2) when calling Anthropic so the JSON stays stable.
+// synthesis call. Mirrors MASTER_PRESENTATION_BOT_PROMPT.md verbatim. On
+// claude-opus-4-7 the `temperature` param is deprecated (we omit it and let
+// the model use its training-tuned default), so JSON stability comes from the
+// prompt discipline below.
 
 export const SYNTHESIS_SYSTEM_PROMPT = `ROLE
 You are the presentation engine for F1 Media Team, a full-service SEO & digital marketing agency in

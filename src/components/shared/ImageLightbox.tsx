@@ -1,12 +1,13 @@
 "use client";
 
-// Simple full-screen image viewer. Renders a fixed backdrop over the whole
-// page with the image centered on top. Click backdrop, hit Escape, or click
-// the × to close. Backdrop is nearly opaque black so any color image reads
-// with high contrast; the image gets a subtle white outline so an all-black
-// image is still visible against the backdrop.
+// Full-screen image viewer. Renders through a portal into document.body so
+// the fixed backdrop escapes any transformed / backdrop-blurred / contain-
+// bearing ancestor (the sticky client header uses backdrop-blur, which
+// otherwise creates a containing block that clips position: fixed and
+// squashes the lightbox to a strip at the top).
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 interface Props {
   src: string;
@@ -15,7 +16,10 @@ interface Props {
 }
 
 export default function ImageLightbox({ src, alt, onClose }: Props) {
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
+    setMounted(true);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -28,12 +32,14 @@ export default function ImageLightbox({ src, alt, onClose }: Props) {
     };
   }, [onClose]);
 
-  return (
+  if (!mounted || typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label={alt || "Image preview"}
-      className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 cursor-zoom-out"
+      className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 cursor-zoom-out"
       onClick={onClose}
     >
       <button
@@ -56,6 +62,7 @@ export default function ImageLightbox({ src, alt, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
         className="max-w-full max-h-full object-contain rounded-lg shadow-2xl ring-1 ring-white/10 cursor-default"
       />
-    </div>
+    </div>,
+    document.body,
   );
 }

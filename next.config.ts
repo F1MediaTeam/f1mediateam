@@ -16,8 +16,9 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       // Onboarding submit can include multiple brand-asset images.
-      // 1MB default was rejecting realistic uploads.
-      bodySizeLimit: "25mb",
+      // Client-message compose can attach up to 10 files × 50 MB each,
+      // plus the multipart headers; 100mb gives room without being wasteful.
+      bodySizeLimit: "100mb",
     },
   },
 };

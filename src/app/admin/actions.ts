@@ -238,7 +238,7 @@ export async function reopenOnboardingAction(formData: FormData): Promise<void> 
 // ---------- messages (admin → client) ----------
 
 const MAX_ADMIN_MESSAGE_LEN = 4000;
-const ADMIN_MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
+const ADMIN_MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
 const ADMIN_MAX_ATTACHMENTS = 10;
 
 async function uploadAdminAttachments(
@@ -251,7 +251,7 @@ async function uploadAdminAttachments(
   for (const file of files) {
     if (!file || file.size === 0) continue;
     if (file.size > ADMIN_MAX_ATTACHMENT_BYTES) {
-      throw new Error(`File "${file.name}" is too big (max 15 MB).`);
+      throw new Error(`File "${file.name}" is too big (max 50 MB).`);
     }
     const safeName = file.name.replace(/[^\w.\-]/g, "_").slice(0, 120) || "file";
     const path = `messages/${clientId}/${randomUUID()}-${safeName}`;

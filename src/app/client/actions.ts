@@ -247,7 +247,7 @@ export async function getFileDownloadUrl(fileId: string): Promise<string | null>
 // ---------- messages (client → admin) ----------
 
 const MAX_MESSAGE_LEN = 4000;
-const MSG_MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024; // 15 MB per file
+const MSG_MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024; // 50 MB per file
 const MSG_MAX_ATTACHMENTS = 10;
 
 async function uploadMessageAttachments(
@@ -260,7 +260,7 @@ async function uploadMessageAttachments(
   for (const file of files) {
     if (!file || file.size === 0) continue;
     if (file.size > MSG_MAX_ATTACHMENT_BYTES) {
-      throw new Error(`File "${file.name}" is too big (max 15 MB).`);
+      throw new Error(`File "${file.name}" is too big (max 50 MB).`);
     }
     const safeName = file.name.replace(/[^\w.\-]/g, "_").slice(0, 120) || "file";
     const path = `messages/${clientId}/${randomUUID()}-${safeName}`;

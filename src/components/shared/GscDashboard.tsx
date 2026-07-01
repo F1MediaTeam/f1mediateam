@@ -264,7 +264,7 @@ function MultiLineChart({ series, enabled, onScrub }: ChartProps) {
     <svg
       ref={svgRef}
       viewBox={`0 0 ${W} ${H}`}
-      className="w-full h-[380px] sm:h-[400px] touch-none select-none cursor-crosshair"
+      className="w-full h-[540px] sm:h-[400px] touch-none select-none cursor-crosshair"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -279,7 +279,7 @@ function MultiLineChart({ series, enabled, onScrub }: ChartProps) {
             d={pathFor(s, norm)}
             fill="none"
             stroke={s.def.color}
-            strokeWidth={4}
+            strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
             vectorEffect="non-scaling-stroke"

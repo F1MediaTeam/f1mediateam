@@ -33,8 +33,8 @@ export default async function ClientShell({
     <div className="min-h-screen">
       {session.is_impersonating ? <ImpersonationBanner clientName={client.company_name} /> : null}
       <header className="border-b border-[var(--color-border)] bg-[var(--color-bg-elev)]/70 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0 justify-self-start">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between md:grid md:grid-cols-[1fr_auto_1fr] gap-3 sm:gap-6">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 md:justify-self-start">
             <Link href="/client" aria-label="F1 Media Team — home" className="shrink-0">
               <Logo compact width={110} height={32} />
             </Link>

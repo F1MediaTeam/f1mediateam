@@ -36,7 +36,7 @@ export default async function AdminMessageThread({
 
   return (
     <AdminShell session={session} active="/admin/messages">
-      <div className="px-8 py-8 max-w-3xl">
+      <div className="px-8 py-8 max-w-[1600px]">
         <Link href="/admin/messages" className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
           ← All threads
         </Link>

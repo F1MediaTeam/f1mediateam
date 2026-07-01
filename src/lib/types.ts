@@ -31,6 +31,15 @@ export interface ClientConfig {
   };
 }
 
+/** Monthly-report tier: 1 = Foundation Visibility, 2 = Growth & Authority, 3 = Market Domination. */
+export type ClientTier = "1" | "2" | "3" | null;
+
+export const TIER_LABELS: Record<NonNullable<ClientTier>, string> = {
+  "1": "Tier 1 — Foundation Visibility",
+  "2": "Tier 2 — Growth & Authority",
+  "3": "Tier 3 — Market Domination",
+};
+
 export interface Client {
   id: UUID;
   company_name: string;
@@ -38,6 +47,7 @@ export interface Client {
   websites: string[];
   config: ClientConfig;
   branding: Record<string, unknown>;
+  tier?: ClientTier;
   created_at: ISODateTime;
   updated_at: ISODateTime;
 }

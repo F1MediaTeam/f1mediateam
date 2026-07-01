@@ -6,6 +6,7 @@ import { setEmailPrefAction } from "../actions";
 import { signOutAction } from "@/app/login/actions";
 import Time from "@/components/shared/Time";
 import OnboardingDownloadsCard from "@/components/client/OnboardingDownloadsCard";
+import { TIER_LABELS } from "@/lib/types";
 import SignInHistoryCard from "@/components/client/SignInHistoryCard";
 
 export default async function ClientSettings() {
@@ -40,6 +41,14 @@ export default async function ClientSettings() {
             <ReadOnlyField label="Business name" value={client.company_name} />
             <ReadOnlyField label="Account email" value={clientUser?.email ?? "—"} />
             <ReadOnlyField label="Password" value={"•".repeat(12)} mono />
+            <ReadOnlyField
+              label="Service tier"
+              value={
+                client.tier === "1" || client.tier === "2" || client.tier === "3"
+                  ? TIER_LABELS[client.tier]
+                  : "Not assigned yet"
+              }
+            />
             <div className="flex justify-end pt-2">
               <form action={signOutAction}>
                 <button

@@ -9,6 +9,7 @@ interface Props {
   userId: string;
   initialCompanyName: string;
   initialEmail: string;
+  initialTier: "1" | "2" | "3" | "";
 }
 
 const initial = { error: null as string | null, ok: null as string | null };
@@ -27,6 +28,7 @@ export default function EditClientUserForm({
   userId,
   initialCompanyName,
   initialEmail,
+  initialTier,
 }: Props) {
   const [state, formAction, pending] = useActionState(updateClientUserAction, initial);
 
@@ -59,6 +61,20 @@ export default function EditClientUserForm({
           defaultValue={initialEmail}
           className={field}
         />
+      </label>
+
+      <label className="block">
+        <span className={labelCls}>Service tier</span>
+        <select
+          name="tier"
+          defaultValue={initialTier}
+          className={field}
+        >
+          <option value="">— Not assigned —</option>
+          <option value="1">Tier 1 — Foundation Visibility</option>
+          <option value="2">Tier 2 — Growth & Authority</option>
+          <option value="3">Tier 3 — Market Domination</option>
+        </select>
       </label>
 
       <label className="block">

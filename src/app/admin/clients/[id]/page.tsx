@@ -124,6 +124,7 @@ export default async function ClientProfile({
                 userId={customerUser.id}
                 initialCompanyName={client.company_name}
                 initialEmail={customerUser.email}
+                initialTier={(client.tier === "1" || client.tier === "2" || client.tier === "3") ? client.tier : ""}
               />
             </CardBody>
           </Card>

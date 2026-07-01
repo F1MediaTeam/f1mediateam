@@ -170,6 +170,8 @@ export async function updateClientUserAction(
   const company_name = String(formData.get("company_name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const rawTier = String(formData.get("tier") ?? "").trim();
+  const tier = rawTier === "1" || rawTier === "2" || rawTier === "3" ? rawTier : null;
 
   if (!client_id || !user_id) return { error: "Missing client or user id.", ok: null };
   if (company_name.length < 2) return { error: "Business name is required.", ok: null };
@@ -181,7 +183,7 @@ export async function updateClientUserAction(
   const admin = await createServiceClient();
   const { error: clientErr } = await admin
     .from("clients")
-    .update({ company_name })
+    .update({ company_name, tier })
     .eq("id", client_id);
   if (clientErr) return { error: `Business name update failed: ${clientErr.message}`, ok: null };
 

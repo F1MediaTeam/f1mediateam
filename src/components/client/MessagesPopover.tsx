@@ -9,6 +9,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import {
   sendClientMessageAction,
   markClientMessagesReadAction,
+  createClientMessageUploadSlots,
 } from "@/app/client/actions";
 import ImageLightbox from "@/components/shared/ImageLightbox";
 
@@ -108,25 +109,67 @@ export default function MessagesPopover({ clientId, userId, initialUnread, initi
     const trimmed = body.trim();
     if ((!trimmed && files.length === 0) || pending) return;
     setError(null);
-    const fd = new FormData();
-    fd.set("client_id", clientId);
-    fd.set("body", trimmed);
-    for (const f of files) fd.append("attachments", f);
+
+    // Direct-to-storage upload path avoids Vercel's platform request-body cap
+    // (which cuts the connection on big multipart POSTs before the server
+    // action even runs). We ask the server for a signed upload URL per file,
+    // PUT the bytes straight to Supabase Storage from the browser, then send
+    // just the metadata through the server action.
     startTransition(async () => {
+      let uploaded: Array<{ path: string; name: string; mime_type: string; size: number }> = [];
+      if (files.length > 0) {
+        const slotReq = await createClientMessageUploadSlots({
+          files: files.map((f) => ({ name: f.name, size: f.size, mime_type: f.type || "application/octet-stream" })),
+        });
+        if (slotReq.error || !slotReq.slots) {
+          setError(slotReq.error ?? "Upload prep failed.");
+          return;
+        }
+        try {
+          await Promise.all(
+            slotReq.slots.map(async (slot, i) => {
+              const file = files[i];
+              const res = await fetch(slot.signedUrl, {
+                method: "PUT",
+                headers: { "Content-Type": slot.mime_type },
+                body: file,
+              });
+              if (!res.ok) {
+                throw new Error(`Upload failed for ${file.name} (${res.status})`);
+              }
+            }),
+          );
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Upload failed.");
+          return;
+        }
+        uploaded = slotReq.slots.map((s) => ({
+          path: s.path,
+          name: s.name,
+          mime_type: s.mime_type,
+          size: s.size,
+        }));
+      }
+
+      const fd = new FormData();
+      fd.set("client_id", clientId);
+      fd.set("body", trimmed);
+      fd.set("attachments_meta", JSON.stringify(uploaded));
+
       const result = await sendClientMessageAction(fd);
       if (result.error) {
         setError(result.error);
         return;
       }
       // Optimistic append. Attachments show as local blob previews until the
-      // server-signed URL comes back on the next refresh.
+      // next server-render cycle brings in the signed download URLs.
       const localRow: MessageRow = {
         id: result.id ?? crypto.randomUUID(),
         from_role: "client",
         body: trimmed,
         created_at: result.created_at ?? new Date().toISOString(),
-        attachments: files.map((f) => ({
-          path: "",
+        attachments: files.map((f, i) => ({
+          path: uploaded[i]?.path ?? "",
           name: f.name,
           mime_type: f.type || "application/octet-stream",
           size: f.size,

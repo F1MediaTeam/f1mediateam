@@ -250,36 +250,47 @@ const MAX_MESSAGE_LEN = 4000;
 const MSG_MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024; // 50 MB per file
 const MSG_MAX_ATTACHMENTS = 10;
 
-async function uploadMessageAttachments(
-  files: File[],
-  clientId: string,
-): Promise<Array<{ path: string; name: string; mime_type: string; size: number }>> {
-  if (files.length === 0) return [];
-  const supabase = await createServiceClient();
-  const uploaded: Array<{ path: string; name: string; mime_type: string; size: number }> = [];
-  for (const file of files) {
-    if (!file || file.size === 0) continue;
-    if (file.size > MSG_MAX_ATTACHMENT_BYTES) {
-      throw new Error(`File "${file.name}" is too big (max 50 MB).`);
+/**
+ * Direct-to-storage upload path: mint one signed upload URL per file so the
+ * browser can PUT the bytes straight to Supabase Storage. Bypasses Vercel's
+ * platform request-body cap (which cuts the connection before Next.js even
+ * sees big multipart uploads).
+ */
+export async function createClientMessageUploadSlots(
+  input: { files: Array<{ name: string; size: number; mime_type: string }> },
+): Promise<{ error: string | null; slots?: Array<{ path: string; token: string; signedUrl: string; name: string; mime_type: string; size: number }> }> {
+  const session = await requireClient();
+  if (!session.client_id) return { error: "No client linked to this session." };
+  if (!Array.isArray(input.files) || input.files.length === 0) return { error: "No files." };
+  if (input.files.length > MSG_MAX_ATTACHMENTS) {
+    return { error: `Too many attachments (max ${MSG_MAX_ATTACHMENTS} per message).` };
+  }
+  for (const f of input.files) {
+    if (!f || typeof f.size !== "number" || f.size <= 0) return { error: "Invalid file." };
+    if (f.size > MSG_MAX_ATTACHMENT_BYTES) {
+      return { error: `File "${f.name}" is too big (max 50 MB).` };
     }
-    const safeName = file.name.replace(/[^\w.\-]/g, "_").slice(0, 120) || "file";
-    const path = `messages/${clientId}/${randomUUID()}-${safeName}`;
-    const buf = Buffer.from(await file.arrayBuffer());
-    const { error } = await supabase.storage
+  }
+
+  const supabase = await createServiceClient();
+  const slots: Array<{ path: string; token: string; signedUrl: string; name: string; mime_type: string; size: number }> = [];
+  for (const f of input.files) {
+    const safeName = f.name.replace(/[^\w.\-]/g, "_").slice(0, 120) || "file";
+    const path = `messages/${session.client_id}/${randomUUID()}-${safeName}`;
+    const { data: signed, error } = await supabase.storage
       .from("client-attachments")
-      .upload(path, buf, {
-        contentType: file.type || "application/octet-stream",
-        upsert: false,
-      });
-    if (error) throw new Error(`Upload failed for "${file.name}": ${error.message}`);
-    uploaded.push({
+      .createSignedUploadUrl(path);
+    if (error || !signed) return { error: `Failed to create upload URL: ${error?.message ?? "unknown"}` };
+    slots.push({
       path,
-      name: file.name,
-      mime_type: file.type || "application/octet-stream",
-      size: file.size,
+      token: signed.token,
+      signedUrl: signed.signedUrl,
+      name: f.name,
+      mime_type: f.mime_type || "application/octet-stream",
+      size: f.size,
     });
   }
-  return uploaded;
+  return { error: null, slots };
 }
 
 export async function sendClientMessageAction(
@@ -293,15 +304,31 @@ export async function sendClientMessageAction(
   // hand-forging the form.
   if (client_id !== session.client_id) return { error: "Client mismatch." };
   const body = String(formData.get("body") ?? "").trim();
-  const rawFiles = formData.getAll("attachments").filter((f): f is File => f instanceof File && f.size > 0);
-  if (rawFiles.length > MSG_MAX_ATTACHMENTS) {
-    return { error: `Too many attachments (max ${MSG_MAX_ATTACHMENTS} per message).` };
+
+  // Attachments were already uploaded directly to Supabase Storage via signed
+  // upload URLs. The client passes back the metadata as JSON so we can attach
+  // it to the message row without pumping file bytes through Vercel.
+  let attachments: Array<{ path: string; name: string; mime_type: string; size: number }> = [];
+  const attachmentsJson = String(formData.get("attachments_meta") ?? "").trim();
+  if (attachmentsJson) {
+    try {
+      const parsed = JSON.parse(attachmentsJson) as Array<{ path: string; name: string; mime_type: string; size: number }>;
+      if (!Array.isArray(parsed)) throw new Error("expected array");
+      if (parsed.length > MSG_MAX_ATTACHMENTS) {
+        return { error: `Too many attachments (max ${MSG_MAX_ATTACHMENTS} per message).` };
+      }
+      attachments = parsed.filter(
+        (a) => a && typeof a.path === "string" && a.path.startsWith(`messages/${session.client_id}/`),
+      );
+    } catch {
+      return { error: "Malformed attachments payload." };
+    }
   }
-  if (!body && rawFiles.length === 0) return { error: "Message can't be empty." };
+
+  if (!body && attachments.length === 0) return { error: "Message can't be empty." };
   if (body.length > MAX_MESSAGE_LEN) return { error: `Message too long (max ${MAX_MESSAGE_LEN} characters).` };
 
   try {
-    const attachments = await uploadMessageAttachments(rawFiles, session.client_id);
     const row = await data.sendMessage({
       client_id: session.client_id,
       from_user_id: session.user_id,

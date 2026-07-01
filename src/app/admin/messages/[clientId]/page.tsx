@@ -88,10 +88,10 @@ export default async function AdminMessageThread({
                       {m.body.trim().length > 0 ? (
                         <div
                           className={
-                            "rounded-2xl px-3 py-2 text-sm leading-snug " +
+                            "rounded-2xl px-3.5 py-2 text-sm leading-snug shadow-sm " +
                             (m.from_role === "admin"
                               ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] rounded-br-md"
-                              : "bg-[var(--color-bg-elev)] text-[var(--color-text)] rounded-bl-md")
+                              : "bg-[var(--color-bg-card)] text-[var(--color-text)] border border-[var(--color-border)] rounded-bl-md")
                           }
                         >
                           <div className="whitespace-pre-wrap break-words">{m.body}</div>

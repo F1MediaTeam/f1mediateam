@@ -262,7 +262,7 @@ function MultiLineChart({ series, enabled, onScrub }: ChartProps) {
     <svg
       ref={svgRef}
       viewBox={`0 0 ${W} ${H}`}
-      className="w-full h-[360px] touch-none select-none cursor-crosshair"
+      className="w-full h-[300px] sm:h-[360px] touch-none select-none cursor-crosshair"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -272,7 +272,7 @@ function MultiLineChart({ series, enabled, onScrub }: ChartProps) {
       {activeSeries.map((s) => {
         const norm = normFor(s);
         return (
-          <path key={s.def.id} d={pathFor(s, norm)} fill="none" stroke={s.def.color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          <path key={s.def.id} d={pathFor(s, norm)} fill="none" stroke={s.def.color} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
         );
       })}
 
@@ -373,7 +373,7 @@ export default function GscDashboard(props: Props) {
 
       {/* KPI tiles + chart */}
       <div className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4 sm:mb-5">
           {seriesData.map(({ def, points }) => {
             const { headline: aggregate } = summarize(points, def);
             // Build the shared date list (same logic the chart uses) so the
@@ -397,7 +397,7 @@ export default function GscDashboard(props: Props) {
                 key={def.id}
                 htmlFor={checkboxId}
                 className={
-                  "relative cursor-pointer select-none text-left rounded-xl border px-4 py-3 transition flex flex-col " +
+                  "relative cursor-pointer select-none text-left rounded-lg sm:rounded-xl border px-2 py-2 sm:px-4 sm:py-3 transition flex flex-col " +
                   (on
                     ? `${def.tile} ring-2 ${def.ring} shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]`
                     : "bg-[var(--color-bg)] border-[var(--color-border)] opacity-55 hover:opacity-80")
@@ -410,28 +410,28 @@ export default function GscDashboard(props: Props) {
                   checked={on}
                   onChange={() => setEnabled((e) => ({ ...e, [def.id]: !e[def.id] }))}
                 />
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 sm:gap-2 min-w-0">
                   {/* Visible checkbox */}
                   <span
                     className={
-                      "inline-flex items-center justify-center w-5 h-5 rounded border-2 transition shrink-0 " +
+                      "inline-flex items-center justify-center w-3.5 h-3.5 sm:w-5 sm:h-5 rounded border-2 transition shrink-0 " +
                       (on ? "bg-white border-white text-black" : "bg-transparent border-white/50 text-transparent")
                     }
                     aria-hidden
                   >
-                    <svg viewBox="0 0 20 20" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={3}>
+                    <svg viewBox="0 0 20 20" className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" strokeWidth={3}>
                       <polyline points="4,11 8,15 16,5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </span>
                   {/* Color swatch + label */}
                   <span
-                    className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                    className="inline-block w-1.5 h-1.5 sm:w-2.5 sm:h-2.5 rounded-full shrink-0"
                     style={{ backgroundColor: def.color }}
                     aria-hidden
                   />
-                  <span className="text-sm text-[var(--color-text)] font-medium">{def.label}</span>
+                  <span className="text-[10px] sm:text-sm text-[var(--color-text)] font-medium truncate">{def.label}</span>
                 </div>
-                <div className="mt-2 text-3xl font-semibold tabular-nums" style={{ color: def.color }}>
+                <div className="mt-1 sm:mt-2 text-lg sm:text-3xl font-semibold tabular-nums" style={{ color: def.color }}>
                   {def.fmt(headline)}
                 </div>
               </label>

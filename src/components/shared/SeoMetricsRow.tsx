@@ -74,7 +74,7 @@ export default async function SeoMetricsRow({ clientId, embedded = false }: { cl
           Tap any card to open its detail view
         </div>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+      <div className="flex overflow-x-auto -mx-1 px-1 pb-1 gap-2 snap-x snap-mandatory sm:grid sm:grid-cols-4 lg:grid-cols-7 sm:overflow-visible sm:mx-0 sm:px-0 sm:pb-0">
         {values.map(({ metric, cur, prev, when }) => {
           const change =
             cur != null && prev != null ? formatPercentChange(prev, cur) : null;
@@ -100,12 +100,12 @@ export default async function SeoMetricsRow({ clientId, embedded = false }: { cl
             <Link
               key={metric.slug}
               href={`/client/seo/${metric.slug}`}
-              className="group rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] hover:bg-[var(--color-bg-hover)] hover:border-[var(--color-accent)]/40 px-3 py-3 transition flex flex-col"
+              className="group shrink-0 snap-start w-[120px] sm:w-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] hover:bg-[var(--color-bg-hover)] hover:border-[var(--color-accent)]/40 px-2.5 py-2.5 sm:px-3 sm:py-3 transition flex flex-col"
             >
               <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] truncate">
                 {metric.label}
               </div>
-              <div className="mt-2 text-2xl font-semibold tabular-nums text-[var(--color-text)]">
+              <div className="mt-1.5 sm:mt-2 text-xl sm:text-2xl font-semibold tabular-nums text-[var(--color-text)]">
                 {headline}
               </div>
               {change ? (

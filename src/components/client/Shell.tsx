@@ -87,7 +87,7 @@ export default async function ClientShell({
               </Link>
             ))}
           </nav>
-          <div className="flex items-center gap-1 sm:gap-2 text-xs justify-self-end">
+          <div className="flex items-center gap-2 text-xs justify-self-end">
             <Suspense fallback={<div className="w-9 h-9" />}>
               <MessagesButton clientId={client.id} userId={session.user_id} />
             </Suspense>

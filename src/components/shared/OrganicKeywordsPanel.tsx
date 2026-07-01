@@ -71,14 +71,16 @@ export default function OrganicKeywordsPanel({ clientId, embedded = false }: { c
       <CardHeader
         title="Organic keywords"
         right={
-          <button
-            type="button"
-            onClick={toggle}
-            className="rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] hover:bg-[var(--color-bg-hover)] px-3 py-1.5 text-xs font-medium transition flex items-center gap-1.5"
-          >
-            {open ? "Hide" : "Show keywords"}
-            <span className={"transition-transform " + (open ? "rotate-180" : "")}>▾</span>
-          </button>
+          <div className="flex justify-end sm:justify-start w-full">
+            <button
+              type="button"
+              onClick={toggle}
+              className="rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] hover:bg-[var(--color-bg-hover)] px-3 py-1.5 text-xs font-medium transition flex items-center gap-1.5"
+            >
+              {open ? "Hide" : "Show keywords"}
+              <span className={"transition-transform " + (open ? "rotate-180" : "")}>▾</span>
+            </button>
+          </div>
         }
       />
       {open ? (

@@ -59,17 +59,17 @@ interface SeriesDef {
 
 const SERIES: SeriesDef[] = [
   {
-    id: "clicks", label: "Total clicks", color: "#3B82F6",
+    id: "clicks", label: "Clicks", color: "#3B82F6",
     tile: "bg-blue-500/20 border-blue-400/40", ring: "ring-blue-400/60",
     fmt: (v) => formatNumber(v, { maximumFractionDigits: 0, notation: v >= 10_000 ? "compact" : "standard" }),
   },
   {
-    id: "impressions", label: "Total impressions", color: "#8B5CF6",
+    id: "impressions", label: "Impressions", color: "#8B5CF6",
     tile: "bg-purple-500/20 border-purple-400/40", ring: "ring-purple-400/60",
     fmt: (v) => formatNumber(v, { maximumFractionDigits: 0, notation: v >= 10_000 ? "compact" : "standard" }),
   },
   {
-    id: "position", label: "Average position", color: "#F59E0B",
+    id: "position", label: "Avg. Position", color: "#F59E0B",
     tile: "bg-amber-500/20 border-amber-400/40", ring: "ring-amber-400/60",
     fmt: (v) => v.toFixed(1),
     invert: true,
@@ -105,7 +105,9 @@ interface ChartProps {
 function MultiLineChart({ series, enabled, onScrub }: ChartProps) {
   const W = 1100;
   const H = 360;
-  const pad = { l: 16, r: 16, t: 16, b: 30 };
+  // Tight internal padding so the plotted lines can push closer to the top /
+  // bottom of the SVG and use more of the available height.
+  const pad = { l: 16, r: 16, t: 6, b: 28 };
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [activeFloat, setActiveFloat] = useState<number | null>(null);
@@ -262,7 +264,7 @@ function MultiLineChart({ series, enabled, onScrub }: ChartProps) {
     <svg
       ref={svgRef}
       viewBox={`0 0 ${W} ${H}`}
-      className="w-full h-[300px] sm:h-[360px] touch-none select-none cursor-crosshair"
+      className="w-full h-[380px] sm:h-[400px] touch-none select-none cursor-crosshair"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -272,7 +274,7 @@ function MultiLineChart({ series, enabled, onScrub }: ChartProps) {
       {activeSeries.map((s) => {
         const norm = normFor(s);
         return (
-          <path key={s.def.id} d={pathFor(s, norm)} fill="none" stroke={s.def.color} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+          <path key={s.def.id} d={pathFor(s, norm)} fill="none" stroke={s.def.color} strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" />
         );
       })}
 

@@ -33,41 +33,75 @@ export default async function ClientShell({
     <div className="min-h-screen">
       {session.is_impersonating ? <ImpersonationBanner clientName={client.company_name} /> : null}
       <header className="border-b border-[var(--color-border)] bg-[var(--color-bg-elev)]/70 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0 justify-self-start">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-6">
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 justify-self-start">
             <Link href="/client" aria-label="F1 Media Team — home" className="shrink-0">
-              <Logo compact width={110} height={32} />
-            </Link>
-            <span className="text-[var(--color-border-strong)] hidden sm:inline">/</span>
-            {hasOnboardingLogo ? (
-              <span className="hidden sm:flex shrink-0 items-center" style={{ width: 110, height: 32 }}>
-                {onboardingLogos.dark ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={onboardingLogos.dark}
-                    alt={client.company_name}
-                    className="logo-dark object-contain object-left"
-                    style={{ width: 110, height: 32 }}
-                    loading="eager"
-                    fetchPriority="high"
-                    decoding="sync"
-                  />
-                ) : null}
-                {onboardingLogos.light ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={onboardingLogos.light}
-                    alt={client.company_name}
-                    className="logo-light object-contain object-left"
-                    style={{ width: 110, height: 32 }}
-                    loading="eager"
-                    fetchPriority="high"
-                    decoding="sync"
-                  />
-                ) : null}
+              {/* Smaller F1 logo on mobile so we have room to show the client's brand too */}
+              <span className="hidden sm:block">
+                <Logo compact width={110} height={32} />
               </span>
+              <span className="sm:hidden block">
+                <Logo compact width={78} height={24} />
+              </span>
+            </Link>
+            <span className="text-[var(--color-border-strong)]">/</span>
+            {hasOnboardingLogo ? (
+              <>
+                <span className="hidden sm:flex shrink-0 items-center" style={{ width: 110, height: 32 }}>
+                  {onboardingLogos.dark ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={onboardingLogos.dark}
+                      alt={client.company_name}
+                      className="logo-dark object-contain object-left"
+                      style={{ width: 110, height: 32 }}
+                      loading="eager"
+                      fetchPriority="high"
+                      decoding="sync"
+                    />
+                  ) : null}
+                  {onboardingLogos.light ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={onboardingLogos.light}
+                      alt={client.company_name}
+                      className="logo-light object-contain object-left"
+                      style={{ width: 110, height: 32 }}
+                      loading="eager"
+                      fetchPriority="high"
+                      decoding="sync"
+                    />
+                  ) : null}
+                </span>
+                <span className="sm:hidden flex shrink-0 items-center" style={{ width: 74, height: 24 }}>
+                  {onboardingLogos.dark ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={onboardingLogos.dark}
+                      alt={client.company_name}
+                      className="logo-dark object-contain object-left"
+                      style={{ width: 74, height: 24 }}
+                      loading="eager"
+                      fetchPriority="high"
+                      decoding="sync"
+                    />
+                  ) : null}
+                  {onboardingLogos.light ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={onboardingLogos.light}
+                      alt={client.company_name}
+                      className="logo-light object-contain object-left"
+                      style={{ width: 74, height: 24 }}
+                      loading="eager"
+                      fetchPriority="high"
+                      decoding="sync"
+                    />
+                  ) : null}
+                </span>
+              </>
             ) : (
-              <span className="text-sm font-medium truncate hidden sm:inline">{client.company_name}</span>
+              <span className="text-xs sm:text-sm font-medium truncate">{client.company_name}</span>
             )}
           </div>
           {/* Desktop nav — centered in the header */}

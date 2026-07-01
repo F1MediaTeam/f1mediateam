@@ -69,7 +69,7 @@ export default function OrganicKeywordsPanel({ clientId, embedded = false }: { c
   return (
     <Wrap>
       <CardHeader
-        title="Organic keywords"
+        title={<span className="block text-center sm:text-left">Organic keywords</span>}
         right={
           <div className="flex justify-end sm:justify-start w-full">
             <button

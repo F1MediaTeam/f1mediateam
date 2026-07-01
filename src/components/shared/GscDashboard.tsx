@@ -274,7 +274,16 @@ function MultiLineChart({ series, enabled, onScrub }: ChartProps) {
       {activeSeries.map((s) => {
         const norm = normFor(s);
         return (
-          <path key={s.def.id} d={pathFor(s, norm)} fill="none" stroke={s.def.color} strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            key={s.def.id}
+            d={pathFor(s, norm)}
+            fill="none"
+            stroke={s.def.color}
+            strokeWidth={4}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
         );
       })}
 

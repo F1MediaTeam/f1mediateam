@@ -10,7 +10,6 @@ import {
   sendClientMessageAction,
   markClientMessagesReadAction,
 } from "@/app/client/actions";
-import Logo from "@/components/shared/Logo";
 
 interface Attachment {
   path: string;
@@ -403,12 +402,25 @@ function MessageRow({
   );
 }
 
-function F1Avatar({ size = 32 }: { size?: number }) {
-  // Delegate to the shared theme-aware <Logo compact /> so the F1 Media Team
-  // lockup swaps between /logo.png and /logo-light.png with data-theme.
-  // The lockup is a wide horizontal band — pick a width proportional to size.
-  const width = Math.round(size * 3.2);
-  return <Logo compact width={width} height={size} className="shrink-0" />;
+function F1Avatar({ size = 40 }: { size?: number }) {
+  // Circular profile-picture treatment: white circle with the dark-art F1
+  // Media Team lockup (/logo-light.png) center-cropped inside. Always use the
+  // dark variant since the circle background is white — the theme-driven
+  // /logo.png would be a light mark that vanishes on white.
+  return (
+    <span
+      className="shrink-0 relative inline-flex items-center justify-center rounded-full overflow-hidden ring-1 ring-black/10 shadow-sm bg-white"
+      style={{ width: size, height: size }}
+      aria-hidden
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/logo-light.png"
+        alt=""
+        className="absolute inset-0 w-full h-full object-contain p-1.5"
+      />
+    </span>
+  );
 }
 
 function SendIcon() {

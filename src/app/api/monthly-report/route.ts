@@ -25,6 +25,7 @@ import { SYNTHESIS_SYSTEM_PROMPT } from "@/lib/deck/f1-monthly/synthesis-prompt"
 import brandConfigs from "@/lib/deck/f1-monthly/brand-configs.json";
 import { createServiceClient } from "@/lib/supabase/server";
 import { randomUUID } from "node:crypto";
+import type { Client, OnboardingData } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -49,14 +50,37 @@ function normalizeTier(raw: string): "1" | "2" | "3" {
   return "1";
 }
 
-async function resolveBrand(formData: FormData, companyName: string): Promise<BrandConfig> {
-  const brandKey = field(formData, "brand_key") || slugify(companyName);
+// Pull brand-color hex codes out of clients.branding.colors JSONB when
+// present. Shape stored by the settings write path:
+//   { colors: { primary, secondary, tertiary, black, white } }
+// with values in "#RRGGBB" form. Returns 6-char uppercase hex (no #), or
+// null if the key isn't a hex triplet.
+function brandingHex(branding: unknown, key: "primary" | "secondary" | "tertiary"): string | null {
+  const b = branding as { colors?: Record<string, unknown> } | null | undefined;
+  const raw = b?.colors?.[key];
+  if (typeof raw !== "string") return null;
+  const m = raw.replace(/^#/, "").match(/^[0-9a-fA-F]{6}$/);
+  return m ? m[0].toUpperCase() : null;
+}
+
+async function resolveBrand(formData: FormData, client: Client): Promise<BrandConfig> {
+  const brandKey = field(formData, "brand_key") || slugify(client.company_name);
   const known = (brandConfigs as Record<string, BrandConfig>)[brandKey];
   const base: BrandConfig = known
     ? { ...known }
-    : { ...(brandConfigs as Record<string, BrandConfig>).default, name: companyName };
+    : { ...(brandConfigs as Record<string, BrandConfig>).default, name: client.company_name };
 
-  // Form values override the file-stored config.
+  // Precedence for brand colors:
+  //   1. explicit form field (admin override for this run)
+  //   2. clients.branding.colors saved in the DB (customer's palette)
+  //   3. brand-configs.json[brandKey]  (bundled defaults, already in `base`)
+  const dbPrimary = brandingHex(client.branding, "primary");
+  const dbSecondary = brandingHex(client.branding, "secondary");
+  const dbTertiary = brandingHex(client.branding, "tertiary");
+  if (dbPrimary) base.primary = dbPrimary;
+  if (dbSecondary) base.secondary = dbSecondary;
+  if (dbTertiary) base.tertiary = dbTertiary;
+
   const fp = field(formData, "accent") || field(formData, "brand_primary");
   const fs = field(formData, "brand_secondary");
   const ft = field(formData, "brand_tertiary");
@@ -115,6 +139,7 @@ interface ClaudeResp {
 async function synthesize(args: {
   reportMeta: unknown;
   brandProfile: unknown;
+  clientProfile: unknown;
   profileData: unknown;
   fieldyTranscript: string;
 }): Promise<MonthlyContent> {
@@ -123,6 +148,7 @@ async function synthesize(args: {
   const userMsg =
     "REPORT_META:\n" + JSON.stringify(args.reportMeta, null, 2) +
     "\n\nBRAND_PROFILE:\n" + JSON.stringify(args.brandProfile, null, 2) +
+    "\n\nCLIENT_PROFILE (qualitative — voice, ideal customer, services, growth lanes; NEVER a metrics source):\n" + JSON.stringify(args.clientProfile, null, 2) +
     "\n\nPROFILE_DATA (source of truth for all numbers):\n" + JSON.stringify(args.profileData, null, 2) +
     "\n\nFIELDY_TRANSCRIPT (qualitative context only — never a metrics source):\n" + (args.fieldyTranscript || "(empty)") +
     "\n\nReturn ONLY the content object as valid JSON.";
@@ -300,9 +326,63 @@ export async function POST(request: NextRequest) {
   }
 
   // ---------- Read form overrides ----------
-  const tier = normalizeTier(field(fd, "tier") || "1");
-  const brand = await resolveBrand(fd, client.company_name);
+  // Tier order: explicit form field wins, otherwise fall back to the tier the
+  // admin assigned on the client's profile (clients.tier). Default to "1".
+  const clientTier = client.tier === "1" || client.tier === "2" || client.tier === "3" ? client.tier : "";
+  const tier = normalizeTier(field(fd, "tier") || clientTier || "1");
+  const brand = await resolveBrand(fd, client);
   const brandKey = field(fd, "brand_key") || slugify(client.company_name);
+
+  // ---------- CLIENT_PROFILE from onboarding ----------
+  // Pull the onboarding row (if the customer has submitted one) and hand the
+  // qualitative fields to the synthesis bot as CLIENT_PROFILE. These aren't
+  // numbers — they're voice/context: who the ideal customer is, what services
+  // to spotlight, what growth lanes matter. The bot uses this to tailor
+  // narrative sections (executiveSummary.intro, whatsNext, framing) so a
+  // print shop's report doesn't sound like a law firm's.
+  const onboardingRow = await data.getOnboarding(clientId);
+  const ob = (onboardingRow?.data ?? {}) as OnboardingData;
+  const trimmed = (v: unknown): string | null => {
+    const s = typeof v === "string" ? v.trim() : "";
+    return s ? s : null;
+  };
+  const clientProfile = {
+    submitted: Boolean(onboardingRow),
+    identity: {
+      companyBio: trimmed(ob.company_bio),
+      differentiator: trimmed(ob.brand_diff),
+      threeWords: trimmed(ob.brand_3words),
+      brandFonts: trimmed(ob.brand_fonts),
+    },
+    market: {
+      idealCustomer: trimmed(ob.ideal_client),
+      highestRevenueServices: trimmed(ob.highest_revenue_cases),
+      projectsToAvoid: trimmed(ob.cases_to_avoid),
+      saturatedMarkets: trimmed(ob.saturated_markets),
+      growthOpportunity: trimmed(ob.growth_opportunity),
+    },
+    footprint: {
+      primaryCity: trimmed(ob.primary_city?.name),
+      services: Array.isArray(ob.services)
+        ? ob.services
+            .map((s) => ({ name: trimmed(s?.name), description: trimmed(s?.description), priority: s?.priority ?? null }))
+            .filter((s) => s.name)
+        : [],
+      surroundingCities: Array.isArray(ob.service_locations)
+        ? ob.service_locations.map((l) => trimmed(l?.city)).filter(Boolean)
+        : [],
+      futureExpansion: trimmed(ob.future_expansion_targets),
+    },
+    performance: {
+      pastSuccesses: [
+        ob.perf_social_active ? trimmed(ob.perf_social_explanation) : null,
+        ob.perf_website_active ? trimmed(ob.perf_website_explanation) : null,
+        ob.perf_paid_active ? trimmed(ob.perf_paid_explanation) : null,
+        ob.perf_podcast_active ? trimmed(ob.perf_podcast_explanation) : null,
+      ].filter(Boolean),
+      underperformed: trimmed(ob.perf_underperforming),
+    },
+  };
 
   // REPORT_META — exactly the keys the master prompt expects.
   const reportMeta = {
@@ -376,6 +456,7 @@ export async function POST(request: NextRequest) {
     content = await synthesize({
       reportMeta,
       brandProfile,
+      clientProfile,
       profileData,
       fieldyTranscript: transcript,
     });
@@ -398,6 +479,7 @@ export async function POST(request: NextRequest) {
       sentToBot: {
         reportMeta,
         brandProfile,
+        clientProfile,
         profileData,
         fieldyTranscript: transcript,
       },

@@ -21,6 +21,14 @@ export default async function AdminReports({
   const sp = await searchParams;
   const clients = await data.listClients();
   const clientId = sp.client ?? clients[0]?.id ?? "";
+  // Default the tier <select> to whatever the admin already assigned on the
+  // client's profile. The API also falls back to client.tier server-side when
+  // the form omits it, so this is just for the UI's initial state.
+  const selectedClient = clients.find((c) => c.id === clientId);
+  const defaultTier =
+    selectedClient?.tier === "1" || selectedClient?.tier === "2" || selectedClient?.tier === "3"
+      ? selectedClient.tier
+      : "1";
 
   const aiOk = aiConfigured();
   const fieldCls = "w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40";
@@ -80,11 +88,14 @@ export default async function AdminReports({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className={labelCls}>Tier</label>
-                  <select name="tier" defaultValue="1" className={fieldCls}>
+                  <select name="tier" defaultValue={defaultTier} className={fieldCls}>
                     <option value="1">1 — Foundation Visibility (10 slides)</option>
                     <option value="2">2 — Growth &amp; Authority (11)</option>
                     <option value="3">3 — Market Domination (12)</option>
                   </select>
+                  <p className="mt-1 text-[10px] text-[var(--color-text-subtle)]">
+                    Auto-set from the client&apos;s profile — override here for a one-off run.
+                  </p>
                 </div>
                 <div>
                   <label className={labelCls}>Brand key</label>

@@ -26,6 +26,14 @@ INPUTS (provided in the user message; treat each for what it is)
   Never blend two sources into one number. When two sources cover the same idea, attribute each
   (e.g., "Google impressions … Bing impressions …"). Never invent, alter, or round a number in a way
   that changes meaning.
+- CLIENT_PROFILE — pulled from the customer's submitted onboarding wizard. Qualitative ONLY: who they
+  are (identity.companyBio, differentiator, threeWords), who they serve (market.idealCustomer,
+  highestRevenueServices, projectsToAvoid, saturatedMarkets, growthOpportunity), where they operate
+  (footprint.primaryCity, services[], surroundingCities, futureExpansion), and what channels
+  have/haven't worked historically (performance.pastSuccesses, underperformed). Use this to set voice,
+  choose which services to spotlight, and frame whatsNext around growth lanes they told us matter.
+  NEVER treat as a metrics source. May be sparsely populated (client hasn't submitted, or left fields
+  blank); silently skip whatever is null.
 - FIELDY_TRANSCRIPT — client meeting transcript. Qualitative ONLY: the "why", client concerns,
   commitments made, agreed direction. NEVER a source of metrics.
 - SELECTED_NOTES — context the F1 operator hand-picked for this report (directives, priorities,
@@ -105,8 +113,17 @@ AI VISIBILITY (first-class for this agency)
 
 NARRATIVE SOURCING
 - executiveSummary.wins, organicTraffic.note, rankingDetail.aiOverview, chart titles → write from NUMBERS.
-- whatsNext and all framing/"why" → draw from FIELDY_TRANSCRIPT and SELECTED_NOTES (commitments,
-  concerns, agreed direction). If both are empty, derive whatsNext conservatively from data trends.
+- executiveSummary.intro (the opening paragraph) — voice matches CLIENT_PROFILE.identity: reference
+  their positioning / three-word tone when set, and speak to the customer they said they serve
+  (market.idealCustomer) rather than a generic "business owner". If CLIENT_PROFILE is empty, keep the
+  intro neutral and results-forward — never invent an identity.
+- whatsNext and all framing/"why" → draw from FIELDY_TRANSCRIPT + SELECTED_NOTES + CLIENT_PROFILE
+  (commitments, concerns, agreed direction, plus market.growthOpportunity and footprint.futureExpansion
+  when Fieldy is thin). If all three are empty, derive whatsNext conservatively from data trends.
+- contentInsights + rankingDetail — when picking which pages/queries to spotlight, prefer ones tied to
+  CLIENT_PROFILE.market.highestRevenueServices or footprint.services[] over generic pages.
+- postingSocial.outOfScope — only surface things that plausibly connect to the client's growth lanes
+  (footprint.futureExpansion, market.growthOpportunity); factual statement, never a pitch.
 - tier and brandKey → from REPORT_META / BRAND_PROFILE; never guess.
 
 TIER LOGIC (controls deck size downstream)

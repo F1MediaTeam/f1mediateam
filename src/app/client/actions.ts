@@ -244,6 +244,51 @@ export async function getFileDownloadUrl(fileId: string): Promise<string | null>
   return signed?.signedUrl ?? null;
 }
 
+// ---------- messages (client → admin) ----------
+
+const MAX_MESSAGE_LEN = 4000;
+
+export async function sendClientMessageAction(
+  formData: FormData,
+): Promise<{ error: string | null; id?: string; created_at?: string }> {
+  const session = await requireClient();
+  if (!session.client_id) return { error: "No client linked to this session." };
+  const client_id = String(formData.get("client_id") ?? "");
+  // Belt-and-suspenders: form value must match the session's client_id so an
+  // admin impersonating a client can't post to a different account by
+  // hand-forging the form.
+  if (client_id !== session.client_id) return { error: "Client mismatch." };
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) return { error: "Message can't be empty." };
+  if (body.length > MAX_MESSAGE_LEN) return { error: `Message too long (max ${MAX_MESSAGE_LEN} characters).` };
+
+  try {
+    const row = await data.sendMessage({
+      client_id: session.client_id,
+      from_user_id: session.user_id,
+      from_role: "client",
+      body,
+    });
+    revalidatePath("/client");
+    revalidatePath("/client/content");
+    revalidatePath("/client/settings");
+    revalidatePath(`/admin/messages`);
+    revalidatePath(`/admin/clients/${session.client_id}`);
+    return { error: null, id: row?.id, created_at: row?.created_at };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Send failed." };
+  }
+}
+
+export async function markClientMessagesReadAction(formData: FormData): Promise<void> {
+  const session = await requireClient();
+  if (!session.client_id) return;
+  const client_id = String(formData.get("client_id") ?? "");
+  if (client_id !== session.client_id) return;
+  await data.markMessagesRead(session.client_id, "client");
+  revalidatePath("/client");
+}
+
 export async function setEmailPrefAction(formData: FormData) {
   const session = await requireClient();
   const opted = String(formData.get("opted_out") ?? "false") === "true";

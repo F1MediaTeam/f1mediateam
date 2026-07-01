@@ -234,6 +234,47 @@ export async function reopenOnboardingAction(formData: FormData): Promise<void> 
   revalidatePath("/client/settings");
 }
 
+// ---------- messages (admin → client) ----------
+
+const MAX_ADMIN_MESSAGE_LEN = 4000;
+
+export async function sendAdminMessageAction(
+  formData: FormData,
+): Promise<{ error: string | null; id?: string; created_at?: string }> {
+  const session = await requireAdmin();
+  const client_id = String(formData.get("client_id") ?? "");
+  if (!client_id) return { error: "Missing client id." };
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) return { error: "Message can't be empty." };
+  if (body.length > MAX_ADMIN_MESSAGE_LEN) {
+    return { error: `Message too long (max ${MAX_ADMIN_MESSAGE_LEN} characters).` };
+  }
+  try {
+    const row = await data.sendMessage({
+      client_id,
+      from_user_id: session.user_id,
+      from_role: "admin",
+      body,
+    });
+    revalidatePath(`/admin/messages`);
+    revalidatePath(`/admin/messages/${client_id}`);
+    revalidatePath(`/admin/clients/${client_id}`);
+    revalidatePath("/client");
+    return { error: null, id: row?.id, created_at: row?.created_at };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Send failed." };
+  }
+}
+
+export async function markAdminMessagesReadAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const client_id = String(formData.get("client_id") ?? "");
+  if (!client_id) return;
+  await data.markMessagesRead(client_id, "admin");
+  revalidatePath(`/admin/messages`);
+  revalidatePath(`/admin/messages/${client_id}`);
+}
+
 export async function deleteClientAction(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id") ?? "");

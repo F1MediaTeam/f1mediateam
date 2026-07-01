@@ -5,6 +5,7 @@ import MobileNavMenu from "@/components/shared/MobileNavMenu";
 import ThemeToggle from "@/components/shared/ThemeToggle";
 import ImpersonationBanner from "@/components/client/ImpersonationBanner";
 import NotificationBell from "@/components/client/NotificationBell";
+import MessagesButton from "@/components/client/MessagesButton";
 import { getClientBrandLogoUrls } from "@/lib/client-logo";
 import type { Session } from "@/lib/data";
 import type { Client } from "@/lib/types";
@@ -87,6 +88,9 @@ export default async function ClientShell({
             ))}
           </nav>
           <div className="flex items-center gap-1 sm:gap-2 text-xs justify-self-end">
+            <Suspense fallback={<div className="w-9 h-9" />}>
+              <MessagesButton clientId={client.id} userId={session.user_id} />
+            </Suspense>
             <Suspense fallback={<div className="w-9 h-9" />}>
               <NotificationBell clientId={client.id} />
             </Suspense>

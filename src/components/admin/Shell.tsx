@@ -2,18 +2,20 @@ import Link from "next/link";
 import Logo from "@/components/shared/Logo";
 import MobileNavMenu from "@/components/shared/MobileNavMenu";
 import ThemeToggle from "@/components/shared/ThemeToggle";
+import { data } from "@/lib/data";
 import type { Session } from "@/lib/data";
 
 const NAV = [
   { href: "/admin",           label: "Dashboard" },
   { href: "/admin/clients",   label: "Clients" },
   { href: "/admin/content",   label: "Content" },
+  { href: "/admin/messages",  label: "Messages" },
   { href: "/admin/reports",   label: "Reports" },
   { href: "/admin/audit",     label: "Audit" },
   { href: "/admin/settings",  label: "Settings" },
 ];
 
-export default function AdminShell({
+export default async function AdminShell({
   session,
   children,
   active,
@@ -22,6 +24,15 @@ export default function AdminShell({
   children: React.ReactNode;
   active?: string;
 }) {
+  // One aggregate query per admin page for the Messages badge. Falls back to
+  // zero if the migration hasn't landed yet so the shell doesn't crash.
+  let totalUnread = 0;
+  try {
+    const counts = await data.listUnreadCountsByClient();
+    totalUnread = Array.from(counts.values()).reduce((a, n) => a + n, 0);
+  } catch {
+    totalUnread = 0;
+  }
   return (
     <div className="min-h-screen md:flex">
       {/* Mobile top bar — only renders below the md breakpoint. */}
@@ -49,18 +60,24 @@ export default function AdminShell({
         <nav className="flex flex-col gap-0.5 px-2 mt-2">
           {NAV.map((item) => {
             const isActive = active === item.href;
+            const showBadge = item.href === "/admin/messages" && totalUnread > 0;
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={
-                  "px-3 py-2 rounded-lg text-sm transition " +
+                  "flex items-center justify-between px-3 py-2 rounded-lg text-sm transition " +
                   (isActive
                     ? "bg-[var(--color-bg-hover)] text-[var(--color-text)]"
                     : "text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)]")
                 }
               >
-                {item.label}
+                <span>{item.label}</span>
+                {showBadge ? (
+                  <span className="min-w-[20px] h-[20px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center tabular-nums">
+                    {totalUnread > 99 ? "99+" : totalUnread}
+                  </span>
+                ) : null}
               </Link>
             );
           })}

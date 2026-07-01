@@ -906,6 +906,90 @@ export const getOnboarding = cache(async (clientId: UUID) => {
   } | null;
 });
 
+// ---------- client messages (two-way client ↔ admin thread) ----------
+
+export interface ClientMessage {
+  id: UUID;
+  client_id: UUID;
+  from_user_id: UUID | null;
+  from_role: "client" | "admin";
+  body: string;
+  created_at: string;
+  read_at: string | null;
+}
+
+export const listMessages = cache(async (clientId: UUID, limit = 200): Promise<ClientMessage[]> => {
+  const supabase = await createServiceClient();
+  const { data } = await supabase
+    .from("client_messages")
+    .select("*")
+    .eq("client_id", clientId)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  return (data as ClientMessage[]) ?? [];
+});
+
+export async function sendMessage(input: {
+  client_id: UUID;
+  from_user_id: UUID;
+  from_role: "client" | "admin";
+  body: string;
+}): Promise<ClientMessage | null> {
+  const supabase = await createServiceClient();
+  const { data, error } = await supabase
+    .from("client_messages")
+    .insert({
+      client_id: input.client_id,
+      from_user_id: input.from_user_id,
+      from_role: input.from_role,
+      body: input.body,
+    })
+    .select()
+    .single();
+  if (error) throw new Error(`sendMessage failed: ${error.message}`);
+  return (data as ClientMessage) ?? null;
+}
+
+/** Mark every unread message from the OTHER side as read for this client. */
+export async function markMessagesRead(clientId: UUID, viewerRole: "client" | "admin"): Promise<void> {
+  const supabase = await createServiceClient();
+  const otherRole = viewerRole === "client" ? "admin" : "client";
+  await supabase
+    .from("client_messages")
+    .update({ read_at: new Date().toISOString() })
+    .eq("client_id", clientId)
+    .eq("from_role", otherRole)
+    .is("read_at", null);
+}
+
+/** Unread count for one client, from the given viewer's perspective. */
+export const countUnreadMessages = cache(async (clientId: UUID, viewerRole: "client" | "admin"): Promise<number> => {
+  const supabase = await createServiceClient();
+  const otherRole = viewerRole === "client" ? "admin" : "client";
+  const { count } = await supabase
+    .from("client_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("client_id", clientId)
+    .eq("from_role", otherRole)
+    .is("read_at", null);
+  return count ?? 0;
+});
+
+/** Per-client unread counts for the admin inbox landing view. */
+export async function listUnreadCountsByClient(): Promise<Map<UUID, number>> {
+  const supabase = await createServiceClient();
+  const { data } = await supabase
+    .from("client_messages")
+    .select("client_id")
+    .eq("from_role", "client")
+    .is("read_at", null);
+  const out = new Map<UUID, number>();
+  for (const row of (data ?? []) as Array<{ client_id: UUID }>) {
+    out.set(row.client_id, (out.get(row.client_id) ?? 0) + 1);
+  }
+  return out;
+}
+
 // ---------- connectors ----------
 
 export const listConnectors = cache(async (clientId: UUID): Promise<ConnectorToken[]> => {

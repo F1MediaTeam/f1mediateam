@@ -638,6 +638,44 @@ export function setEmailPref(userId: UUID, optedOut: boolean): EmailPref {
   });
 }
 
+// ---------------- client messages ----------------
+
+// Mock doesn't persist messages — parity stubs so pages don't crash. If we
+// ever want messages in mock mode, add a `messages: []` field to the seed and
+// wire these up.
+export function listMessages(_clientId: UUID, _limit?: number) {
+  return [] as Array<{
+    id: UUID;
+    client_id: UUID;
+    from_user_id: UUID | null;
+    from_role: "client" | "admin";
+    body: string;
+    created_at: string;
+    read_at: string | null;
+  }>;
+}
+
+export function sendMessage(_input: {
+  client_id: UUID;
+  from_user_id: UUID;
+  from_role: "client" | "admin";
+  body: string;
+}) {
+  return null;
+}
+
+export function markMessagesRead(_clientId: UUID, _viewerRole: "client" | "admin") {
+  return undefined;
+}
+
+export function countUnreadMessages(_clientId: UUID, _viewerRole: "client" | "admin"): number {
+  return 0;
+}
+
+export function listUnreadCountsByClient(): Map<UUID, number> {
+  return new Map();
+}
+
 // ---------------- connectors ----------------
 
 export function listConnectors(clientId: UUID) {

@@ -253,7 +253,7 @@ export default function MessagesPopover({ clientId, userId, initialUnread, initi
           {/* Thread */}
           <div
             ref={listRef}
-            className="flex-1 min-h-[440px] max-h-[65vh] overflow-y-auto px-5 py-5 space-y-3 bg-[var(--color-bg)]"
+            className="flex-1 min-h-[440px] max-h-[65vh] overflow-y-auto px-5 py-5 space-y-3 bg-[var(--color-bg-elev)]"
           >
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full py-8 text-center">
@@ -347,11 +347,7 @@ export default function MessagesPopover({ clientId, userId, initialUnread, initi
             </div>
             {error ? (
               <div className="mt-2 text-[11px] text-red-400">{error}</div>
-            ) : (
-              <div className="mt-2 text-[10px] text-[var(--color-text-subtle)] text-right">
-                Cmd/Ctrl+Enter to send
-              </div>
-            )}
+            ) : null}
           </form>
         </div>
       ) : null}
@@ -423,7 +419,7 @@ function MessageRow({
                   "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs border transition " +
                   (isClient
                     ? "bg-[var(--color-accent)]/10 border-[var(--color-accent)]/30 text-[var(--color-text)] hover:bg-[var(--color-accent)]/20"
-                    : "bg-[var(--color-bg-elev)] border-[var(--color-border)] hover:bg-[var(--color-bg-hover)]")
+                    : "bg-[var(--color-bg-card)] border-[var(--color-border)] hover:bg-[var(--color-bg-hover)]")
                 }
               >
                 <FileIcon />
@@ -441,7 +437,7 @@ function MessageRow({
               "px-3.5 py-2 text-sm leading-snug shadow-sm " +
               (isClient
                 ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] rounded-2xl rounded-br-md"
-                : "bg-[var(--color-bg-elev)] text-[var(--color-text)] border border-[var(--color-border)] rounded-2xl rounded-bl-md")
+                : "bg-[var(--color-bg-card)] text-[var(--color-text)] border border-[var(--color-border)] rounded-2xl rounded-bl-md")
             }
           >
             <div className="whitespace-pre-wrap break-words">{body}</div>

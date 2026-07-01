@@ -48,7 +48,7 @@ export default async function AdminMessageThread({
         <Card>
           <CardHeader title="Conversation" subtitle={`${messages.length} message${messages.length === 1 ? "" : "s"}`} />
           <CardBody className="p-0">
-            <div className="max-h-[60vh] overflow-y-auto px-4 py-3 space-y-3 bg-[var(--color-bg)]">
+            <div className="max-h-[60vh] overflow-y-auto px-4 py-3 space-y-3 bg-[var(--color-bg-elev)]">
               {messages.length === 0 ? (
                 <div className="text-center text-xs text-[var(--color-text-muted)] py-8">
                   No messages yet.

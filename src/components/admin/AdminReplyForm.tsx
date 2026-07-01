@@ -41,7 +41,7 @@ export default function AdminReplyForm({ clientId }: { clientId: string }) {
           }
         }}
         rows={3}
-        placeholder="Reply to the client… (Cmd/Ctrl+Enter to send)"
+        placeholder="Reply to the client…"
         className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40 resize-none"
         disabled={pending}
       />

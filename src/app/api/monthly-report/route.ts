@@ -175,11 +175,14 @@ async function synthesize(args: {
 }): Promise<MonthlyContent> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY is not set");
+  // PROFILE_DATA is by far the largest block — compact JSON (no indent)
+  // halves its size, which directly cuts synthesis latency. The small
+  // qualitative blocks stay pretty-printed for the model's benefit.
   const userMsg =
     "REPORT_META:\n" + JSON.stringify(args.reportMeta, null, 2) +
     "\n\nBRAND_PROFILE:\n" + JSON.stringify(args.brandProfile, null, 2) +
     "\n\nCLIENT_PROFILE (qualitative — voice, ideal customer, services, growth lanes; NEVER a metrics source):\n" + JSON.stringify(args.clientProfile, null, 2) +
-    "\n\nPROFILE_DATA (source of truth for all numbers):\n" + JSON.stringify(args.profileData, null, 2) +
+    "\n\nPROFILE_DATA (source of truth for all numbers; compact JSON):\n" + JSON.stringify(args.profileData) +
     "\n\nSELECTED_NOTES (hand-picked directives from the F1 operator for THIS report — weight highly):\n" + (args.selectedNotes || "(none)") +
     "\n\nFIELDY_TRANSCRIPT (qualitative context only — never a metrics source):\n" + (args.fieldyTranscript || "(empty)") +
     "\n\nReturn ONLY the content object as valid JSON.";
@@ -407,15 +410,31 @@ export async function POST(request: NextRequest) {
   };
   const semrushCompetitors = reportRows("competitor").slice(0, 10);
   const semrushBacklinks = reportRows("backlink").slice(0, 10);
-  // The FULL deep pull — every report SEMrush gave us, not just the two the
-  // old pipeline cherry-picked. Rows capped per report to bound the prompt.
-  const semrushDeepPull = semrushReports.map((r) => {
+  // Every deep-pull report goes to the bot, but under a hard serialized-size
+  // budget — a client with 17 fat reports would otherwise balloon the prompt
+  // past what synthesis can chew through inside the function time limit.
+  const DEEP_PULL_CHAR_BUDGET = 120_000;
+  let deepPullChars = 0;
+  const semrushDeepPull: Array<{ report: string; rows: Array<Record<string, unknown>> }> = [];
+  for (const r of semrushReports) {
     const meta = (r.meta ?? {}) as Record<string, unknown>;
-    return {
+    const entry = {
       report: String(meta.label ?? r.report_type),
-      rows: ((r.rows ?? []) as Array<Record<string, unknown>>).slice(0, 40),
+      rows: ((r.rows ?? []) as Array<Record<string, unknown>>).slice(0, 12),
     };
-  });
+    const size = JSON.stringify(entry).length;
+    if (deepPullChars + size > DEEP_PULL_CHAR_BUDGET) break;
+    deepPullChars += size;
+    semrushDeepPull.push(entry);
+  }
+
+  // Daily trend series get long on quarterly/yearly windows — sample down to
+  // a bounded number of points (the shape is what matters for charts).
+  const capSeries = <T,>(points: T[], max = 120): T[] => {
+    if (points.length <= max) return points;
+    const step = points.length / max;
+    return Array.from({ length: max }, (_, i) => points[Math.floor(i * step)]);
+  };
 
   // ---------- 2. FIELDY_TRANSCRIPT ----------
   // If the admin curated specific Fieldy conversations via the Fieldy button,
@@ -566,14 +585,14 @@ export async function POST(request: NextRequest) {
       ctr: ctrCur != null ? pct(ctrCur, 2) : null,
       topPages: topPages.map((p) => ({ url: p.key, clicks: p.clicks, impressions: p.impressions, position: p.position })),
       topQueries: topQueries.map((q) => ({ query: q.key, clicks: q.clicks, impressions: q.impressions, position: q.position })),
-      trendDailyClicks: trendPoints.map((p) => ({ date: p.captured_at, value: p.value })),
-      trendDailyImpressions: imprTrend.map((p) => ({ date: p.captured_at, value: p.value })),
+      trendDailyClicks: capSeries(trendPoints).map((p) => ({ date: p.captured_at, value: p.value })),
+      trendDailyImpressions: capSeries(imprTrend).map((p) => ({ date: p.captured_at, value: p.value })),
     },
     ga4: {
       sessions: { current: sessionsCur, prior: sessionsPrev },
       activeUsers: activeUsersCur || null,
       conversions: conversionsCur || null,
-      trendDailySessions: sessionsTrend.map((p) => ({ date: p.captured_at, value: p.value })),
+      trendDailySessions: capSeries(sessionsTrend).map((p) => ({ date: p.captured_at, value: p.value })),
     },
     bing: {
       clicks: { current: bingClicksCur, prior: bingClicksPrev },
@@ -591,7 +610,7 @@ export async function POST(request: NextRequest) {
       deepPullReports: semrushDeepPull,
     },
     content: {
-      postedInWindow: postedInWindow.map((c) => ({ title: c.title, link: c.link, body: c.body, updated_at: c.updated_at })),
+      postedInWindow: postedInWindow.map((c) => ({ title: c.title, link: c.link, body: (c.body ?? "").slice(0, 280), updated_at: c.updated_at })),
       pipeline: pipeline.map((c) => ({ stage: c.stage, title: c.title, link: c.link })),
     },
   };

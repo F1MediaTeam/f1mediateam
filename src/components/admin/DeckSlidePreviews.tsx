@@ -585,14 +585,17 @@ export default function DeckSlidePreviews({
         {slides.map((s, i) => (
           <div
             key={`${s.label}-${i}`}
-            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] overflow-hidden"
+            className="group rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] overflow-hidden shadow-lg shadow-black/20 transition duration-200 hover:-translate-y-0.5 hover:border-[var(--color-accent)]/40 hover:shadow-xl hover:shadow-[var(--color-accent)]/10"
           >
-            <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-1.5">
+            <div className="flex items-center gap-2 border-b border-[var(--color-border)] bg-gradient-to-r from-[var(--color-accent)]/[0.08] to-transparent px-3 py-1.5">
               <span className="rounded bg-[var(--color-accent)]/15 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-[var(--color-accent)]">
                 {String(i + 1).padStart(2, "0")}
               </span>
               <span className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
                 {s.label}
+              </span>
+              <span className="ml-auto text-[9px] uppercase tracking-wider text-[var(--color-accent)] opacity-0 transition group-hover:opacity-100">
+                editable
               </span>
             </div>
             <div className="aspect-[16/9] p-3 overflow-hidden">{s.body}</div>

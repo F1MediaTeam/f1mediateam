@@ -222,3 +222,15 @@ input, select, textarea, button { font-family: inherit; }
 ::-webkit-scrollbar-track { background: transparent; }
 [data-theme="light"] ::-webkit-scrollbar-thumb { background: #cbd4df; }
 [data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #b4bfcc; }
+
+/* ---- Deck Studio (admin/reports) motion ---- */
+@keyframes studio-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-studio-rise { animation: studio-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes studio-pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(63, 142, 132, 0.35); }
+  50%      { box-shadow: 0 0 0 6px rgba(63, 142, 132, 0); }
+}
+.animate-studio-pulse-ring { animation: studio-pulse-ring 2s ease-in-out infinite; }

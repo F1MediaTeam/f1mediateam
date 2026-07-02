@@ -1,24 +1,30 @@
 "use client";
 
-// Client-side form for the report generator. Wraps a normal <form> submit
-// with a fetch() → blob → programmatic download so the admin stays on
-// /admin/reports while the browser dumps the .pptx (or the dry-run .json)
-// into its Downloads.
+// The Deck Studio — client-side heart of /admin/reports.
 //
-// Flow: pick company + meeting type (+ optional focus notes) → the readiness
-// chips show exactly which data sources will feed Claude → Preview & edit
-// synthesizes the deck → slides render as cards (click any text to edit
-// in place), the Claude chat applies bigger changes (with screenshot
-// support), the style bar overrides brand colors/fonts → Generate renders
-// exactly what's on screen and downloads it.
+// Flow: pick company + meeting cadence → the source rail shows exactly what
+// Claude will build from → Draft the deck (staged progress, elapsed clock,
+// cancel) → slides render as editable cards (click any text), the Claude
+// chat applies bigger changes (screenshots included), the style bar
+// overrides brand colors/fonts → Download renders exactly what's on screen.
 //
-// Everything else is derived server-side: tier from clients.tier, brand from
-// brand-configs.json + clients.branding, services/voice from onboarding,
-// meeting context from Fieldy.
+// Requests carry an AbortController with a hard 340s ceiling, so a stalled
+// synthesis surfaces as a real error instead of an infinite spinner.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  ClipboardList,
+  Download,
+  FileText,
+  Globe2,
+  LineChart,
+  Mic,
+  Search,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button, Pill } from "@/components/ui";
+import { Pill } from "@/components/ui";
 import FieldyPanelButton from "@/components/admin/FieldyPanelButton";
 import DateRangePicker from "@/components/admin/DateRangePicker";
 import DeckSlidePreviews from "@/components/admin/DeckSlidePreviews";
@@ -53,6 +59,16 @@ const FONTS = [
   "Tahoma",
 ] as const;
 
+const SOURCE_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  gsc: Search,
+  ga4: LineChart,
+  bing: Globe2,
+  semrush: TrendingUp,
+  onboarding: ClipboardList,
+  fieldy: Mic,
+  content: FileText,
+};
+
 interface SourceStatus {
   key: string;
   label: string;
@@ -68,11 +84,101 @@ interface DeckStyle {
   body_font?: string;
 }
 
+// Honest, elapsed-time-based stages — synthesis genuinely spends its time in
+// these phases, and most of it in the last one.
+const DRAFT_STAGES = [
+  { at: 0, label: "Pulling analytics — Search Console, GA4, Bing, SEMrush" },
+  { at: 8, label: "Reading Fieldy meeting notes & the onboarding profile" },
+  { at: 16, label: "Claude is writing your slides" },
+];
+const REQUEST_TIMEOUT_MS = 340_000;
+
 const labelCls =
   "block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2";
 
+function fmtElapsed(s: number): string {
+  const m = Math.floor(s / 60);
+  return m > 0 ? `${m}m ${String(s % 60).padStart(2, "0")}s` : `${s}s`;
+}
+
+function ProgressPanel({
+  mode,
+  hasEditedDeck,
+  elapsed,
+  onCancel,
+}: {
+  mode: "preview" | "generate";
+  hasEditedDeck: boolean;
+  elapsed: number;
+  onCancel: () => void;
+}) {
+  const rendering = mode === "generate" && hasEditedDeck;
+  const stages = rendering
+    ? [{ at: 0, label: "Rendering your edited deck to .pptx" }]
+    : mode === "generate"
+      ? [...DRAFT_STAGES, { at: 120, label: "Rendering to .pptx" }]
+      : DRAFT_STAGES;
+  const activeIdx = stages.reduce((acc, s, i) => (elapsed >= s.at ? i : acc), 0);
+
+  return (
+    <div className="animate-studio-rise rounded-2xl border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/[0.06] p-5">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--color-accent)]/15 animate-studio-pulse-ring">
+            <Sparkles size={16} className="text-[var(--color-accent)]" />
+          </span>
+          <div>
+            <div className="text-sm font-semibold">
+              {rendering ? "Building your file" : "Drafting your deck"}
+            </div>
+            <div className="text-xs text-[var(--color-text-muted)] tabular-nums">
+              {fmtElapsed(elapsed)} elapsed
+              {!rendering ? " · a full draft usually takes 1–3 minutes" : ""}
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)] transition"
+        >
+          Cancel
+        </button>
+      </div>
+      <ol className="mt-4 space-y-2">
+        {stages.map((s, i) => (
+          <li key={s.label} className="flex items-center gap-2.5 text-xs">
+            {i < activeIdx ? (
+              <span className="grid h-4 w-4 place-items-center rounded-full bg-[var(--color-accent)]/20 text-[var(--color-accent)] text-[9px]">
+                ✓
+              </span>
+            ) : i === activeIdx ? (
+              <span className="inline-block h-4 w-4 rounded-full border-2 border-[var(--color-accent)]/30 border-t-[var(--color-accent)] animate-spin" />
+            ) : (
+              <span className="inline-block h-4 w-4 rounded-full border border-[var(--color-border)]" />
+            )}
+            <span
+              className={
+                i === activeIdx
+                  ? "text-[var(--color-text)]"
+                  : i < activeIdx
+                    ? "text-[var(--color-text-muted)] line-through decoration-[var(--color-border)]"
+                    : "text-[var(--color-text-muted)]"
+              }
+            >
+              {s.label}
+              {i === activeIdx && !rendering ? "…" : ""}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 export default function GenerateReportForm({ clients, defaultClientId }: Props) {
   const [busy, setBusy] = useState<"idle" | "generate" | "preview">("idle");
+  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [clientId, setClientId] = useState(defaultClientId);
@@ -82,12 +188,21 @@ export default function GenerateReportForm({ clients, defaultClientId }: Props) 
   // Synthesized (then admin-edited) deck content. Set by "Preview & edit";
   // when present, Generate renders exactly this instead of re-synthesizing.
   const [content, setContent] = useState<MonthlyContent | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const abortReasonRef = useRef<"cancel" | "timeout" | null>(null);
 
   const range = MEETING_TYPES.find((t) => t.value === meetingType)?.range ?? "28d";
 
-  // Data-readiness chips for the selected client. Stored with the client id
-  // it was fetched for, so switching clients hides stale chips without a
-  // synchronous reset in the effect.
+  // Elapsed clock while a request is in flight.
+  useEffect(() => {
+    if (busy === "idle") return;
+    const started = Date.now();
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [busy]);
+
+  // Data-readiness rail for the selected client. Stored with the client id it
+  // was fetched for, so switching clients hides stale sources.
   useEffect(() => {
     let stale = false;
     if (!clientId) return;
@@ -117,9 +232,23 @@ export default function GenerateReportForm({ clients, defaultClientId }: Props) 
     }
     if (isPreview) fd.set("dryrun", "1");
     else if (content) fd.set("content_json", JSON.stringify(content));
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    abortReasonRef.current = null;
+    const timeoutId = setTimeout(() => {
+      abortReasonRef.current = "timeout";
+      controller.abort();
+    }, REQUEST_TIMEOUT_MS);
+
+    setElapsed(0);
     setBusy(isPreview ? "preview" : "generate");
     try {
-      const res = await fetch("/api/monthly-report", { method: "POST", body: fd });
+      const res = await fetch("/api/monthly-report", {
+        method: "POST",
+        body: fd,
+        signal: controller.signal,
+      });
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `HTTP ${res.status}`);
@@ -127,7 +256,7 @@ export default function GenerateReportForm({ clients, defaultClientId }: Props) 
       if (isPreview) {
         const json = (await res.json()) as { content: MonthlyContent };
         setContent(json.content);
-        setOk("Deck synthesized — click any slide text to edit, or ask Claude below.");
+        setOk("Deck drafted — click any slide text to edit, or ask Claude below.");
         return;
       }
       const blob = await res.blob();
@@ -142,154 +271,211 @@ export default function GenerateReportForm({ clients, defaultClientId }: Props) 
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
-      setOk(`Downloaded ${filename}${content ? " (from your edited deck)" : ""}`);
+      setOk(`Downloaded ${filename}${content ? " (your edited deck)" : ""}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setError(
+          abortReasonRef.current === "timeout"
+            ? "This draft took longer than 5½ minutes and was stopped. Try again — if it keeps happening, tell Garrett's assistant (me) and I'll dig into this client's data volume."
+            : "Canceled.",
+        );
+      } else {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
+      clearTimeout(timeoutId);
+      abortRef.current = null;
       setBusy("idle");
     }
   }
 
+  const btnBase =
+    "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition disabled:opacity-50 disabled:pointer-events-none";
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <input type="hidden" name="range" value={range} />
       <input type="hidden" name="report_type" value={meetingType} />
       {/* Style overrides only ride along while the deck they were chosen for
-          is on screen — never silently into a fresh synthesis. */}
+          is on screen — never silently into a fresh draft. */}
       {content
         ? Object.entries(style).map(([k, v]) =>
             v ? <input key={k} type="hidden" name={k} value={v} /> : null,
           )
         : null}
 
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-end">
-        <div className="flex-1 min-w-0 lg:max-w-sm">
-          <label className={labelCls}>Company</label>
-          <select
-            name="client_id"
-            required
-            value={clientId}
-            onChange={(e) => {
-              setClientId(e.target.value);
-              // A previewed deck belongs to the client it was built for.
-              setContent(null);
-              setStyle({});
-            }}
-            className="h-12 w-full rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-4 text-base font-medium focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
-          >
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>{c.company_name}</option>
-            ))}
-          </select>
-        </div>
+      {/* ---------- BUILDER ---------- */}
+      <section className="animate-studio-rise relative overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-6 sm:p-8 shadow-2xl shadow-black/30">
+        <div className="pointer-events-none absolute -top-32 -right-24 h-72 w-72 rounded-full bg-[var(--color-accent)]/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-40 -left-24 h-72 w-72 rounded-full bg-emerald-400/[0.07] blur-3xl" />
 
-        <div>
-          <label className={labelCls}>Meeting type</label>
-          <div className="inline-flex h-12 items-center rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] p-1">
-            {MEETING_TYPES.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => {
-                  setMeetingType(t.value);
-                  // The previewed deck was synthesized for the old window.
-                  if (t.value !== meetingType) setContent(null);
-                }}
-                className={cn(
-                  "h-full rounded-lg px-3.5 text-sm font-medium transition whitespace-nowrap",
-                  meetingType === t.value
-                    ? "bg-[var(--color-accent)] text-[var(--color-on-accent)]"
-                    : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]",
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
+        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end">
+          <div className="flex-1 min-w-0 xl:max-w-md">
+            <label className={labelCls}>Client</label>
+            <select
+              name="client_id"
+              required
+              value={clientId}
+              disabled={busy !== "idle"}
+              onChange={(e) => {
+                setClientId(e.target.value);
+                // A drafted deck belongs to the client it was built for.
+                setContent(null);
+                setStyle({});
+              }}
+              className="h-14 w-full rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-4 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
+            >
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>{c.company_name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className={labelCls}>Meeting</label>
+            <div className="inline-flex h-14 items-center rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] p-1.5">
+              {MEETING_TYPES.map((t) => (
+                <button
+                  key={t.value}
+                  type="button"
+                  disabled={busy !== "idle"}
+                  onClick={() => {
+                    if (t.value !== meetingType) setContent(null);
+                    setMeetingType(t.value);
+                  }}
+                  className={cn(
+                    "h-full rounded-xl px-4 text-sm font-semibold transition whitespace-nowrap",
+                    meetingType === t.value
+                      ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] shadow-lg shadow-[var(--color-accent)]/25"
+                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]",
+                  )}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-3 xl:ml-auto">
+            <button
+              type="submit"
+              name="dryrun"
+              value="1"
+              disabled={busy !== "idle"}
+              className={cn(
+                btnBase,
+                "h-14 px-6 text-sm border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20",
+              )}
+            >
+              <Sparkles size={16} />
+              {content ? "Re-draft" : "Draft the deck"}
+            </button>
+            <button
+              type="submit"
+              disabled={busy !== "idle"}
+              className={cn(
+                btnBase,
+                "h-14 px-7 text-sm bg-gradient-to-r from-[var(--color-accent)] to-emerald-400 text-[var(--color-on-accent)] shadow-[0_0_35px_-8px_var(--color-accent)] hover:brightness-110",
+              )}
+            >
+              <Download size={16} />
+              {content ? "Download .pptx" : "Generate & download"}
+            </button>
           </div>
         </div>
 
-        <Button
-          type="submit"
-          className="h-12 px-8 text-base lg:ml-auto"
-          disabled={busy !== "idle"}
-        >
-          {busy === "generate" ? "Generating…" : content ? "Generate .pptx (edited)" : "Generate .pptx"}
-        </Button>
-      </div>
-
-      {range === "custom" ? (
-        <div>
-          <label className={labelCls}>Custom range</label>
-          <DateRangePicker fromName="from" toName="to" />
-        </div>
-      ) : null}
-
-      {sources ? (
-        <div>
-          <label className={labelCls}>What Claude will build from</label>
-          <div className="flex flex-wrap gap-2">
-            {sources.map((s) => (
-              <span
-                key={s.key}
-                title={s.detail}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px]",
-                  s.ok
-                    ? "border-[var(--color-accent)]/40 text-[var(--color-accent)] bg-[var(--color-accent)]/10"
-                    : "border-[var(--color-border)] text-[var(--color-text-muted)]",
-                )}
-              >
-                <span className="font-medium">{s.ok ? "✓" : "—"}</span>
-                {s.label}
-                <span className={cn("hidden md:inline", s.ok ? "opacity-70" : "")}>· {s.detail}</span>
-              </span>
-            ))}
+        {range === "custom" ? (
+          <div className="relative mt-6">
+            <label className={labelCls}>Custom range</label>
+            <DateRangePicker fromName="from" toName="to" />
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      <div>
-        <label className={labelCls}>Focus points for this meeting (optional — Claude weights these highly)</label>
-        <textarea
-          name="selected_notes"
-          rows={2}
-          placeholder="e.g. Spotlight the new service-area pages · client asked about AI visibility last call · keep it under 15 minutes"
-          className="w-full rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
+        <div className="relative mt-6">
+          <label className={labelCls}>Focus points for this meeting (optional — Claude weights these highly)</label>
+          <textarea
+            name="selected_notes"
+            rows={2}
+            disabled={busy !== "idle"}
+            placeholder="e.g. Spotlight the new service-area pages · client asked about AI visibility last call · keep it under 15 minutes"
+            className="w-full rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
+          />
+        </div>
+
+        {sources ? (
+          <div className="relative mt-6">
+            <label className={labelCls}>Claude builds from</label>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+              {sources.map((s) => {
+                const Icon = SOURCE_ICONS[s.key] ?? FileText;
+                return (
+                  <div
+                    key={s.key}
+                    title={s.detail}
+                    className={cn(
+                      "rounded-xl border px-3 py-2.5 transition",
+                      s.ok
+                        ? "border-[var(--color-accent)]/25 bg-[var(--color-accent)]/[0.06]"
+                        : "border-[var(--color-border)] opacity-60",
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon size={13} className={s.ok ? "text-[var(--color-accent)]" : "text-[var(--color-text-muted)]"} />
+                      <span className="text-xs font-semibold truncate">{s.label}</span>
+                      <span
+                        className={cn(
+                          "ml-auto h-1.5 w-1.5 rounded-full shrink-0",
+                          s.ok ? "bg-[var(--color-accent)]" : "bg-[var(--color-border-strong)]",
+                        )}
+                      />
+                    </div>
+                    <div className="mt-1 text-[10px] leading-tight text-[var(--color-text-muted)] truncate">
+                      {s.detail}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="relative mt-6 flex items-center gap-3 border-t border-[var(--color-border)] pt-4">
+          <FieldyPanelButton />
+          <p className="ml-auto text-xs text-[var(--color-text-muted)]">
+            Tier, brand, and context come from the client&apos;s profile automatically.
+          </p>
+        </div>
+      </section>
+
+      {busy !== "idle" ? (
+        <ProgressPanel
+          mode={busy}
+          hasEditedDeck={Boolean(content)}
+          elapsed={elapsed}
+          onCancel={() => {
+            abortReasonRef.current = "cancel";
+            abortRef.current?.abort();
+          }}
         />
-      </div>
+      ) : null}
 
       {error ? (
-        <div className="rounded-lg border border-red-500/40 bg-red-500/10 text-red-300 text-sm px-3 py-2 whitespace-pre-wrap">
+        <div className="rounded-xl border border-red-500/40 bg-red-500/10 text-red-300 text-sm px-4 py-3 whitespace-pre-wrap">
           {error}
         </div>
       ) : null}
       {ok ? (
-        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 text-sm px-3 py-2">
+        <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 text-sm px-4 py-3">
           {ok}
         </div>
       ) : null}
 
-      <div className="flex items-center gap-3 border-t border-[var(--color-border)] pt-4">
-        <FieldyPanelButton />
-        <Button
-          type="submit"
-          name="dryrun"
-          value="1"
-          variant="secondary"
-          disabled={busy !== "idle"}
-        >
-          {busy === "preview" ? "Synthesizing…" : content ? "Re-synthesize" : "Preview & edit"}
-        </Button>
-        <p className="ml-auto hidden md:block text-xs text-[var(--color-text-muted)]">
-          Tier, brand, and context come from the client&apos;s profile automatically.
-        </p>
-      </div>
-
+      {/* ---------- EDITING STUDIO ---------- */}
       {content ? (
-        <div className="border-t border-[var(--color-border)] pt-5 space-y-4">
+        <section className="animate-studio-rise space-y-5">
           <div className="flex items-center gap-3">
-            <div className="text-sm font-semibold">Deck preview</div>
-            <Pill tone="ok">Click to edit</Pill>
+            <h2 className="text-xl font-semibold tracking-tight">Your deck</h2>
+            <Pill tone="ok">Click any text to edit</Pill>
             <button
               type="button"
               onClick={() => {
@@ -298,11 +484,11 @@ export default function GenerateReportForm({ clients, defaultClientId }: Props) 
               }}
               className="ml-auto text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] underline"
             >
-              Discard edits
+              Discard draft
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-4 py-3">
             <span className="text-[11px] uppercase tracking-widest text-[var(--color-text-muted)]">
               Deck style
             </span>
@@ -355,7 +541,7 @@ export default function GenerateReportForm({ clients, defaultClientId }: Props) 
               </button>
             ) : null}
             <span className="basis-full text-[10px] text-[var(--color-text-muted)]">
-              Overrides apply to the generated .pptx — colors and fonts on the slides themselves.
+              Overrides apply to the downloaded .pptx — colors and fonts on the slides themselves.
             </span>
           </div>
 
@@ -386,7 +572,7 @@ export default function GenerateReportForm({ clients, defaultClientId }: Props) 
               <MonthlyContentEditor content={content} onChange={setContent} />
             </div>
           </details>
-        </div>
+        </section>
       ) : null}
     </form>
   );

@@ -1,0 +1,54 @@
+{
+  "projectId": "7ed705ea-0e21-4d74-8b7b-36e176dca75f",
+  "shape": "package",
+  "pkg": "f1-media",
+  "globalName": "F1Media",
+  "srcDir": "src",
+  "tsconfig": "./tsconfig.json",
+  "buildCmd": "npm run build",
+  "cssEntry": ".next/static/chunks/43zgocrnwh9b6.css",
+  "extraFonts": [
+    "node_modules/@fontsource/dm-sans/400.css",
+    "node_modules/@fontsource/dm-sans/700.css",
+    "node_modules/@fontsource/dm-sans/800.css"
+  ],
+  "componentSrcMap": {
+    "Card": "src/components/ui/index.tsx",
+    "CardHeader": "src/components/ui/index.tsx",
+    "CardBody": "src/components/ui/index.tsx",
+    "Stat": "src/components/ui/index.tsx",
+    "Pill": "src/components/ui/index.tsx",
+    "Button": "src/components/ui/index.tsx",
+    "Input": "src/components/ui/index.tsx",
+    "Textarea": "src/components/ui/index.tsx",
+    "Select": "src/components/ui/index.tsx",
+    "Divider": "src/components/ui/index.tsx",
+    "EmptyState": "src/components/ui/index.tsx",
+    "Logo": "src/components/shared/Logo.tsx",
+    "Time": "src/components/shared/Time.tsx",
+    "TrendChart": "src/components/shared/TrendChart.tsx",
+    "Sparkline": "src/components/shared/Sparkline.tsx",
+    "MultiLineChart": "src/components/shared/MultiLineChart.tsx",
+    "MetricChartCard": "src/components/shared/MetricChartCard.tsx",
+    "MetricGaugeGroup": "src/components/shared/MetricGaugeGroup.tsx",
+    "MultiMetricChartCard": "src/components/shared/MultiMetricChartCard.tsx",
+    "FileDropZone": "src/components/shared/FileDropZone.tsx",
+    "ThemeToggle": "src/components/shared/ThemeToggle.tsx",
+    "SlideDeck": "src/components/admin/SlideDeck.tsx"
+  },
+  "entry": ".design-sync/entry.tsx",
+  "extraEntries": [
+    "./.design-sync/preview-frame.tsx"
+  ],
+  "provider": {
+    "component": "PreviewFrame"
+  },
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "MultiMetricChartCard": {
+      "cardMode": "single",
+      "primaryStory": "SearchPerformance",
+      "viewport": "840x820"
+    }
+  }
+}

@@ -91,6 +91,9 @@ export interface MonthlyContent {
     labels: string[];
     series: Array<{ name: string; values: number[] }>;
   }>;
+  // Admin-uploaded images (added in the Reports preview editor). Each renders
+  // as its own slide after the chart slides, before "What's Next".
+  images?: Array<{ title?: string; caption?: string; data: string }>;
 }
 
 export async function generateDeck(brand: BrandConfig, content: MonthlyContent): Promise<NodeBuffer> {
@@ -439,6 +442,28 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
         chartArea: { fill: { color: C.white } },
         ...(chart.type !== "bar" ? { lineSize: 3, lineSmooth: true } : { barGapWidthPct: 60 }),
       });
+      footer(s);
+    }
+  }
+
+  // ===== Optional IMAGE SLIDES (admin uploads from the preview editor) =====
+  if (Array.isArray(content?.images) && content.images.length) {
+    for (const img of content.images.slice(0, 8)) {
+      if (!img || typeof img.data !== "string" || !img.data.startsWith("data:image/")) continue;
+      const s = pres.addSlide();
+      s.background = { color: C.lightBg };
+      sectionTitle(s, img.title || "Snapshot", "•");
+      s.addImage({
+        data: img.data,
+        x: M, y: 1.7, w: PW - 2 * M, h: PH - 2.6,
+        sizing: { type: "contain", w: PW - 2 * M, h: PH - 2.6 },
+      });
+      if (img.caption) {
+        s.addText(img.caption, {
+          x: M, y: PH - 0.8, w: PW - 2 * M, h: 0.35, margin: 0,
+          fontFace: BODY, fontSize: 11, italic: true, color: C.muted, align: "center",
+        });
+      }
       footer(s);
     }
   }

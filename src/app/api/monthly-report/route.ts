@@ -467,18 +467,29 @@ export async function POST(request: NextRequest) {
     },
   };
 
+  // Edited content from the Reports preview editor: skip synthesis entirely
+  // (no second Claude call) and render exactly what the admin approved.
+  const contentJson = field(fd, "content_json");
   let content: MonthlyContent;
-  try {
-    content = await synthesize({
-      reportMeta,
-      brandProfile,
-      clientProfile,
-      profileData,
-      fieldyTranscript: transcript,
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "synthesis failed";
-    return new Response(`Synthesis failed: ${msg}`, { status: 502 });
+  if (contentJson) {
+    try {
+      content = JSON.parse(contentJson) as MonthlyContent;
+    } catch {
+      return new Response("content_json is not valid JSON", { status: 400 });
+    }
+  } else {
+    try {
+      content = await synthesize({
+        reportMeta,
+        brandProfile,
+        clientProfile,
+        profileData,
+        fieldyTranscript: transcript,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "synthesis failed";
+      return new Response(`Synthesis failed: ${msg}`, { status: 502 });
+    }
   }
 
   // Defensive defaults — never let a missing field tank the render.

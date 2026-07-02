@@ -7,8 +7,10 @@
 // the on-brand styling is preserved.
 
 import { useState } from "react";
-import { Button } from "@/components/ui";
+import { Button, Pill } from "@/components/ui";
 import FieldyPanelButton from "@/components/admin/FieldyPanelButton";
+import MonthlyContentEditor from "@/components/admin/MonthlyContentEditor";
+import type { MonthlyContent } from "@/lib/deck/f1-monthly/deck-builder";
 import type { Client } from "@/lib/types";
 
 interface Props {
@@ -22,9 +24,12 @@ const fieldCls =
 const labelCls = "block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5";
 
 export default function GenerateReportForm({ clients, defaultClientId, defaultTier }: Props) {
-  const [busy, setBusy] = useState<"idle" | "generate" | "dryrun">("idle");
+  const [busy, setBusy] = useState<"idle" | "generate" | "preview">("idle");
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
+  // Synthesized (then admin-edited) deck content. Set by "Preview & edit";
+  // when present, Generate renders exactly this instead of re-synthesizing.
+  const [content, setContent] = useState<MonthlyContent | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -32,21 +37,27 @@ export default function GenerateReportForm({ clients, defaultClientId, defaultTi
     setOk(null);
     const form = e.currentTarget;
     const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-    const isDryRun = submitter?.getAttribute("name") === "dryrun";
+    const isPreview = submitter?.getAttribute("name") === "dryrun";
     const fd = new FormData(form);
-    if (isDryRun) fd.set("dryrun", "1");
-    setBusy(isDryRun ? "dryrun" : "generate");
+    if (isPreview) fd.set("dryrun", "1");
+    else if (content) fd.set("content_json", JSON.stringify(content));
+    setBusy(isPreview ? "preview" : "generate");
     try {
       const res = await fetch("/api/monthly-report", { method: "POST", body: fd });
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `HTTP ${res.status}`);
       }
+      if (isPreview) {
+        const json = (await res.json()) as { content: MonthlyContent };
+        setContent(json.content);
+        setOk("Deck synthesized — review and edit every section below, then Generate.");
+        return;
+      }
       const blob = await res.blob();
       const cd = res.headers.get("content-disposition") ?? "";
       const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
-      const fallback = isDryRun ? "monthly-report.json" : "monthly-report.pptx";
-      const filename = m?.[1] ?? fallback;
+      const filename = m?.[1] ?? "monthly-report.pptx";
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -55,7 +66,7 @@ export default function GenerateReportForm({ clients, defaultClientId, defaultTi
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
-      setOk(`Downloaded ${filename}`);
+      setOk(`Downloaded ${filename}${content ? " (from your edited content)" : ""}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -173,16 +184,37 @@ export default function GenerateReportForm({ clients, defaultClientId, defaultTi
           className="px-6"
           disabled={busy !== "idle"}
         >
-          {busy === "dryrun" ? "Running…" : "Dry-run (download JSON)"}
+          {busy === "preview" ? "Synthesizing…" : content ? "Re-synthesize" : "Preview & edit"}
         </Button>
         <Button
           type="submit"
           className="px-8"
           disabled={busy !== "idle"}
         >
-          {busy === "generate" ? "Generating…" : "Generate .pptx"}
+          {busy === "generate" ? "Generating…" : content ? "Generate .pptx (edited)" : "Generate .pptx"}
         </Button>
       </div>
+
+      {content ? (
+        <div className="border-t border-[var(--color-border)] pt-5 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="text-sm font-semibold">Deck content</div>
+            <Pill tone="ok">Editable</Pill>
+            <button
+              type="button"
+              onClick={() => setContent(null)}
+              className="ml-auto text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] underline"
+            >
+              Discard edits
+            </button>
+          </div>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            This is exactly what the .pptx will say — every field below is editable, and image
+            slides you add render after the charts. Generate when it reads right.
+          </p>
+          <MonthlyContentEditor content={content} onChange={setContent} />
+        </div>
+      ) : null}
     </form>
   );
 }

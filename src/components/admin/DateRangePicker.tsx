@@ -60,24 +60,24 @@ function Month({
   const rangeEnd = to ?? (from && hovered && hovered > from ? hovered : null);
 
   return (
-    <div className="w-[252px]">
-      <div className="text-sm font-semibold text-center mb-2">
+    <div className="w-[308px]">
+      <div className="text-base font-semibold text-center mb-4">
         {format(month, "MMMM yyyy")}
       </div>
-      <div className="grid grid-cols-7 mb-1">
+      <div className="grid grid-cols-7 mb-2">
         {WEEKDAYS.map((d) => (
           <div
             key={d}
-            className="h-8 grid place-items-center text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]"
+            className="h-9 grid place-items-center text-[11px] uppercase tracking-wider text-[var(--color-text-muted)]"
           >
             {d}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-y-0.5" onMouseLeave={() => onHover(null)}>
+      <div className="grid grid-cols-7 gap-y-1.5" onMouseLeave={() => onHover(null)}>
         {days.map((day) => {
           if (!isSameMonth(day, month)) {
-            return <div key={iso(day)} className="h-9" />;
+            return <div key={iso(day)} className="h-10" />;
           }
           const dayIso = iso(day);
           const isStart = from === dayIso;
@@ -92,7 +92,7 @@ function Month({
               onClick={() => onPick(dayIso)}
               onMouseEnter={() => onHover(dayIso)}
               className={cn(
-                "h-9 w-9 mx-auto grid place-items-center rounded-lg text-sm tabular-nums transition",
+                "h-10 w-10 mx-auto grid place-items-center rounded-lg text-[15px] tabular-nums transition",
                 isStart || isEnd
                   ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] font-semibold"
                   : inBand
@@ -175,24 +175,24 @@ export default function DateRangePicker({ fromName, toName, defaultFrom, default
       </button>
 
       {open ? (
-        <div className="absolute z-50 mt-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] shadow-xl shadow-black/40 p-4">
+        <div className="absolute z-50 mt-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] shadow-xl shadow-black/40 p-6">
           <button
             type="button"
             onClick={() => setViewMonth((m) => addMonths(m, -1))}
             aria-label="Previous month"
-            className="absolute left-4 top-4 h-8 w-8 grid place-items-center rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)] transition"
+            className="absolute left-6 top-5 h-9 w-9 grid place-items-center rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)] transition"
           >
-            <ChevronLeft size={16} />
+            <ChevronLeft size={18} />
           </button>
           <button
             type="button"
             onClick={() => setViewMonth((m) => addMonths(m, 1))}
             aria-label="Next month"
-            className="absolute right-4 top-4 h-8 w-8 grid place-items-center rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)] transition"
+            className="absolute right-6 top-5 h-9 w-9 grid place-items-center rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)] transition"
           >
-            <ChevronRight size={16} />
+            <ChevronRight size={18} />
           </button>
-          <div className="flex gap-6">
+          <div className="flex gap-10">
             <Month
               month={viewMonth}
               from={from}
@@ -212,7 +212,7 @@ export default function DateRangePicker({ fromName, toName, defaultFrom, default
               />
             </div>
           </div>
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--color-border)]">
+          <div className="flex items-center justify-between mt-6 pt-4 border-t border-[var(--color-border)]">
             <button
               type="button"
               onClick={() => {

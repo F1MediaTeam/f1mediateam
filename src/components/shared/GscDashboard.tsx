@@ -140,11 +140,19 @@ function MultiLineChart({ series, enabled, onScrub }: ChartProps) {
   function normFor(s: { def: SeriesDef; points: Snapshot[] }): Norm {
     const byDate = new Map(s.points.map((p) => [p.captured_at, p.value]));
     const vals = s.points.map((p) => p.value);
-    const min = Math.min(...vals, 0);
-    const max = Math.max(...vals, min + 1);
+    // True min/max of the actual data (was clamped to 0, which meant a
+    // Clicks series varying between 200-400 got plotted on a 0-400 scale and
+    // sat in the middle 50% of the chart with dead space above). Adding a
+    // small 5% padding above/below the true range so the peaks and troughs
+    // don't kiss the plot edges.
+    const rawMin = Math.min(...vals);
+    const rawMax = Math.max(...vals);
+    const spread = Math.max(rawMax - rawMin, 1);
+    const min = rawMin - spread * 0.05;
+    const max = rawMax + spread * 0.05;
     const range = max - min || 1;
-    const top = pad.t + 8;
-    const bot = H - pad.b - 4;
+    const top = pad.t;
+    const bot = H - pad.b;
     const y = (v: number) => bot - ((v - min) / range) * (bot - top);
     return { byDate, y };
   }

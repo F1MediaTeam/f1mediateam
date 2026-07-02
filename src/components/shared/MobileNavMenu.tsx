@@ -63,7 +63,7 @@ export default function MobileNavMenu({ items, active, heading, ariaLabel = "Ope
           <aside
             role="dialog"
             aria-modal="true"
-            className="absolute top-0 right-0 h-full w-72 max-w-[80vw] bg-[var(--color-bg)] border-l border-[var(--color-border-strong)] shadow-2xl flex flex-col"
+            className="absolute inset-y-0 right-0 w-72 max-w-[80vw] bg-[var(--color-bg-elev)] border-l border-[var(--color-border-strong)] shadow-2xl flex flex-col"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
               <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-subtle)]">
@@ -78,7 +78,7 @@ export default function MobileNavMenu({ items, active, heading, ariaLabel = "Ope
                 ×
               </button>
             </div>
-            <nav className="flex flex-col gap-0.5 px-2 py-3 overflow-y-auto">
+            <nav className="flex-1 flex flex-col gap-1 px-3 py-4 overflow-y-auto">
               {items.map((item) => {
                 const isActive = active === item.href;
                 return (
@@ -87,10 +87,10 @@ export default function MobileNavMenu({ items, active, heading, ariaLabel = "Ope
                     href={item.href}
                     onClick={() => setOpen(false)}
                     className={
-                      "px-3 py-3 rounded-lg text-base transition " +
+                      "px-4 py-3 rounded-lg text-base font-medium transition " +
                       (isActive
-                        ? "bg-[var(--color-bg-hover)] text-[var(--color-text)]"
-                        : "text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)]")
+                        ? "bg-[var(--color-accent)] text-[var(--color-on-accent)]"
+                        : "text-[var(--color-text)] bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-hover)]")
                     }
                   >
                     {item.label}

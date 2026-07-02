@@ -19,6 +19,7 @@ import type {
   EmailPref,
   FileRecord,
   LoginAudit,
+  Meeting,
   MetricSnapshot,
   Profile,
   Task,
@@ -259,6 +260,64 @@ export function deleteCalendarEvent(id: UUID): boolean {
     s.calendar.splice(i, 1);
     // Cascade attachments — Supabase does this via FK on delete cascade.
     s.calendarAttachments = s.calendarAttachments.filter((a) => a.event_id !== id);
+    return true;
+  });
+}
+
+// ---------------- meetings ----------------
+
+export function listMeetings(): Meeting[] {
+  return [...getState().meetings].sort((a, b) =>
+    b.scheduled_at.localeCompare(a.scheduled_at),
+  );
+}
+
+export function getMeeting(id: UUID): Meeting | null {
+  return getState().meetings.find((m) => m.id === id) ?? null;
+}
+
+export function createMeeting(input: {
+  client_id: UUID;
+  title: string;
+  scheduled_at: string;
+  range_from?: string | null;
+  range_to?: string | null;
+  notes?: string | null;
+  created_by?: UUID | null;
+}): Meeting {
+  return mutate((s) => {
+    const m: Meeting = {
+      id: `mtg-${uid()}`,
+      client_id: input.client_id,
+      title: input.title,
+      scheduled_at: input.scheduled_at,
+      logo_path: null,
+      range_from: input.range_from ?? null,
+      range_to: input.range_to ?? null,
+      notes: input.notes ?? null,
+      created_by: input.created_by ?? DEMO_ADMIN_ID,
+      created_at: nowIso(),
+      updated_at: nowIso(),
+    };
+    s.meetings.push(m);
+    return m;
+  });
+}
+
+export function updateMeeting(id: UUID, patch: Partial<Meeting>): Meeting | null {
+  return mutate((s) => {
+    const m = s.meetings.find((x) => x.id === id);
+    if (!m) return null;
+    Object.assign(m, patch, { id: m.id, updated_at: nowIso() });
+    return m;
+  });
+}
+
+export function deleteMeeting(id: UUID): boolean {
+  return mutate((s) => {
+    const i = s.meetings.findIndex((m) => m.id === id);
+    if (i === -1) return false;
+    s.meetings.splice(i, 1);
     return true;
   });
 }
@@ -723,4 +782,82 @@ export function getConnectorWithCredentials(_connectorId: UUID) {
 
 export function updateConnectorAccessToken(_connectorId: UUID, _access_token: string, _expires_at: string) {
   throw new Error("[mock] updateConnectorAccessToken not supported — set Supabase env to run OAuth flows");
+}
+
+// ---------------- supabase parity ----------------
+// Everything below mirrors supabase-adapter exports that mock-mode pages hit
+// at runtime. Store-backed where the seed has the data, safe stubs otherwise.
+
+export function signUp(_email: string, _password: string, _fullName?: string) {
+  return {
+    session: null,
+    error: "Sign-up needs Supabase — use one of the demo accounts in mock mode.",
+  };
+}
+
+export function signOut(): void {
+  // Mock sessions live in the f1_session cookie; the caller clears it.
+}
+
+export function getClientUser(clientId: UUID): Profile | null {
+  return (
+    getState().profiles.find((p) => p.role === "client" && p.client_id === clientId) ?? null
+  );
+}
+
+export function createClientRow(input: {
+  company_name: string;
+  join_date?: string;
+  websites?: string[];
+}): Client {
+  return mutate((s) => {
+    const c: Client = {
+      id: `client-${uid()}`,
+      company_name: input.company_name,
+      join_date: input.join_date ?? nowIso().slice(0, 10),
+      websites: input.websites ?? [],
+      config: {
+        widgets: { rankings: true, traffic: true, content: true, files: true, calendar: true },
+      },
+      branding: {},
+      created_at: nowIso(),
+      updated_at: nowIso(),
+    };
+    s.clients.push(c);
+    return c;
+  });
+}
+
+export function hasSemrushHistory(clientId: UUID): boolean {
+  const today = nowIso().slice(0, 10);
+  return getState().snapshots.some(
+    (s) => s.client_id === clientId && s.source === "semrush" && s.captured_at < today,
+  );
+}
+
+export function updateConnectorMeta(tokenId: UUID, patch: Record<string, unknown>): void {
+  mutate((s) => {
+    const t = s.connectors.find((c) => c.id === tokenId);
+    if (t) {
+      t.meta = { ...(t.meta ?? {}), ...patch };
+      t.updated_at = nowIso();
+    }
+  });
+}
+
+export function listImpersonations(_filter: { clientId?: UUID; adminId?: UUID; limit?: number }) {
+  // Mock has no impersonation audit trail.
+  return [];
+}
+
+export function getOnboarding(_clientId: UUID) {
+  // Mock has no onboarding submissions.
+  return null;
+}
+
+export function signMessageAttachments(
+  attachments: Array<{ path: string; name: string; mime_type: string; size_bytes?: number | null }>,
+) {
+  // No storage bucket to sign against in mock mode.
+  return (attachments ?? []).map((a) => ({ ...a, url: null as string | null }));
 }

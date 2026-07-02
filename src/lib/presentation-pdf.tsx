@@ -360,7 +360,7 @@ function Deck({ input }: { input: PresentationInput }) {
 
             {slide.kind === "title" ? (
               <>
-                {slide.logoDataUrl ? <Image alt="" src={slide.logoDataUrl} style={style.logo} /> : null}
+                {slide.logoDataUrl ? <Image src={slide.logoDataUrl} style={style.logo} /> : null}
                 <Text style={style.company}>{slide.companyName}</Text>
                 <View style={[style.accentRule, { backgroundColor: accent }]} />
                 <Text style={style.meetingDate}>{slide.meetingDate}</Text>

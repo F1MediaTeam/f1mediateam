@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useHydrated } from "@/lib/use-hydrated";
 
 interface Props {
   iso: string;       // YYYY-MM-DD for this cell
@@ -17,10 +17,8 @@ function localIsoToday(): string {
 }
 
 export default function CalendarDayHeader({ iso, dayNumber }: Props) {
-  const [isToday, setIsToday] = useState(false);
-  useEffect(() => {
-    setIsToday(localIsoToday() === iso);
-  }, [iso]);
+  // SSR renders no highlight; the local-TZ check kicks in once hydrated.
+  const isToday = useHydrated() && localIsoToday() === iso;
 
   return (
     <div className="flex items-center justify-between text-[11px] mb-1">

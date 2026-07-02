@@ -17,6 +17,7 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
+import { usingMock } from "@/lib/data";
 
 const BUCKET = "client-attachments";
 
@@ -66,6 +67,10 @@ export function getStaticBrandFallback(companyName: string): ClientLogoUrls {
 // Per-request memoized: Shell is mounted by every /client/* page, and we don't
 // want a fresh files-table query + signed-URL pair per render of the same path.
 export const getClientBrandLogoUrls = cache(async (clientId: string, companyName?: string): Promise<ClientLogoUrls> => {
+  // Mock mode has no storage bucket — static fallbacks only.
+  if (usingMock) {
+    return companyName ? getStaticBrandFallback(companyName) : { dark: null, light: null };
+  }
   const filesClient = await createServiceClient();
   const { data: rows } = await filesClient
     .from("files")
@@ -117,6 +122,11 @@ export async function getClientBrandLogoUrlsByClients(
 ): Promise<Map<string, ClientLogoUrls>> {
   const out = new Map<string, ClientLogoUrls>();
   if (clients.length === 0) return out;
+  // Mock mode has no storage bucket — static fallbacks only.
+  if (usingMock) {
+    for (const c of clients) out.set(c.id, getStaticBrandFallback(c.company_name));
+    return out;
+  }
   const filesClient = await createServiceClient();
   const { data: rows } = await filesClient
     .from("files")

@@ -10,9 +10,6 @@ const nextConfig: NextConfig = {
     "/api/export/**": ["./public/logo-dark.png"],
     "/client/**": ["./public/logo-dark.png"],
   },
-  // Prod has long-standing TS drift in admin/meetings — let the build through.
-  typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
   experimental: {
     serverActions: {
       // Onboarding submit can include multiple brand-asset images.

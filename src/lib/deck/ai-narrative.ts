@@ -360,7 +360,7 @@ async function callClaude(facts: GatheredFacts, brand?: BrandContext): Promise<N
   let parsed: unknown;
   try {
     parsed = JSON.parse(cleaned);
-  } catch (e) {
+  } catch {
     throw new Error(`Claude returned non-JSON output. First 200 chars: ${cleaned.slice(0, 200)}`);
   }
 

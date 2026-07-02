@@ -276,10 +276,6 @@ async function fetchSiteAuditScore(projectId: number, apikey: string): Promise<n
   return Math.max(0, Math.round(100 - penalty));
 }
 
-interface PositionTrackingRow {
-  Vi: number; // Visibility index
-}
-
 /**
  * Position Tracking organic_overview report — returns the campaign's visibility
  * index for today. ~100 units. Requires a Position Tracking campaign.

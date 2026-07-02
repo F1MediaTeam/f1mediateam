@@ -19,6 +19,11 @@ interface Keyword {
 
 type SortKey = "position" | "volume" | "trafficPct";
 
+// Stable module-scope wrapper so switching `embedded` doesn't remount children.
+function EmbeddedWrap({ children }: { children: React.ReactNode }) {
+  return <div>{children}</div>;
+}
+
 export default function OrganicKeywordsPanel({ clientId, embedded = false }: { clientId: string; embedded?: boolean }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -63,9 +68,7 @@ export default function OrganicKeywordsPanel({ clientId, embedded = false }: { c
 
   const arrow = (key: SortKey) => (sort === key ? (asc ? " ↑" : " ↓") : "");
 
-  const Wrap = embedded
-    ? ({ children }: { children: React.ReactNode }) => <div>{children}</div>
-    : Card;
+  const Wrap = embedded ? EmbeddedWrap : Card;
   return (
     <Wrap>
       <CardHeader

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "node:crypto";
 import { data } from "@/lib/data";
-import { requireAdmin, getSession } from "@/lib/auth/session";
+import { requireAdmin } from "@/lib/auth/session";
 import { createServiceClient, createClient } from "@/lib/supabase/server";
 import {
   startImpersonationRow,

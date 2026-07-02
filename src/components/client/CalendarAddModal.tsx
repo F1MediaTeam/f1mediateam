@@ -4,7 +4,7 @@
 // a proper screen-centered popup over a dimmed backdrop. Closes on backdrop
 // click, the × button, Escape, or after submitting.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
 import FileDropZone from "@/components/shared/FileDropZone";
 
@@ -12,16 +12,8 @@ interface Props {
   action: (formData: FormData) => void | Promise<void>;
 }
 
-// Cap each file at 25 MB and the whole batch around 50 MB so a single
-// submit doesn't choke a serverless function.
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
-const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
-
 export default function CalendarAddModal({ action }: Props) {
   const [open, setOpen] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -31,55 +23,6 @@ export default function CalendarAddModal({ action }: Props) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
-
-  useEffect(() => {
-    if (!open) {
-      setFiles([]);
-      setError(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  }, [open]);
-
-  function handlePickedFiles(picked: FileList | File[] | null | undefined) {
-    if (!picked) return;
-    const incoming = Array.from(picked);
-    const next: File[] = [...files];
-    let totalAfter = files.reduce((sum, f) => sum + f.size, 0);
-    for (const f of incoming) {
-      if (f.size > MAX_FILE_BYTES) {
-        setError(`${f.name} is ${(f.size / 1024 / 1024).toFixed(1)} MB — limit is 25 MB per file.`);
-        continue;
-      }
-      if (totalAfter + f.size > MAX_TOTAL_BYTES) {
-        setError("Total attachment size would exceed 50 MB. Drop one of the larger files.");
-        continue;
-      }
-      next.push(f);
-      totalAfter += f.size;
-    }
-    setFiles(next);
-    if (fileInputRef.current) {
-      const dt = new DataTransfer();
-      next.forEach((f) => dt.items.add(f));
-      fileInputRef.current.files = dt.files;
-    }
-  }
-
-  function removeFile(idx: number) {
-    const next = files.filter((_, i) => i !== idx);
-    setFiles(next);
-    if (fileInputRef.current) {
-      const dt = new DataTransfer();
-      next.forEach((f) => dt.items.add(f));
-      fileInputRef.current.files = dt.files;
-    }
-  }
-
-  function fmtBytes(n: number): string {
-    if (n < 1024) return `${n} B`;
-    if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-    return `${(n / 1024 / 1024).toFixed(1)} MB`;
-  }
 
   const field =
     "w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40 focus:border-[var(--color-accent)]/50";

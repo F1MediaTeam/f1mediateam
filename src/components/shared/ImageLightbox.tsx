@@ -6,8 +6,9 @@
 // otherwise creates a containing block that clips position: fixed and
 // squashes the lightbox to a strip at the top).
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useHydrated } from "@/lib/use-hydrated";
 
 interface Props {
   src: string;
@@ -16,10 +17,9 @@ interface Props {
 }
 
 export default function ImageLightbox({ src, alt, onClose }: Props) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useHydrated();
 
   useEffect(() => {
-    setMounted(true);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };

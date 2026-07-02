@@ -32,7 +32,10 @@ interface Props {
 export default function ContentCardControls({ card, role, updateAction, deleteAction, requestChangesAction }: Props) {
   const [editOpen, setEditOpen] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);
-  const deleteFormRef = useRef<HTMLFormElement | null>(null);
+  // The hidden delete form is looked up by id (unique per card) rather than a
+  // ref — onSelect closures are opaque to the ref-safety lint, which would
+  // otherwise read this as a ref access during render.
+  const deleteFormId = `delete-card-${card.id}`;
 
   // Build the menu items. Admin has Edit + Delete. Client only sees the menu
   // on a proposed (awaiting-approval) card and can Request changes.
@@ -44,8 +47,8 @@ export default function ContentCardControls({ card, role, updateAction, deleteAc
         label: "Delete",
         tone: "danger",
         onSelect: () => {
-          if (typeof window !== "undefined" && !window.confirm("Delete this card?")) return;
-          deleteFormRef.current?.requestSubmit();
+          if (!window.confirm("Delete this card?")) return;
+          (document.getElementById(deleteFormId) as HTMLFormElement | null)?.requestSubmit();
         },
       });
     }
@@ -62,7 +65,7 @@ export default function ContentCardControls({ card, role, updateAction, deleteAc
 
       {/* Hidden delete form so the menu item can submit it via requestSubmit. */}
       {role === "admin" && deleteAction ? (
-        <form ref={deleteFormRef} action={deleteAction} className="hidden">
+        <form id={deleteFormId} action={deleteAction} className="hidden">
           <input type="hidden" name="id" value={card.id} />
         </form>
       ) : null}

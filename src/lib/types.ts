@@ -92,6 +92,21 @@ export interface CalendarEventAttachment {
   created_at: ISODateTime;
 }
 
+export interface Meeting {
+  id: UUID;
+  client_id: UUID;
+  title: string;
+  scheduled_at: ISODateTime;
+  /** Path inside the meeting-assets bucket, or a data:/http(s) URI (mock). */
+  logo_path: string | null;
+  range_from: ISODate | null;   // slide data window start
+  range_to: ISODate | null;     // slide data window end
+  notes: string | null;
+  created_by: UUID | null;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+}
+
 export interface MetricSnapshot {
   id: UUID;
   client_id: UUID;

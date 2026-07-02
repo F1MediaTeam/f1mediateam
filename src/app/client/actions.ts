@@ -444,6 +444,3 @@ export async function submitOnboardingAction(formData: FormData) {
   // the saved PDF appears under Settings → Onboarding downloads.
   redirect("/client");
 }
-
-// Local helper type to keep the action file's import surface tight.
-type OnboardingDataLike = Parameters<typeof import("@/lib/onboarding-pdf").renderOnboardingPdf>[0]["data"];

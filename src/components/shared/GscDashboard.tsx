@@ -477,6 +477,23 @@ export default function GscDashboard(props: Props) {
 
 type TabKey = "queries" | "pages" | "days";
 
+function TabButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "pb-2 -mb-px text-[11px] uppercase tracking-wider transition " +
+        (active
+          ? "text-[var(--color-text)] border-b-2 border-[var(--color-accent)]"
+          : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]")
+      }
+    >
+      {label}
+    </button>
+  );
+}
+
 function BreakdownTabs({
   clientId,
   days,
@@ -493,9 +510,14 @@ function BreakdownTabs({
   ctr?: Snapshot[];
 }) {
   const [tab, setTab] = useState<TabKey>("queries");
-  const [rows, setRows] = useState<TopRow[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // The last completed fetch, tagged with the request key it answered.
+  // A tab/range change makes the tag stale, which reads as "loading" below —
+  // no synchronous state resets inside the effect needed.
+  const [fetched, setFetched] = useState<{
+    key: string;
+    rows: TopRow[] | null;
+    error: string | null;
+  }>({ key: "", rows: null, error: null });
 
   // Resolve the current window's from/to. The dashboard's range pills above
   // control `days`, so we use today minus that many days. For the "all time"
@@ -509,37 +531,44 @@ function BreakdownTabs({
     return { from: start.toISOString().slice(0, 10), to: today.toISOString().slice(0, 10) };
   }, [days]);
 
+  // days uses local snapshot data — no fetch.
+  const requestKey = tab === "days" ? null : `${tab}:${clientId}:${from}:${to}`;
+
   // Fetch breakdown for the active tab + range.
   useEffect(() => {
-    if (tab === "days") return; // days uses local snapshot data
+    if (!requestKey || tab === "days") return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setRows(null);
     const dimension = tab === "pages" ? "pages" : "queries";
     fetch(`/api/gsc-breakdown/${clientId}?dimension=${dimension}&from=${from}&to=${to}`)
       .then(async (res) => {
         const body = (await res.json()) as { rows: Array<{ key: string; clicks: number; impressions: number; ctr: number; position: number }>; error?: string };
         if (cancelled) return;
-        if (body.error) setError(body.error);
-        setRows((body.rows ?? []).map((r) => ({
-          label: r.key,
-          clicks: r.clicks,
-          impressions: r.impressions,
-          ctr: r.ctr,
-          position: r.position,
-        })));
+        setFetched({
+          key: requestKey,
+          rows: (body.rows ?? []).map((r) => ({
+            label: r.key,
+            clicks: r.clicks,
+            impressions: r.impressions,
+            ctr: r.ctr,
+            position: r.position,
+          })),
+          error: body.error ?? null,
+        });
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setFetched({ key: requestKey, rows: [], error: e instanceof Error ? e.message : String(e) });
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [tab, clientId, from, to]);
+  }, [requestKey, tab, clientId, from, to]);
+
+  const fresh = requestKey !== null && fetched.key === requestKey;
+  const rows = fresh ? fetched.rows : null;
+  const error = fresh ? fetched.error : null;
+  const loading = requestKey !== null && !fresh;
 
   // Days tab — assemble per-day rows from the snapshots we already have.
   const daysRows: TopRow[] = useMemo(() => {
@@ -564,30 +593,12 @@ function BreakdownTabs({
   const activeRows = tab === "days" ? daysRows : (rows ?? []);
   const labelHeader = tab === "queries" ? "Top queries" : tab === "pages" ? "Top pages" : "Date";
 
-  function TabButton({ id, label }: { id: TabKey; label: string }) {
-    const active = tab === id;
-    return (
-      <button
-        type="button"
-        onClick={() => setTab(id)}
-        className={
-          "pb-2 -mb-px text-[11px] uppercase tracking-wider transition " +
-          (active
-            ? "text-[var(--color-text)] border-b-2 border-[var(--color-accent)]"
-            : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]")
-        }
-      >
-        {label}
-      </button>
-    );
-  }
-
   return (
     <div className="border-t border-[var(--color-border)]">
       <div className="flex items-center gap-6 px-4 pt-3">
-        <TabButton id="queries" label="Queries" />
-        <TabButton id="pages" label="Pages" />
-        <TabButton id="days" label="Days" />
+        <TabButton active={tab === "queries"} onClick={() => setTab("queries")} label="Queries" />
+        <TabButton active={tab === "pages"} onClick={() => setTab("pages")} label="Pages" />
+        <TabButton active={tab === "days"} onClick={() => setTab("days")} label="Days" />
       </div>
       <div className="p-4">
         {loading ? (

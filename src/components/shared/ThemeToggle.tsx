@@ -4,22 +4,32 @@
 // data-theme on <html> (see globals.css + the no-flash script in layout.tsx);
 // this just toggles it and persists the choice to localStorage.
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Sun, Moon } from "lucide-react";
+import { useHydrated } from "@/lib/use-hydrated";
+
+// The <html data-theme> attribute is the source of truth (set by the
+// no-flash script in layout.tsx). Subscribe to it directly so this button
+// re-renders on any theme change without duplicating the value in state.
+function subscribeToTheme(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme"],
+  });
+  return () => observer.disconnect();
+}
+
+function readTheme(): "dark" | "light" {
+  return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+}
 
 export default function ThemeToggle({ className = "" }: { className?: string }) {
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    const current = (document.documentElement.getAttribute("data-theme") as "dark" | "light") || "dark";
-    setTheme(current);
-    setMounted(true);
-  }, []);
+  const theme = useSyncExternalStore(subscribeToTheme, readTheme, () => "dark" as const);
+  const mounted = useHydrated();
 
   function toggle() {
     const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
     document.documentElement.setAttribute("data-theme", next);
     try {
       localStorage.setItem("theme", next);

@@ -6,7 +6,7 @@
 //   - /admin/meetings/[id]            → preview (scaled to fit a card)
 //   - /admin/meetings/[id]/present    → full-screen presentation
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type {
   ChartPoint,
   ContentSlideItem,

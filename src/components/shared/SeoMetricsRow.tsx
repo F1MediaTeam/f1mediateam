@@ -75,7 +75,7 @@ export default async function SeoMetricsRow({ clientId, embedded = false }: { cl
         </div>
       </div>
       <div className="flex overflow-x-auto -mx-1 px-1 pb-1 gap-2 snap-x snap-mandatory sm:grid sm:grid-cols-4 lg:grid-cols-7 sm:overflow-visible sm:mx-0 sm:px-0 sm:pb-0">
-        {values.map(({ metric, cur, prev, when }) => {
+        {values.map(({ metric, cur, prev }) => {
           const change =
             cur != null && prev != null ? formatPercentChange(prev, cur) : null;
           const dir = change

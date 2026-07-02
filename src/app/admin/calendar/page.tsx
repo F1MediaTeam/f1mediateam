@@ -38,9 +38,11 @@ export default async function AdminCalendar() {
   ]);
   const { days, monthLabel } = buildMonth(new Date());
 
-  const colorForClient = (id: string) => {
-    const idx = clients.findIndex((c) => c.id === id);
-    return PALETTE[idx % PALETTE.length];
+  // null client_id = internal F1 Media event — fall back to the first palette
+  // slot instead of indexing PALETTE[-1] and crashing on p.bg.
+  const colorForClient = (id: string | null) => {
+    const idx = id ? clients.findIndex((c) => c.id === id) : -1;
+    return idx === -1 ? PALETTE[0] : PALETTE[idx % PALETTE.length];
   };
 
   const eventsByDay = new Map<string, typeof events>();

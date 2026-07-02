@@ -5,7 +5,7 @@
 // oldest → newest, and a compose textarea at the bottom. Opening the panel
 // marks incoming admin messages as read.
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   sendClientMessageAction,
   markClientMessagesReadAction,
@@ -507,13 +507,15 @@ function formatBytes(n: number): string {
 
 function AttachmentChip({ file, onRemove }: { file: File; onRemove: () => void }) {
   const isImage = file.type.startsWith("image/");
-  const [preview, setPreview] = useState<string | null>(null);
+  const preview = useMemo(
+    () => (isImage ? URL.createObjectURL(file) : null),
+    [file, isImage],
+  );
+  // Revoke the previous object URL when the file changes / chip unmounts.
   useEffect(() => {
-    if (!isImage) return;
-    const url = URL.createObjectURL(file);
-    setPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file, isImage]);
+    if (!preview) return;
+    return () => URL.revokeObjectURL(preview);
+  }, [preview]);
   return (
     <div className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] pl-1.5 pr-2 py-1 text-xs">
       {isImage && preview ? (

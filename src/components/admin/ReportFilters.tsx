@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { useHydrated } from "@/lib/use-hydrated";
 import DateInput from "@/components/admin/DateInput";
 
 export type ReportRange = "daily" | "weekly" | "monthly" | "yearly" | "all" | "custom";
@@ -24,6 +25,14 @@ interface Props {
   defaultTo: string;
 }
 
+function resolveViewerTz(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return "";
+  }
+}
+
 export default function ReportFilters({
   clients,
   defaultClientId,
@@ -34,15 +43,10 @@ export default function ReportFilters({
   const [range, setRange] = useState<ReportRange>(defaultRange);
   // The viewer's IANA timezone, sent to the server so "today" (and the report
   // window) is computed in their local time, not UTC — otherwise an evening
-  // visit west of UTC shows tomorrow's date.
-  const [tz, setTz] = useState("");
-  useEffect(() => {
-    try {
-      setTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
-    } catch {
-      /* leave blank — server falls back to a default tz */
-    }
-  }, []);
+  // visit west of UTC shows tomorrow's date. Blank until hydration (and on
+  // Intl failure) — the server falls back to a default tz.
+  const hydrated = useHydrated();
+  const tz = hydrated ? resolveViewerTz() : "";
 
   return (
     <form className="flex flex-col gap-5" method="GET">

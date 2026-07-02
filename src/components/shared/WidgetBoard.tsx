@@ -10,7 +10,7 @@
 // strategy, so it works inside a CSS grid that has multiple columns and
 // rows.
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -47,11 +47,9 @@ interface PersistedLayout {
   hidden: string[];
 }
 
-function loadLayout(key: string): PersistedLayout {
-  if (typeof window === "undefined") return { order: [], hidden: [] };
+function parseLayout(raw: string | null): PersistedLayout {
+  if (!raw) return { order: [], hidden: [] };
   try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return { order: [], hidden: [] };
     const parsed = JSON.parse(raw) as PersistedLayout;
     return {
       order: Array.isArray(parsed.order) ? parsed.order : [],
@@ -70,27 +68,40 @@ function saveLayout(key: string, layout: PersistedLayout) {
   }
 }
 
+function subscribeToStorage(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+
 export default function WidgetBoard({ storageKey, widgets, gridClassName }: Props) {
-  // Server render uses the natural order; client hydrates with persisted
-  // layout via the useEffect below so we don't mismatch SSR markup.
-  const [order, setOrder] = useState<string[]>(() => widgets.map((w) => w.id));
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
-  const [hydrated, setHydrated] = useState(false);
+  // localStorage is the source of truth for the persisted layout. The server
+  // (and the hydration pass) see null → natural widget order, so SSR markup
+  // matches; right after hydration React re-reads the real snapshot and the
+  // persisted layout applies.
+  const savedRaw = useSyncExternalStore(
+    subscribeToStorage,
+    () => window.localStorage.getItem(storageKey),
+    () => null,
+  );
 
-  useEffect(() => {
-    const saved = loadLayout(storageKey);
+  // Edits made during this mount take precedence over the persisted snapshot.
+  const [edited, setEdited] = useState<PersistedLayout | null>(null);
+
+  const { order, hidden } = useMemo(() => {
+    const base = edited ?? parseLayout(savedRaw);
     const known = new Set(widgets.map((w) => w.id));
-    const ordered = saved.order.filter((id) => known.has(id));
+    const ordered = base.order.filter((id) => known.has(id));
     const missing = widgets.map((w) => w.id).filter((id) => !ordered.includes(id));
-    setOrder([...ordered, ...missing]);
-    setHidden(new Set(saved.hidden.filter((id) => known.has(id))));
-    setHydrated(true);
-  }, [storageKey, widgets]);
+    return {
+      order: [...ordered, ...missing],
+      hidden: new Set(base.hidden.filter((id) => known.has(id))),
+    };
+  }, [edited, savedRaw, widgets]);
 
-  useEffect(() => {
-    if (!hydrated) return;
-    saveLayout(storageKey, { order, hidden: Array.from(hidden) });
-  }, [order, hidden, hydrated, storageKey]);
+  function applyLayout(next: PersistedLayout) {
+    setEdited(next);
+    saveLayout(storageKey, next);
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -100,15 +111,13 @@ export default function WidgetBoard({ storageKey, widgets, gridClassName }: Prop
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    setOrder((cur) => {
-      const fromIdx = cur.indexOf(active.id as string);
-      const toIdx = cur.indexOf(over.id as string);
-      if (fromIdx < 0 || toIdx < 0) return cur;
-      const next = cur.slice();
-      next.splice(fromIdx, 1);
-      next.splice(toIdx, 0, active.id as string);
-      return next;
-    });
+    const fromIdx = order.indexOf(active.id as string);
+    const toIdx = order.indexOf(over.id as string);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const next = order.slice();
+    next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, active.id as string);
+    applyLayout({ order: next, hidden: Array.from(hidden) });
   }
 
   const byId = useMemo(() => new Map(widgets.map((w) => [w.id, w] as const)), [widgets]);
@@ -128,7 +137,7 @@ export default function WidgetBoard({ storageKey, widgets, gridClassName }: Prop
                   key={id}
                   id={id}
                   fullWidth={w.fullWidth}
-                  onHide={() => setHidden((cur) => new Set(cur).add(id))}
+                  onHide={() => applyLayout({ order, hidden: [...Array.from(hidden), id] })}
                 >
                   {w.node}
                 </SortableWidget>
@@ -147,14 +156,12 @@ export default function WidgetBoard({ storageKey, widgets, gridClassName }: Prop
             <button
               key={w.id}
               type="button"
-              onClick={() => {
-                setHidden((cur) => {
-                  const next = new Set(cur);
-                  next.delete(w.id);
-                  return next;
-                });
-                setOrder((cur) => (cur.includes(w.id) ? cur : [...cur, w.id]));
-              }}
+              onClick={() =>
+                applyLayout({
+                  order: order.includes(w.id) ? order : [...order, w.id],
+                  hidden: Array.from(hidden).filter((id) => id !== w.id),
+                })
+              }
               className="inline-flex items-center gap-1 rounded-full border border-dashed border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] hover:bg-[var(--color-bg-hover)] px-2.5 py-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
             >
               <span className="leading-none">＋</span> {w.label}

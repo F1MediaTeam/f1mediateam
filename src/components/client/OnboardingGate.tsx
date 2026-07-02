@@ -112,6 +112,25 @@ const SOCIAL_PLATFORMS: { key: string; label: string; urlLabel: string }[] = [
 
 const PAGES = ["Account Access", "Company Bio", "Contacts", "Growth Strategy", "Services & Locations", "Brand Assets & Terms"] as const;
 
+function PageHeader({ idx, title }: { idx: number; title: string; sub?: string }) {
+  return (
+    <div className="px-10 pt-10 pb-6 text-center border-b border-black/10">
+      <div className="text-[10px] uppercase tracking-[0.25em] font-mono text-black/45 mb-2">Section {idx + 1} of {PAGES.length}</div>
+      <h1 className="text-3xl font-bold tracking-tight text-black">{title}</h1>
+    </div>
+  );
+}
+
+function ProgressDots({ page }: { page: number }) {
+  return (
+    <div className="flex justify-center gap-1.5 mt-2">
+      {PAGES.map((_, i) => (
+        <span key={i} className={"h-1.5 rounded-full transition-all " + (i === page ? "w-8 bg-[#3F8E84]" : i < page ? "w-4 bg-[#3F8E84]/60" : "w-4 bg-black/15")} />
+      ))}
+    </div>
+  );
+}
+
 // localStorage key for in-flight onboarding. Bump the version suffix if the
 // OnboardingData shape changes in an incompatible way.
 const STORAGE_KEY = "f1m_onboarding_draft_v1";
@@ -124,7 +143,7 @@ const EMPTY_DATA: OnboardingData = {
   primary_city: {}, statewide_coverage: {},
 };
 
-export default function OnboardingGate({ version, userName, preview = false }: Props) {
+export default function OnboardingGate({ userName, preview = false }: Props) {
   const [pending, start] = useTransition();
   const storageKey = preview ? PREVIEW_STORAGE_KEY : STORAGE_KEY;
   // Read the saved draft synchronously on first render so the user lands
@@ -311,7 +330,6 @@ export default function OnboardingGate({ version, userName, preview = false }: P
     if (!preview && !accepted) return;
     const enriched: OnboardingData = { ...data, uploaded_asset_filenames: files.map((f) => f.name) };
     if (preview) {
-      // eslint-disable-next-line no-console
       console.log("[onboarding preview] would submit:", enriched, "files:", files.map((f) => f.name));
       window.alert(
         "Preview mode — nothing was actually submitted.\n\n" +
@@ -355,25 +373,6 @@ export default function OnboardingGate({ version, userName, preview = false }: P
     }
   }
 
-  function PageHeader({ idx, title }: { idx: number; title: string; sub?: string }) {
-    return (
-      <div className="px-10 pt-10 pb-6 text-center border-b border-black/10">
-        <div className="text-[10px] uppercase tracking-[0.25em] font-mono text-black/45 mb-2">Section {idx + 1} of {PAGES.length}</div>
-        <h1 className="text-3xl font-bold tracking-tight text-black">{title}</h1>
-      </div>
-    );
-  }
-
-  function ProgressDots() {
-    return (
-      <div className="flex justify-center gap-1.5 mt-2">
-        {PAGES.map((_, i) => (
-          <span key={i} className={"h-1.5 rounded-full transition-all " + (i === page ? "w-8 bg-[#3F8E84]" : i < page ? "w-4 bg-[#3F8E84]/60" : "w-4 bg-black/15")} />
-        ))}
-      </div>
-    );
-  }
-
   return (
     <div
       className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-start justify-center px-4 py-6 overflow-y-auto"
@@ -404,7 +403,7 @@ export default function OnboardingGate({ version, userName, preview = false }: P
               )}
             </div>
             <div className="text-sm font-semibold text-black mt-0.5">Welcome, {userName}</div>
-            <ProgressDots />
+            <ProgressDots page={page} />
           </div>
         </div>
 

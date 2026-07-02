@@ -15,6 +15,7 @@ import type {
   EmailPref,
   FileRecord,
   LoginAudit,
+  Meeting,
   MetricSnapshot,
   Profile,
   Task,
@@ -369,6 +370,66 @@ export async function recordEventAttachment(input: {
 export async function deleteEventAttachment(id: UUID): Promise<boolean> {
   const supabase = await createClient();
   const { error } = await supabase.from("calendar_event_attachments").delete().eq("id", id);
+  return !error;
+}
+
+// ---------- meetings ----------
+
+export async function listMeetings(): Promise<Meeting[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("meetings")
+    .select("*")
+    .order("scheduled_at", { ascending: false });
+  return (data as Meeting[]) ?? [];
+}
+
+export async function getMeeting(id: UUID): Promise<Meeting | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("meetings").select("*").eq("id", id).maybeSingle();
+  return (data as Meeting) ?? null;
+}
+
+export async function createMeeting(input: {
+  client_id: UUID;
+  title: string;
+  scheduled_at: string;
+  range_from?: string | null;
+  range_to?: string | null;
+  notes?: string | null;
+  created_by?: UUID | null;
+}): Promise<Meeting | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("meetings")
+    .insert({
+      client_id: input.client_id,
+      title: input.title,
+      scheduled_at: input.scheduled_at,
+      range_from: input.range_from ?? null,
+      range_to: input.range_to ?? null,
+      notes: input.notes ?? null,
+      created_by: input.created_by ?? null,
+    })
+    .select()
+    .single();
+  return (data as Meeting) ?? null;
+}
+
+export async function updateMeeting(id: UUID, patch: Partial<Meeting>): Promise<Meeting | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("meetings")
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+  return (data as Meeting) ?? null;
+}
+
+export async function deleteMeeting(id: UUID): Promise<boolean> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("meetings").delete().eq("id", id);
   return !error;
 }
 

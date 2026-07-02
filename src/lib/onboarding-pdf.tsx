@@ -538,7 +538,7 @@ function PageBand({
     <View style={styles.pageBand}>
       <View style={styles.pageBandLogoBox}>
         {logoBuf ? (
-          <Image alt="" src={logoBuf as unknown as string} style={styles.pageBandLogo} />
+          <Image src={logoBuf as unknown as string} style={styles.pageBandLogo} />
         ) : (
           <Text style={styles.pageBandLogoFallback}>F1 / MEDIA TEAM</Text>
         )}
@@ -1030,7 +1030,7 @@ function Doc5Services({ d }: { d: OnboardingData }) {
 
 // ---------- section 6: brand assets + terms ----------
 
-function Doc6Assets({ d, termsVersion }: { d: OnboardingData; termsVersion: string }) {
+function Doc6Assets({ d }: { d: OnboardingData; termsVersion: string }) {
   const files = d.uploaded_asset_filenames ?? [];
   return (
     <View>

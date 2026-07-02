@@ -4,7 +4,7 @@
 // the viewer's local hour (not the server's UTC) and stays in sync if the
 // page is left open across a boundary like midnight or noon.
 
-import { useEffect, useState } from "react";
+import { useHydrated } from "@/lib/use-hydrated";
 
 function pickGreeting(hour: number): string {
   if (hour >= 5 && hour < 12)  return "Good morning!";
@@ -14,13 +14,8 @@ function pickGreeting(hour: number): string {
 }
 
 export default function Greeting() {
-  // Server-rendered default — replaced with a TZ-aware greeting after
-  // hydration. Avoids a hydration mismatch + a flash of empty text.
-  const [text, setText] = useState("Welcome back.");
-
-  useEffect(() => {
-    setText(pickGreeting(new Date().getHours()));
-  }, []);
-
-  return <>{text}</>;
+  // Server-rendered default — swapped for a TZ-aware greeting once hydrated.
+  // Avoids a hydration mismatch + a flash of empty text.
+  const hydrated = useHydrated();
+  return <>{hydrated ? pickGreeting(new Date().getHours()) : "Welcome back."}</>;
 }

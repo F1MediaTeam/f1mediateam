@@ -1,10 +1,10 @@
 // Client-side timestamp formatter. Server-rendered HTML uses UTC so initial
-// markup is deterministic (no hydration mismatch); after mount, the useEffect
-// swaps in the viewer's local timezone.
+// markup is deterministic (no hydration mismatch); once hydrated we render
+// in the viewer's local timezone instead.
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useHydrated } from "@/lib/use-hydrated";
 
 interface Props {
   iso: string | null | undefined;
@@ -34,19 +34,14 @@ function fmt(iso: string, dateOnly: boolean, locale?: string, timeZone?: string)
 
 export default function Time({ iso, dateOnly = false }: Props) {
   // Server + first-pass client render use UTC so SSR markup matches the initial
-  // client render exactly. The useEffect below then upgrades to local TZ.
-  const [text, setText] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!iso) return;
-    setText(fmt(iso, dateOnly));
-  }, [iso, dateOnly]);
+  // client render exactly; post-hydration renders upgrade to local TZ.
+  const hydrated = useHydrated();
 
   if (!iso) return <>—</>;
-  const initial = fmt(iso, dateOnly, "en-US", "UTC");
+  const text = hydrated ? fmt(iso, dateOnly) : fmt(iso, dateOnly, "en-US", "UTC");
   return (
     <time dateTime={iso} suppressHydrationWarning>
-      {text ?? initial}
+      {text}
     </time>
   );
 }

@@ -385,7 +385,7 @@ function TablePage<T>({
   return (
     <Page size="LETTER" orientation={orientation} style={style.page}>
       <View style={style.detailHeader}>
-        <Image alt="" src={logoBase64} style={style.detailLogo} />
+        <Image src={logoBase64} style={style.detailLogo} />
         <Text style={style.detailTitle}>{title}</Text>
         <Text style={style.detailMeta}>{fmtTopDate(fromIso, toIso)}</Text>
       </View>
@@ -445,7 +445,7 @@ function ReportDocument<T>({
       {/* Cover / summary page */}
       <Page size="LETTER" style={style.page}>
         <View style={style.topBar}>
-          <Image alt="" src={logoBase64} style={style.logo} />
+          <Image src={logoBase64} style={style.logo} />
           <Text style={style.topDate}>{fmtTopDate(input.fromIso, input.toIso)}</Text>
         </View>
 

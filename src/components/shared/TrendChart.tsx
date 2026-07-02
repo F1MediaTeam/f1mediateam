@@ -23,8 +23,6 @@ interface Props {
   invert?: boolean;
   /** Format Y-axis labels and tooltip values */
   formatter?: (v: number) => string;
-  /** Show min/max markers */
-  showExtrema?: boolean;
 }
 
 function formatTick(d: string): string {
@@ -88,7 +86,6 @@ export default function TrendChart({
   height = 260,
   baseline,
   formatter,
-  showExtrema = true,
 }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   // continuous index in [0, points.length - 1]; null when not scrubbing

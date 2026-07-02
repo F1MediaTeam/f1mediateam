@@ -30,6 +30,7 @@ import type {
   ConnectorToken,
   EmailPref,
   CalendarEventAttachment,
+  Meeting,
 } from "@/lib/types";
 
 interface State {
@@ -38,6 +39,7 @@ interface State {
   tasks: Task[];
   calendar: CalendarEvent[];
   calendarAttachments: CalendarEventAttachment[];
+  meetings: Meeting[];
   snapshots: MetricSnapshot[];
   content: ContentCard[];
   contentEvents: ContentCardEvent[];
@@ -50,6 +52,7 @@ interface State {
 
 function ensureShape(s: State): State {
   if (!Array.isArray(s.calendarAttachments)) s.calendarAttachments = [];
+  if (!Array.isArray(s.meetings)) s.meetings = [];
   return s;
 }
 
@@ -64,6 +67,7 @@ function fresh(): State {
     tasks: structuredClone(seedTasks),
     calendar: structuredClone(seedCalendar),
     calendarAttachments: [],
+    meetings: [],
     snapshots: structuredClone(seedSnapshots),
     content: structuredClone(seedContent),
     contentEvents: structuredClone(seedContentEvents),

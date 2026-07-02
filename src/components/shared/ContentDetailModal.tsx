@@ -148,8 +148,8 @@ export default function ContentDetailModal(props: ContentDetailModalProps) {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {images.map((url) => (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 transition">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={url} alt="" className="w-full h-32 object-cover" />
                       </a>
                     ))}

@@ -6,40 +6,8 @@
 
 "use client";
 
-import TrendChart from "@/components/shared/TrendChart";
 import WidgetBoard, { type WidgetSlot } from "@/components/shared/WidgetBoard";
 import type { SemrushChartData, ChartSeries } from "@/lib/semrush-charts";
-
-// Compact sparkline for the AuthorityScoreCard. Pure inline SVG, no axes,
-// no interaction — meant to give a quick visual trend under the stat tiles.
-function Sparkline({ points, color = "var(--color-accent)", height = 56 }: { points: { date: string; value: number }[]; color?: string; height?: number }) {
-  if (!points.length) return null;
-  const W = 600;
-  const padY = 4;
-  const vals = points.map((p) => p.value);
-  const lo = Math.min(...vals);
-  const hi = Math.max(...vals);
-  const span = hi - lo || 1;
-  const xs = points.map((_, i) => (points.length === 1 ? W / 2 : (i / (points.length - 1)) * W));
-  const ys = points.map((p) => padY + (1 - (p.value - lo) / span) * (height - padY * 2));
-  let d = `M ${xs[0]} ${ys[0]}`;
-  for (let i = 1; i < points.length; i++) d += ` L ${xs[i]} ${ys[i]}`;
-  const areaD = `${d} L ${xs[xs.length - 1]} ${height} L ${xs[0]} ${height} Z`;
-  const gradId = `spark-grad-${Math.round(W + height)}`;
-  return (
-    <svg viewBox={`0 0 ${W} ${height}`} width="100%" height={height} preserveAspectRatio="none">
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={areaD} fill={`url(#${gradId})`} />
-      <path d={d} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={xs[xs.length - 1]} cy={ys[ys.length - 1]} r={3} fill={color} />
-    </svg>
-  );
-}
 
 function AuthorityScoreCard({ points }: { points: { date: string; value: number }[] }) {
   if (points.length === 0) {

@@ -14,6 +14,28 @@ const eslintConfig = defineConfig([
     ".vercel/**",
     "next-env.d.ts",
   ]),
+  {
+    rules: {
+      // Underscore prefix = intentionally unused (the mock adapter's parity
+      // stubs keep the Supabase adapter's signatures without using every arg).
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
+  {
+    // These render @react-pdf/renderer's <Image>, not a DOM <img> —
+    // jsx-a11y/alt-text false-positives on the shared component name.
+    files: ["src/lib/onboarding-pdf.tsx", "src/lib/pdf-report.tsx", "src/lib/presentation-pdf.tsx"],
+    rules: {
+      "jsx-a11y/alt-text": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

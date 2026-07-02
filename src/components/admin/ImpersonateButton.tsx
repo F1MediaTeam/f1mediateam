@@ -10,7 +10,7 @@ export default function ImpersonateButton({
   clientId: string;
   clientName: string;
 }) {
-  const [pending, start] = useTransition();
+  const [pending] = useTransition();
   return (
     <form
       action={startImpersonateAction}

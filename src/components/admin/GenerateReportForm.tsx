@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils";
 import { Button, Pill } from "@/components/ui";
 import FieldyPanelButton from "@/components/admin/FieldyPanelButton";
 import DateRangePicker from "@/components/admin/DateRangePicker";
+import DeckSlidePreviews from "@/components/admin/DeckSlidePreviews";
+import DeckChat from "@/components/admin/DeckChat";
 import MonthlyContentEditor from "@/components/admin/MonthlyContentEditor";
 import type { MonthlyContent } from "@/lib/deck/f1-monthly/deck-builder";
 import type { Client } from "@/lib/types";
@@ -178,7 +180,7 @@ export default function GenerateReportForm({ clients, defaultClientId }: Props) 
       {content ? (
         <div className="border-t border-[var(--color-border)] pt-5 space-y-4">
           <div className="flex items-center gap-3">
-            <div className="text-sm font-semibold">Deck content</div>
+            <div className="text-sm font-semibold">Deck preview</div>
             <Pill tone="ok">Editable</Pill>
             <button
               type="button"
@@ -189,10 +191,27 @@ export default function GenerateReportForm({ clients, defaultClientId }: Props) 
             </button>
           </div>
           <p className="text-xs text-[var(--color-text-muted)]">
-            This is exactly what the .pptx will say — every field below is editable, and image
-            slides you add render after the charts. Generate when it reads right.
+            This is what the .pptx will say. Ask Claude to change anything — or open the manual
+            editor below for field-by-field edits and image slides. Generate when it reads right.
           </p>
-          <MonthlyContentEditor content={content} onChange={setContent} />
+
+          <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6 items-start">
+            <DeckSlidePreviews content={content} />
+            <DeckChat
+              content={content}
+              onChange={setContent}
+              className="xl:sticky xl:top-4"
+            />
+          </div>
+
+          <details className="border-t border-[var(--color-border)] pt-4">
+            <summary className="cursor-pointer text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
+              Manual field editor (every field, plus image slides)
+            </summary>
+            <div className="mt-4">
+              <MonthlyContentEditor content={content} onChange={setContent} />
+            </div>
+          </details>
         </div>
       ) : null}
     </form>

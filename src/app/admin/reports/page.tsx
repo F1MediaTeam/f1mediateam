@@ -40,7 +40,7 @@ export default async function AdminReports({
         <Card className="mb-8">
           <CardHeader
             title="Generate F1 monthly .pptx"
-            subtitle="Pick a company and time frame — tier, brand, services, and context are pulled automatically from the client's profile, onboarding, and Fieldy. Saves a copy to client-attachments and downloads to your browser."
+            subtitle="Pick a company and time frame. Saves a copy to client-attachments and downloads to your browser."
           />
           <CardBody>
             <GenerateReportForm

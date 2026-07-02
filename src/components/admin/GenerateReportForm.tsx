@@ -5,12 +5,14 @@
 // /admin/reports while the browser dumps the .pptx (or the dry-run .json) into
 // its Downloads.
 //
-// Deliberately minimal: company + time frame only. Everything else the
-// pipeline derives server-side — tier from clients.tier, brand colors/fonts
-// from brand-configs.json + clients.branding, services and voice from the
-// onboarding profile, qualitative context from Fieldy.
+// Deliberately minimal: one row — company + a segmented time-frame control —
+// then Generate. Everything else the pipeline derives server-side: tier from
+// clients.tier, brand colors/fonts from brand-configs.json + clients.branding,
+// services and voice from the onboarding profile, qualitative context from
+// Fieldy.
 
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { Button, Pill } from "@/components/ui";
 import FieldyPanelButton from "@/components/admin/FieldyPanelButton";
 import MonthlyContentEditor from "@/components/admin/MonthlyContentEditor";
@@ -22,15 +24,22 @@ interface Props {
   defaultClientId: string;
 }
 
-const fieldCls =
-  "w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40";
-const labelCls = "block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5";
+const RANGES = [
+  { value: "7d", label: "7 days" },
+  { value: "28d", label: "28 days" },
+  { value: "90d", label: "90 days" },
+  { value: "ytd", label: "YTD" },
+  { value: "custom", label: "Custom" },
+] as const;
+
+const labelCls =
+  "block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2";
 
 export default function GenerateReportForm({ clients, defaultClientId }: Props) {
   const [busy, setBusy] = useState<"idle" | "generate" | "preview">("idle");
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
-  const [range, setRange] = useState("28d");
+  const [range, setRange] = useState<string>("28d");
   // Synthesized (then admin-edited) deck content. Set by "Preview & edit";
   // when present, Generate renders exactly this instead of re-synthesizing.
   const [content, setContent] = useState<MonthlyContent | null>(null);
@@ -80,40 +89,72 @@ export default function GenerateReportForm({ clients, defaultClientId }: Props) 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
+      <input type="hidden" name="range" value={range} />
+
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end">
+        <div className="flex-1 min-w-0 lg:max-w-sm">
           <label className={labelCls}>Company</label>
-          <select name="client_id" required defaultValue={defaultClientId} className={fieldCls}>
+          <select
+            name="client_id"
+            required
+            defaultValue={defaultClientId}
+            className="h-12 w-full rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-4 text-base font-medium focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
+          >
             {clients.map((c) => (
               <option key={c.id} value={c.id}>{c.company_name}</option>
             ))}
           </select>
         </div>
+
         <div>
           <label className={labelCls}>Time frame</label>
-          <select
-            name="range"
-            value={range}
-            onChange={(e) => setRange(e.target.value)}
-            className={fieldCls}
-          >
-            <option value="7d">Last 7 days</option>
-            <option value="28d">Last 28 days</option>
-            <option value="90d">Last 90 days</option>
-            <option value="ytd">Year to date</option>
-            <option value="custom">Custom range…</option>
-          </select>
+          <div className="inline-flex h-12 items-center rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] p-1">
+            {RANGES.map((r) => (
+              <button
+                key={r.value}
+                type="button"
+                onClick={() => setRange(r.value)}
+                className={cn(
+                  "h-full rounded-lg px-3.5 text-sm font-medium transition whitespace-nowrap",
+                  range === r.value
+                    ? "bg-[var(--color-accent)] text-[var(--color-on-accent)]"
+                    : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]",
+                )}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
         </div>
+
+        <Button
+          type="submit"
+          className="h-12 px-8 text-base lg:ml-auto"
+          disabled={busy !== "idle"}
+        >
+          {busy === "generate" ? "Generating…" : content ? "Generate .pptx (edited)" : "Generate .pptx"}
+        </Button>
       </div>
+
       {range === "custom" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:max-w-md">
           <div>
             <label className={labelCls}>From</label>
-            <input type="date" name="from" required className={fieldCls} />
+            <input
+              type="date"
+              name="from"
+              required
+              className="w-full rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
+            />
           </div>
           <div>
             <label className={labelCls}>To</label>
-            <input type="date" name="to" required className={fieldCls} />
+            <input
+              type="date"
+              name="to"
+              required
+              className="w-full rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
+            />
           </div>
         </div>
       ) : null}
@@ -129,25 +170,20 @@ export default function GenerateReportForm({ clients, defaultClientId }: Props) 
         </div>
       ) : null}
 
-      <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-end pt-2">
+      <div className="flex items-center gap-3 border-t border-[var(--color-border)] pt-4">
         <FieldyPanelButton />
         <Button
           type="submit"
           name="dryrun"
           value="1"
           variant="secondary"
-          className="px-6"
           disabled={busy !== "idle"}
         >
           {busy === "preview" ? "Synthesizing…" : content ? "Re-synthesize" : "Preview & edit"}
         </Button>
-        <Button
-          type="submit"
-          className="px-8"
-          disabled={busy !== "idle"}
-        >
-          {busy === "generate" ? "Generating…" : content ? "Generate .pptx (edited)" : "Generate .pptx"}
-        </Button>
+        <p className="ml-auto hidden md:block text-xs text-[var(--color-text-muted)]">
+          Tier, brand, and context are pulled from the client&apos;s profile automatically.
+        </p>
       </div>
 
       {content ? (

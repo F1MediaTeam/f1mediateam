@@ -28,7 +28,7 @@ export default async function AdminReports({
       <div className="px-8 py-8 max-w-7xl">
         <div className="mb-8">
           <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">Reports</div>
-          <h1 className="text-3xl font-semibold tracking-tight mt-1">Monthly meeting deck</h1>
+          <h1 className="text-3xl font-semibold tracking-tight mt-1">Client meeting decks</h1>
         </div>
 
         {!aiOk ? (
@@ -39,8 +39,8 @@ export default async function AdminReports({
 
         <Card className="mb-8">
           <CardHeader
-            title="Generate F1 monthly .pptx"
-            subtitle="Pick a company and time frame. Saves a copy to client-attachments and downloads to your browser."
+            title="Generate a client deck"
+            subtitle="Pick a company and meeting type — Claude builds meeting-ready slides from everything connected: Search Console, Analytics, SEMrush, Bing, onboarding, Fieldy meeting notes, and the content board. Preview, edit, then generate."
           />
           <CardBody>
             <GenerateReportForm

@@ -39,6 +39,8 @@ export interface FieldyMeetingNote {
   /** Fieldy's structured memory note (markdown sections incl. next-steps). */
   content: string;
   keywords: string[];
+  /** Verbatim quotes Fieldy captured, with surrounding context when present. */
+  quotes: Array<{ text: string; context: string }>;
 }
 
 type Json = Record<string, unknown>;
@@ -63,6 +65,17 @@ function strList(v: unknown): string[] {
       .filter(Boolean);
   }
   return [];
+}
+
+function quoteList(v: unknown): Array<{ text: string; context: string }> {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((it) => {
+      if (typeof it === "string") return { text: it.trim(), context: "" };
+      const o = (it ?? {}) as Json;
+      return { text: str(pick(o, "text", "quote", "value")).trim(), context: str(pick(o, "context", "speaker")).trim() };
+    })
+    .filter((q) => q.text);
 }
 
 function rowsFrom(body: unknown): Json[] {
@@ -106,6 +119,7 @@ export async function fieldyMeetingsInWindow(
       summary: str(pick(row, "summary", "shortSummary", "overview")),
       content: str(pick(row, "content", "memory", "notes")),
       keywords: strList(pick(row, "keywords", "topics", "tags")),
+      quotes: quoteList(pick(row, "quotes")),
     }))
     .filter((m) => m.id);
 

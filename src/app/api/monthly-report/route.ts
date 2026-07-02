@@ -18,7 +18,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import { resolveRange } from "@/lib/deck/ai-narrative";
 import { fieldyMeetingsInWindow, fieldyConfigured } from "@/lib/connectors/fieldy";
-import { fetchClientGscPages } from "@/lib/connectors/gsc";
+import { fetchClientGscPages, fetchClientGscQueries } from "@/lib/connectors/gsc";
 import { todayIso } from "@/lib/utils";
 import { generateDeck, type BrandConfig, type MonthlyContent } from "@/lib/deck/f1-monthly/deck-builder";
 import { SYNTHESIS_SYSTEM_PROMPT } from "@/lib/deck/f1-monthly/synthesis-prompt";
@@ -92,6 +92,12 @@ async function resolveBrand(formData: FormData, client: Client): Promise<BrandCo
   if (fs) base.secondary = fs.replace(/^#/, "");
   if (ft) base.tertiary = ft.replace(/^#/, "");
 
+  // Per-run font overrides from the deck style bar.
+  const df = field(formData, "display_font");
+  const bf = field(formData, "body_font");
+  if (df) base.displayFont = df;
+  if (bf) base.bodyFont = bf;
+
   const logoUrl = field(formData, "logo_url");
   if (logoUrl) {
     try {
@@ -136,6 +142,24 @@ function avgInRange(series: { captured_at: string; value: number }[], from: stri
   return w.reduce((a, s) => a + s.value, 0) / w.length;
 }
 
+// A prior-window sum is only honest if tracking history reaches back to the
+// start of that window (±7 days grace). Connector history is finite — GSC
+// ~16 months, Bing ~6 — so a "last 12 months vs the year before" comparison
+// would otherwise sum a fragment of the prior year and hand Claude a
+// fabricated YoY delta. Missing coverage → null, and the prompt tells the
+// bot a null prior means "baseline, no comparison".
+function priorSumOrNull(
+  series: { captured_at: string; value: number }[],
+  prevFrom: string,
+  prevTo: string,
+): number | null {
+  if (!series.length) return null;
+  const earliest = new Date(series[0].captured_at + "T00:00:00Z").getTime();
+  const windowStart = new Date(prevFrom + "T00:00:00Z").getTime();
+  if (earliest > windowStart + 7 * 86_400_000) return null;
+  return sumInRange(series, prevFrom, prevTo);
+}
+
 interface ClaudeResp {
   content: Array<{ type: string; text?: string }>;
   stop_reason?: string;
@@ -147,6 +171,7 @@ async function synthesize(args: {
   clientProfile: unknown;
   profileData: unknown;
   fieldyTranscript: string;
+  selectedNotes: string;
 }): Promise<MonthlyContent> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY is not set");
@@ -155,6 +180,7 @@ async function synthesize(args: {
     "\n\nBRAND_PROFILE:\n" + JSON.stringify(args.brandProfile, null, 2) +
     "\n\nCLIENT_PROFILE (qualitative — voice, ideal customer, services, growth lanes; NEVER a metrics source):\n" + JSON.stringify(args.clientProfile, null, 2) +
     "\n\nPROFILE_DATA (source of truth for all numbers):\n" + JSON.stringify(args.profileData, null, 2) +
+    "\n\nSELECTED_NOTES (hand-picked directives from the F1 operator for THIS report — weight highly):\n" + (args.selectedNotes || "(none)") +
     "\n\nFIELDY_TRANSCRIPT (qualitative context only — never a metrics source):\n" + (args.fieldyTranscript || "(empty)") +
     "\n\nReturn ONLY the content object as valid JSON.";
 
@@ -214,6 +240,82 @@ export async function POST(request: NextRequest) {
   const today = todayIso("America/Los_Angeles");
   const window = resolveRange(field(fd, "range") || "28d", field(fd, "from") || null, field(fd, "to") || null, today);
 
+  // ---------- Form overrides (needed by both paths) ----------
+  // Tier order: explicit form field wins, otherwise fall back to the tier the
+  // admin assigned on the client's profile (clients.tier). Default to "1".
+  const clientTier = client.tier === "1" || client.tier === "2" || client.tier === "3" ? client.tier : "";
+  const tier = normalizeTier(field(fd, "tier") || clientTier || "1");
+  const brand = await resolveBrand(fd, client);
+  const brandKey = field(fd, "brand_key") || slugify(client.company_name);
+
+  // Meeting cadence — shapes how the bot frames the narrative (weekly
+  // check-in vs. yearly review) and names the output file.
+  const REPORT_TYPES = ["weekly", "monthly", "quarterly", "yearly", "custom"] as const;
+  const rawType = field(fd, "report_type").toLowerCase();
+  const reportType = (REPORT_TYPES as readonly string[]).includes(rawType) ? rawType : "monthly";
+
+  // Hand-picked operator directives for this specific report.
+  const selectedNotes = field(fd, "selected_notes");
+
+  function applyDefaults(content: MonthlyContent) {
+    // Defensive defaults — never let a missing field tank the render.
+    content.client = content.client || client!.company_name;
+    content.tier = content.tier || tier;
+    content.brandKey = content.brandKey || brandKey;
+    if (!content.reportPeriod) content.reportPeriod = `${window.fromIso} → ${window.toIso}`;
+    if (!content.meetingDate) content.meetingDate = today;
+  }
+
+  // ---------- 3+4. Render the .pptx, persist, and return ----------
+  async function renderAndRespond(content: MonthlyContent): Promise<Response> {
+    applyDefaults(content);
+    const buf = await generateDeck(brand, content);
+
+    try {
+      const supabase = await createServiceClient();
+      const storagePath = `${clientId}/reports/${window.toIso}-${randomUUID()}.pptx`;
+      await supabase.storage.from(ATTACHMENT_BUCKET).upload(storagePath, buf, {
+        contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        upsert: false,
+      });
+      await supabase.from("files").insert({
+        client_id: clientId,
+        filename: `${slugify(client!.company_name)}-${window.toIso}-${reportType}-report.pptx`,
+        storage_path: storagePath,
+        mime_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        size_bytes: buf.length,
+        category: "monthly-report",
+      });
+    } catch (err) {
+      console.error("report storage upload failed", err);
+      // continue — the user still gets the download even if storage failed
+    }
+
+    const filename = `${slugify(client!.company_name)}-${window.toIso}-${reportType}-report.pptx`;
+    return new Response(new Uint8Array(buf), {
+      status: 200,
+      headers: {
+        "content-type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "content-disposition": `attachment; filename="${filename}"`,
+        "cache-control": "no-store",
+      },
+    });
+  }
+
+  // Edited content from the Reports preview editor: the deck is already
+  // written and approved, so skip the entire data pull + synthesis and
+  // render exactly what the admin saw on screen.
+  const contentJson = field(fd, "content_json");
+  if (contentJson) {
+    let edited: MonthlyContent;
+    try {
+      edited = JSON.parse(contentJson) as MonthlyContent;
+    } catch {
+      return new Response("content_json is not valid JSON", { status: 400 });
+    }
+    return renderAndRespond(edited);
+  }
+
   // ---------- 1. PROFILE_DATA per source ----------
   const [
     clicksAll, imprAll, posAll, ctrAll,
@@ -224,6 +326,7 @@ export async function POST(request: NextRequest) {
     contentCards,
     topPages,
     semrushReports,
+    topQueries,
   ] = await Promise.all([
     data.listSnapshots({ clientId, metric: "clicks" }),
     data.listSnapshots({ clientId, metric: "impressions" }),
@@ -241,15 +344,16 @@ export async function POST(request: NextRequest) {
     data.listSnapshots({ clientId, metric: "visibility" }),
     data.listSnapshots({ clientId, metric: "ai_visibility" }),
     data.listContent({ clientId }),
-    fetchClientGscPages(clientId, window.fromIso, window.toIso, 12).catch(() => []),
+    fetchClientGscPages(clientId, window.fromIso, window.toIso, 25).catch(() => []),
     data.listSemrushReports(clientId).catch(() => []),
+    fetchClientGscQueries(clientId, window.fromIso, window.toIso, 25).catch(() => []),
   ]);
 
   // ----- GSC -----
   const clicksCur = sumInRange(clicksAll, window.fromIso, window.toIso);
-  const clicksPrev = sumInRange(clicksAll, window.prevFromIso, window.prevToIso);
+  const clicksPrev = priorSumOrNull(clicksAll, window.prevFromIso, window.prevToIso);
   const imprCur = sumInRange(imprAll, window.fromIso, window.toIso);
-  const imprPrev = sumInRange(imprAll, window.prevFromIso, window.prevToIso);
+  const imprPrev = priorSumOrNull(imprAll, window.prevFromIso, window.prevToIso);
   const avgPosCur = avgInRange(posAll, window.fromIso, window.toIso);
   const ctrCur = avgInRange(ctrAll, window.fromIso, window.toIso);
 
@@ -262,7 +366,7 @@ export async function POST(request: NextRequest) {
 
   // ----- GA4 -----
   const sessionsCur = sumInRange(sessionsAll, window.fromIso, window.toIso);
-  const sessionsPrev = sumInRange(sessionsAll, window.prevFromIso, window.prevToIso);
+  const sessionsPrev = priorSumOrNull(sessionsAll, window.prevFromIso, window.prevToIso);
   const activeUsersCur = sumInRange(activeUsersAll, window.fromIso, window.toIso);
   const conversionsCur = sumInRange(conversionsAll, window.fromIso, window.toIso);
   const sessionsTrend = sessionsAll
@@ -271,9 +375,9 @@ export async function POST(request: NextRequest) {
 
   // ----- Bing -----
   const bingClicksCur = sumInRange(bingClicksAll, window.fromIso, window.toIso);
-  const bingClicksPrev = sumInRange(bingClicksAll, window.prevFromIso, window.prevToIso);
+  const bingClicksPrev = priorSumOrNull(bingClicksAll, window.prevFromIso, window.prevToIso);
   const bingImprCur = sumInRange(bingImprAll, window.fromIso, window.toIso);
-  const bingImprPrev = sumInRange(bingImprAll, window.prevFromIso, window.prevToIso);
+  const bingImprPrev = priorSumOrNull(bingImprAll, window.prevFromIso, window.prevToIso);
   const bingAvgPosCur = avgInRange(bingAvgPosAll, window.fromIso, window.toIso);
 
   // ----- SEMrush -----
@@ -301,8 +405,17 @@ export async function POST(request: NextRequest) {
     });
     return (r?.rows ?? []) as Array<Record<string, unknown>>;
   };
-  const semrushCompetitors = reportRows("competitor").slice(0, 5);
-  const semrushBacklinks = reportRows("backlink");
+  const semrushCompetitors = reportRows("competitor").slice(0, 10);
+  const semrushBacklinks = reportRows("backlink").slice(0, 10);
+  // The FULL deep pull — every report SEMrush gave us, not just the two the
+  // old pipeline cherry-picked. Rows capped per report to bound the prompt.
+  const semrushDeepPull = semrushReports.map((r) => {
+    const meta = (r.meta ?? {}) as Record<string, unknown>;
+    return {
+      report: String(meta.label ?? r.report_type),
+      rows: ((r.rows ?? []) as Array<Record<string, unknown>>).slice(0, 40),
+    };
+  });
 
   // ---------- 2. FIELDY_TRANSCRIPT ----------
   // If the admin curated specific Fieldy conversations via the Fieldy button,
@@ -334,20 +447,18 @@ export async function POST(request: NextRequest) {
         );
       }
       transcript = chosen
-        .map((n) => `# ${n.title}${n.startTime ? ` (${n.startTime.slice(0, 10)})` : ""}\n${n.summary ?? ""}\n${n.content ?? ""}`)
+        .map((n) => {
+          const kw = n.keywords.length ? `\nKeywords: ${n.keywords.join(", ")}` : "";
+          const quotes = n.quotes.length
+            ? "\nQuotes:\n" + n.quotes.slice(0, 12).map((q) => `> "${q.text}"${q.context ? ` — ${q.context}` : ""}`).join("\n")
+            : "";
+          return `# ${n.title}${n.startTime ? ` (${n.startTime.slice(0, 10)})` : ""}\n${n.summary ?? ""}\n${n.content ?? ""}${kw}${quotes}`;
+        })
         .join("\n\n---\n\n");
     } catch {
       transcript = "";
     }
   }
-
-  // ---------- Read form overrides ----------
-  // Tier order: explicit form field wins, otherwise fall back to the tier the
-  // admin assigned on the client's profile (clients.tier). Default to "1".
-  const clientTier = client.tier === "1" || client.tier === "2" || client.tier === "3" ? client.tier : "";
-  const tier = normalizeTier(field(fd, "tier") || clientTier || "1");
-  const brand = await resolveBrand(fd, client);
-  const brandKey = field(fd, "brand_key") || slugify(client.company_name);
 
   // ---------- CLIENT_PROFILE from onboarding ----------
   // Pull the onboarding row (if the customer has submitted one) and hand the
@@ -411,6 +522,8 @@ export async function POST(request: NextRequest) {
     services: field(fd, "services") ||
       clientProfile.footprint.services.map((s) => s.name).filter(Boolean).join(", "),
     reportPeriod: `${window.fromIso} → ${window.toIso}`,
+    reportType,
+    periodLabel: window.label,
     meetingDate: today,
     tier,
   };
@@ -437,11 +550,22 @@ export async function POST(request: NextRequest) {
       priorTo: window.prevToIso,
     },
     gsc: {
-      clicks: { current: clicksCur, prior: clicksPrev, currentCompact: compact(clicksCur), priorCompact: compact(clicksPrev) },
-      impressions: { current: imprCur, prior: imprPrev, currentCompact: compact(imprCur), priorCompact: compact(imprPrev) },
+      clicks: {
+        current: clicksCur,
+        prior: clicksPrev,
+        currentCompact: compact(clicksCur),
+        priorCompact: clicksPrev != null ? compact(clicksPrev) : null,
+      },
+      impressions: {
+        current: imprCur,
+        prior: imprPrev,
+        currentCompact: compact(imprCur),
+        priorCompact: imprPrev != null ? compact(imprPrev) : null,
+      },
       avgPosition: avgPosCur != null ? Number(avgPosCur.toFixed(1)) : null,
       ctr: ctrCur != null ? pct(ctrCur, 2) : null,
       topPages: topPages.map((p) => ({ url: p.key, clicks: p.clicks, impressions: p.impressions, position: p.position })),
+      topQueries: topQueries.map((q) => ({ query: q.key, clicks: q.clicks, impressions: q.impressions, position: q.position })),
       trendDailyClicks: trendPoints.map((p) => ({ date: p.captured_at, value: p.value })),
       trendDailyImpressions: imprTrend.map((p) => ({ date: p.captured_at, value: p.value })),
     },
@@ -463,7 +587,8 @@ export async function POST(request: NextRequest) {
       visibility: visibilityCur,
       aiVisibility: aiVisibilityCur,
       competitors: semrushCompetitors,
-      backlinksOverviewRows: semrushBacklinks.slice(0, 5),
+      backlinksOverviewRows: semrushBacklinks,
+      deepPullReports: semrushDeepPull,
     },
     content: {
       postedInWindow: postedInWindow.map((c) => ({ title: c.title, link: c.link, body: c.body, updated_at: c.updated_at })),
@@ -471,37 +596,23 @@ export async function POST(request: NextRequest) {
     },
   };
 
-  // Edited content from the Reports preview editor: skip synthesis entirely
-  // (no second Claude call) and render exactly what the admin approved.
-  const contentJson = field(fd, "content_json");
+  // ---------- 2b. Synthesize the deck content ----------
   let content: MonthlyContent;
-  if (contentJson) {
-    try {
-      content = JSON.parse(contentJson) as MonthlyContent;
-    } catch {
-      return new Response("content_json is not valid JSON", { status: 400 });
-    }
-  } else {
-    try {
-      content = await synthesize({
-        reportMeta,
-        brandProfile,
-        clientProfile,
-        profileData,
-        fieldyTranscript: transcript,
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "synthesis failed";
-      return new Response(`Synthesis failed: ${msg}`, { status: 502 });
-    }
+  try {
+    content = await synthesize({
+      reportMeta,
+      brandProfile,
+      clientProfile,
+      profileData,
+      fieldyTranscript: transcript,
+      selectedNotes,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "synthesis failed";
+    return new Response(`Synthesis failed: ${msg}`, { status: 502 });
   }
 
-  // Defensive defaults — never let a missing field tank the render.
-  content.client = content.client || client.company_name;
-  content.tier = content.tier || tier;
-  content.brandKey = content.brandKey || brandKey;
-  if (!content.reportPeriod) content.reportPeriod = `${window.fromIso} → ${window.toIso}`;
-  if (!content.meetingDate) content.meetingDate = today;
+  applyDefaults(content);
 
   // Dry-run: return the content object for inspection without rendering.
   if (field(fd, "dryrun") === "1") {
@@ -513,42 +624,11 @@ export async function POST(request: NextRequest) {
         clientProfile,
         profileData,
         fieldyTranscript: transcript,
+        selectedNotes,
       },
       content,
     });
   }
 
-  // ---------- 3. Build the .pptx ----------
-  const buf = await generateDeck(brand, content);
-
-  // ---------- 4. Persist alongside other client attachments ----------
-  try {
-    const supabase = await createServiceClient();
-    const storagePath = `${clientId}/reports/${window.toIso}-${randomUUID()}.pptx`;
-    await supabase.storage.from(ATTACHMENT_BUCKET).upload(storagePath, buf, {
-      contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      upsert: false,
-    });
-    await supabase.from("files").insert({
-      client_id: clientId,
-      filename: `${slugify(client.company_name)}-${window.toIso}-monthly-report.pptx`,
-      storage_path: storagePath,
-      mime_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      size_bytes: buf.length,
-      category: "monthly-report",
-    });
-  } catch (err) {
-    console.error("monthly-report storage upload failed", err);
-    // continue — the user still gets the download even if storage failed
-  }
-
-  const filename = `${slugify(client.company_name)}-${window.toIso}-monthly-report.pptx`;
-  return new Response(new Uint8Array(buf), {
-    status: 200,
-    headers: {
-      "content-type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      "content-disposition": `attachment; filename="${filename}"`,
-      "cache-control": "no-store",
-    },
-  });
+  return renderAndRespond(content);
 }

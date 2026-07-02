@@ -449,6 +449,11 @@ export function resolveRange(
       label = "Year to date";
       break;
     }
+    case "12m":
+      fromIso = shiftDays(today, -364);
+      toIso = today;
+      label = "Last 12 months";
+      break;
     case "custom":
       fromIso = customFrom || shiftDays(today, -27);
       toIso = customTo || today;

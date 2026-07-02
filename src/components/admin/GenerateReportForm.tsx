@@ -15,6 +15,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button, Pill } from "@/components/ui";
 import FieldyPanelButton from "@/components/admin/FieldyPanelButton";
+import DateRangePicker from "@/components/admin/DateRangePicker";
 import MonthlyContentEditor from "@/components/admin/MonthlyContentEditor";
 import type { MonthlyContent } from "@/lib/deck/f1-monthly/deck-builder";
 import type { Client } from "@/lib/types";
@@ -52,6 +53,10 @@ export default function GenerateReportForm({ clients, defaultClientId }: Props) 
     const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const isPreview = submitter?.getAttribute("name") === "dryrun";
     const fd = new FormData(form);
+    if (range === "custom" && (!fd.get("from") || !fd.get("to"))) {
+      setError("Pick a start and end date for the custom range.");
+      return;
+    }
     if (isPreview) fd.set("dryrun", "1");
     else if (content) fd.set("content_json", JSON.stringify(content));
     setBusy(isPreview ? "preview" : "generate");
@@ -137,25 +142,9 @@ export default function GenerateReportForm({ clients, defaultClientId }: Props) 
       </div>
 
       {range === "custom" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:max-w-md">
-          <div>
-            <label className={labelCls}>From</label>
-            <input
-              type="date"
-              name="from"
-              required
-              className="w-full rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
-            />
-          </div>
-          <div>
-            <label className={labelCls}>To</label>
-            <input
-              type="date"
-              name="to"
-              required
-              className="w-full rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
-            />
-          </div>
+        <div>
+          <label className={labelCls}>Custom range</label>
+          <DateRangePicker fromName="from" toName="to" />
         </div>
       ) : null}
 

@@ -157,3 +157,47 @@ export async function deleteMeetingAction(formData: FormData) {
   revalidatePath("/admin/meetings");
   redirect("/admin/meetings");
 }
+
+// --- customized deck (edit / reset / slide-image upload) ---
+
+export async function saveDeckAction(id: string, deck: unknown[]): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  if (!id || !Array.isArray(deck) || deck.length === 0) {
+    return { ok: false, error: "Nothing to save." };
+  }
+  const updated = await data.updateMeeting(id, {
+    deck,
+    deck_updated_at: new Date().toISOString(),
+  } as Partial<Meeting>);
+  if (!updated) return { ok: false, error: "Meeting not found." };
+  revalidatePath(`/admin/meetings/${id}`);
+  return { ok: true };
+}
+
+export async function resetDeckAction(id: string): Promise<{ ok: boolean }> {
+  await requireAdmin();
+  if (!id) return { ok: false };
+  await data.updateMeeting(id, { deck: null, deck_updated_at: null } as Partial<Meeting>);
+  revalidatePath(`/admin/meetings/${id}`);
+  return { ok: true };
+}
+
+// Upload an image for an "image" slide. Returns a renderable URL: the public
+// meeting-assets URL in Supabase mode, a data URI in mock mode (same
+// persistence strategy as the cover logo).
+export async function uploadSlideImageAction(
+  formData: FormData,
+): Promise<{ url: string | null; error?: string }> {
+  await requireAdmin();
+  const id = String(formData.get("meeting_id") ?? "");
+  const file = formData.get("file");
+  if (!id || !(file instanceof File) || file.size === 0) return { url: null, error: "No file received." };
+  if (file.size > MAX_BYTES) return { url: null, error: "Images are capped at 5 MB." };
+  if (!file.type.startsWith("image/")) return { url: null, error: "Only image files can be added to slides." };
+
+  const path = await persistLogo(file, id);
+  if (!path) return { url: null, error: "Upload failed — try again." };
+  if (path.startsWith("data:") || path.startsWith("http")) return { url: path };
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/$/, "");
+  return { url: `${base}/storage/v1/object/public/${BUCKET}/${path}` };
+}

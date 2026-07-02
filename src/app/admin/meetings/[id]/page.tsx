@@ -5,9 +5,9 @@ import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Button, Pill } from "@/components/ui";
 import LogoUpload from "@/components/admin/LogoUpload";
-import SlideDeck from "@/components/admin/SlideDeck";
+import DeckEditor from "@/components/admin/DeckEditor";
 import { updateMeetingAction, deleteMeetingAction } from "../actions";
-import { buildDeck, logoUrlFor } from "@/lib/slides";
+import { buildDeck, logoUrlFor, type Slide } from "@/lib/slides";
 
 export default async function AdminMeetingDetail({
   params,
@@ -22,7 +22,8 @@ export default async function AdminMeetingDetail({
   const client = await data.getClient(meeting.client_id);
   if (!client) notFound();
 
-  const slides = await buildDeck({ meeting, client });
+  const savedDeck = (meeting.deck as Slide[] | null | undefined) ?? null;
+  const slides = savedDeck ?? (await buildDeck({ meeting, client }));
   const logoUrl = logoUrlFor(meeting);
 
   // datetime-local needs "YYYY-MM-DDTHH:mm" in local time.
@@ -75,9 +76,16 @@ export default async function AdminMeetingDetail({
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
           <Card>
-            <CardHeader title="Deck preview" subtitle="Use ← / → to flip slides" />
+            <CardHeader
+              title="Deck"
+              subtitle="Edit slides, preview changes, then save or download"
+            />
             <CardBody>
-              <SlideDeck slides={slides} mode="preview" />
+              <DeckEditor
+                meetingId={meeting.id}
+                initialSlides={slides}
+                customized={!!savedDeck}
+              />
             </CardBody>
           </Card>
 

@@ -96,6 +96,14 @@ export type Slide =
       items: TaskSlideItem[];
     }
   | {
+      kind: "image";
+      title: string;
+      subtitle: string;
+      /** Public URL or data URI of the uploaded image. */
+      url: string;
+      caption: string | null;
+    }
+  | {
       kind: "closing";
       title: string;
       subtitle: string;

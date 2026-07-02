@@ -13,6 +13,10 @@ const eslintConfig = defineConfig([
     "build/**",
     ".vercel/**",
     "next-env.d.ts",
+    // design-sync machine state (generated bundles + staged converter)
+    "ds-bundle/**",
+    ".ds-sync/**",
+    ".design-sync/**",
   ]),
   {
     rules: {

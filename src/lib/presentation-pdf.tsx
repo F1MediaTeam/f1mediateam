@@ -109,6 +109,14 @@ export type Slide =
       cards: ContentCard[];
       footnote?: string;
     }
+  | {
+      kind: "image";
+      kicker?: string;
+      title: string;
+      /** data URI or fetchable URL (react-pdf downloads http(s) sources). */
+      url: string;
+      caption?: string;
+    }
   | { kind: "closing"; kicker?: string; title: string; subtitle?: string };
 
 export interface PresentationInput {
@@ -383,6 +391,17 @@ function Deck({ input }: { input: PresentationInput }) {
               <RankingTableSlide slide={slide} accent={accent} />
             ) : slide.kind === "content_grid" ? (
               <ContentGridSlide slide={slide} accent={accent} />
+            ) : slide.kind === "image" ? (
+              <>
+                {slide.kicker ? <Text style={[style.kicker, { color: accent }]}>{slide.kicker}</Text> : null}
+                <Text style={style.title}>{slide.title}</Text>
+                <View style={{ flex: 1, marginTop: 12, alignItems: "center", justifyContent: "center" }}>
+                  <Image src={slide.url} style={{ maxWidth: 620, maxHeight: 330, objectFit: "contain" }} />
+                </View>
+                {slide.caption ? (
+                  <Text style={{ fontSize: 9, color: BASE.muted, textAlign: "center", marginTop: 8 }}>{slide.caption}</Text>
+                ) : null}
+              </>
             ) : null}
 
             {input.brandFooter ? <Text style={style.footer}>{input.brandFooter}</Text> : null}

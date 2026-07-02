@@ -163,9 +163,26 @@ function renderSlide(slide: Slide): React.ReactNode {
       return <EventsSlide slide={slide} />;
     case "tasks":
       return <TasksSlide slide={slide} />;
+    case "image":
+      return <ImageSlide slide={slide} />;
     case "closing":
       return <ClosingSlide slide={slide} />;
   }
+}
+
+function ImageSlide({ slide }: { slide: Extract<Slide, { kind: "image" }> }) {
+  return (
+    <div className="flex flex-col h-full">
+      <SlideHeader eyebrow={slide.subtitle} title={slide.title} />
+      <div className="flex-1 min-h-0 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg)] overflow-hidden grid place-items-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={slide.url} alt={slide.caption ?? slide.title} className="max-w-full max-h-full object-contain" />
+      </div>
+      {slide.caption ? (
+        <div className="mt-3 text-xs text-[var(--color-text-muted)] text-center">{slide.caption}</div>
+      ) : null}
+    </div>
+  );
 }
 
 function SlideHeader({ eyebrow, title }: { eyebrow: string; title: string }) {

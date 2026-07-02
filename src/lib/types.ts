@@ -102,6 +102,13 @@ export interface Meeting {
   range_from: ISODate | null;   // slide data window start
   range_to: ISODate | null;     // slide data window end
   notes: string | null;
+  /**
+   * Customized slide deck (the serializable Slide[] from lib/slides).
+   * Null/absent = render the live auto-generated deck. Typed loosely here to
+   * keep types.ts free of a lib/slides import cycle; cast at the boundary.
+   */
+  deck?: unknown[] | null;
+  deck_updated_at?: ISODateTime | null;
   created_by: UUID | null;
   created_at: ISODateTime;
   updated_at: ISODateTime;

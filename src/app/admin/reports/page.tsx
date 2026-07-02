@@ -20,14 +20,6 @@ export default async function AdminReports({
   const sp = await searchParams;
   const clients = await data.listClients();
   const clientId = sp.client ?? clients[0]?.id ?? "";
-  // Default the tier <select> to whatever the admin already assigned on the
-  // client's profile. The API also falls back to client.tier server-side when
-  // the form omits it, so this is just for the UI's initial state.
-  const selectedClient = clients.find((c) => c.id === clientId);
-  const defaultTier: "1" | "2" | "3" =
-    selectedClient?.tier === "1" || selectedClient?.tier === "2" || selectedClient?.tier === "3"
-      ? selectedClient.tier
-      : "1";
 
   const aiOk = aiConfigured();
 
@@ -48,13 +40,12 @@ export default async function AdminReports({
         <Card className="mb-8">
           <CardHeader
             title="Generate F1 monthly .pptx"
-            subtitle="Structured Supabase data + Fieldy transcript + onboarding profile → Claude synthesis → on-brand PowerPoint deck. Saves a copy to client-attachments and downloads to your browser."
+            subtitle="Pick a company and time frame — tier, brand, services, and context are pulled automatically from the client's profile, onboarding, and Fieldy. Saves a copy to client-attachments and downloads to your browser."
           />
           <CardBody>
             <GenerateReportForm
               clients={clients}
               defaultClientId={clientId}
-              defaultTier={defaultTier}
             />
           </CardBody>
         </Card>

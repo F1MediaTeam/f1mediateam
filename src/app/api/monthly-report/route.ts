@@ -404,8 +404,12 @@ export async function POST(request: NextRequest) {
   const reportMeta = {
     client: client.company_name,
     website: client.websites?.[0] ?? "",
+    // industry/services have no dedicated form fields anymore — the bot reads
+    // richer versions from CLIENT_PROFILE; these stay for API callers that
+    // still pass them, with services falling back to the onboarding list.
     industry: field(fd, "industry"),
-    services: field(fd, "services"),
+    services: field(fd, "services") ||
+      clientProfile.footprint.services.map((s) => s.name).filter(Boolean).join(", "),
     reportPeriod: `${window.fromIso} → ${window.toIso}`,
     meetingDate: today,
     tier,

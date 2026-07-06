@@ -115,13 +115,13 @@ async function resolveBrand(formData: FormData, client: Client): Promise<BrandCo
   }
 
   // No explicit logo? Use the client's brand logo (onboarding upload or the
-  // static fallback in public/) — the cover slide centers it. Light-theme
-  // variant first (dark artwork): the cover background is white.
+  // static fallback in public/) — the cover slide centers it. Dark-theme
+  // variant first: the cover background is the dark brand primary.
   if (!base.logoData) {
     try {
       const { getClientBrandLogoUrls } = await import("@/lib/client-logo");
       const logos = await getClientBrandLogoUrls(client.id, client.company_name);
-      const pick = logos.light || logos.dark;
+      const pick = logos.dark || logos.light;
       if (pick?.startsWith("http")) {
         const res = await fetch(pick);
         if (res.ok) {

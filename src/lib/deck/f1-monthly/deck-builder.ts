@@ -222,17 +222,18 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
 
   // ===== SLIDE 1 — Title =====
   {
-    // Minimal white cover, styled after the meeting decks the user builds by
-    // hand: the client's logo huge and dead-center, one plain date line below.
+    // Minimal cover, laid out like the meeting decks the user builds by hand:
+    // the client's logo huge and dead-center, one plain date line below —
+    // on the brand-primary background.
     const s = pres.addSlide();
-    s.background = { color: C.white };
+    s.background = { color: C.primary };
     if (brand?.logoData) {
       const lw = 8.4, lh = 3.1;
       s.addImage({ data: brand.logoData, x: (PW - lw) / 2, y: 1.55, w: lw, h: lh, sizing: { type: "contain", w: lw, h: lh } });
     } else {
-      s.addText((content?.client || brand?.name || "").toUpperCase(), { x: M, y: 2.4, w: PW - 2 * M, h: 1.3, margin: 0, align: "center", fontFace: DISPLAY, fontSize: 54, bold: true, color: C.primary, charSpacing: 1 });
+      s.addText((content?.client || brand?.name || "").toUpperCase(), { x: M, y: 2.4, w: PW - 2 * M, h: 1.3, margin: 0, align: "center", fontFace: DISPLAY, fontSize: 54, bold: true, color: C.white, charSpacing: 1 });
     }
-    s.addText(fmtMeetingLine(content), { x: M, y: 5.1, w: PW - 2 * M, h: 0.7, margin: 0, align: "center", fontFace: BODY, fontSize: 28, color: C.ink });
+    s.addText(fmtMeetingLine(content), { x: M, y: 5.1, w: PW - 2 * M, h: 0.7, margin: 0, align: "center", fontFace: BODY, fontSize: 28, color: C.white });
   }
 
   // ===== SLIDE 2 — Executive Summary =====

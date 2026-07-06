@@ -31,6 +31,7 @@ import DeckSlidePreviews from "@/components/admin/DeckSlidePreviews";
 import DeckChat from "@/components/admin/DeckChat";
 import MonthlyContentEditor from "@/components/admin/MonthlyContentEditor";
 import type { MonthlyContent } from "@/lib/deck/f1-monthly/deck-builder";
+import { normalizeMonthlyContent } from "@/lib/deck/f1-monthly/normalize-content";
 import type { Client } from "@/lib/types";
 
 interface Props {
@@ -333,7 +334,9 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
         parsed = parsed.content as MonthlyContent & { content?: MonthlyContent };
       }
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
-      setContent(parsed as MonthlyContent);
+      // Models improvise field names in a couple of sections — normalize the
+      // common drifts so a pasted draft renders exactly like an API draft.
+      setContent(normalizeMonthlyContent(parsed));
       setImportOpen(false);
       setImportText("");
       setError(null);

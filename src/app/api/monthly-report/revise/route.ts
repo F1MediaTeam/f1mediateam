@@ -10,6 +10,7 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import type { MonthlyContent } from "@/lib/deck/f1-monthly/deck-builder";
+import { normalizeMonthlyContent } from "@/lib/deck/f1-monthly/normalize-content";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -140,6 +141,6 @@ export async function POST(request: NextRequest) {
 
   return Response.json({
     note: parsed.note ?? "Applied your changes.",
-    content: parsed.content,
+    content: normalizeMonthlyContent(parsed.content),
   });
 }

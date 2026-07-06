@@ -21,6 +21,7 @@ import { fieldyMeetingsInWindow, fieldyConfigured } from "@/lib/connectors/field
 import { fetchClientGscPages, fetchClientGscQueries } from "@/lib/connectors/gsc";
 import { todayIso } from "@/lib/utils";
 import { generateDeck, type BrandConfig, type MonthlyContent } from "@/lib/deck/f1-monthly/deck-builder";
+import { normalizeMonthlyContent } from "@/lib/deck/f1-monthly/normalize-content";
 import { SYNTHESIS_SYSTEM_PROMPT } from "@/lib/deck/f1-monthly/synthesis-prompt";
 import brandConfigs from "@/lib/deck/f1-monthly/brand-configs.json";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -318,7 +319,8 @@ export async function POST(request: NextRequest) {
   }
 
   // ---------- 3+4. Render the .pptx, persist, and return ----------
-  async function renderAndRespond(content: MonthlyContent): Promise<Response> {
+  async function renderAndRespond(rawContent: MonthlyContent): Promise<Response> {
+    const content = normalizeMonthlyContent(rawContent);
     applyDefaults(content);
     const buf = await generateDeck(brand, content);
 
@@ -699,6 +701,7 @@ export async function POST(request: NextRequest) {
     return new Response(`Synthesis failed: ${msg}`, { status: 502 });
   }
 
+  content = normalizeMonthlyContent(content);
   applyDefaults(content);
 
   // Dry-run: return the content object for inspection without rendering.

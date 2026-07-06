@@ -98,11 +98,15 @@ OUTPUT CONTRACT (use these exact keys; omit anything unsupported by data)
   "executiveSummary":{"intro","wins":[up to 5 short, data-backed statements]},
   "keywordRankings":{"note","priorLabel","currentLabel",
      "rows":[{"keyword","url","prior":number,"current":number}]},
-  "competitiveSnapshot":{...},       // ONLY if tier "2" or "3" AND semrush competitor data exists
+  "competitiveSnapshot":{            // ONLY if tier "2" or "3" AND semrush competitor data exists
+     "competitors":[{"domain","position"}],   // position is a short STRING, e.g. "71 shared keywords"
+     "gaps":{"ahead":[],"close":[],"opportunity":[]},"closing"},
   "organicTraffic":{"clicks":{"value","prior"},"impressions":{"value","prior"},
      "ctr":{"value"},"avgPosition":{"value"},"note",
      "trend":{"labels":[],"clicks":[]}},
-  "crossChannelAi":{...},            // ONLY if tier "3" AND data exists
+  "crossChannelAi":{                 // ONLY if tier "3" AND data exists
+     "channels":[{"name","metric"}],          // metric is a short STRING, e.g. "1,010 clicks · 77.5K impressions"
+     "aiVisibility":[array of short strings],"note"},
   "contentInsights":{"pagesCreated":[],"pagesOptimized":[],"linking"},
   "photoBacklink":{"refreshes":[],"backlinksBuilt","toxicRemoved","counts":{"disavowedDomains"}},
   "postingSocial":{"flyers","channels":[],"youtube","misc","outOfScope"},

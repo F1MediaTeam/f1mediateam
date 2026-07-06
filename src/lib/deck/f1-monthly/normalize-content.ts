@@ -168,6 +168,11 @@ export function normalizeMonthlyContent(raw: unknown): MonthlyContent {
     c.postingSocial = ps;
   }
   if (c.whatsNext != null) c.whatsNext = strArr(c.whatsNext);
+  if (isObj(c.questions)) {
+    const q = { ...c.questions };
+    if (q.forClient != null) q.forClient = strArr(q.forClient);
+    c.questions = q;
+  }
 
   // ----- rankingDetail.topPages -----
   if (isObj(c.rankingDetail)) {

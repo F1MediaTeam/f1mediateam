@@ -85,7 +85,13 @@ export interface MonthlyContent {
     aiOverview?: string;
   };
   whatsNext?: string[];
-  questions?: { prompt?: string; contact?: string | null };
+  questions?: {
+    prompt?: string;
+    contact?: string | null;
+    // The F1 team's questions TO the client — asked live at the end of the
+    // meeting ("what needs to be better?", "what do you want more of?").
+    forClient?: string[];
+  };
   // Per-slide headline overrides — short, data-specific takeaways written by
   // synthesis (and editable in the preview). Keyed by section; a missing key
   // falls back to the section's stock title.
@@ -259,11 +265,69 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
     footer(s);
   }
 
-  // ===== SLIDE 3 — Keyword Rankings =====
+  // ===== SLIDE 3 — Content & Insights =====
   {
     const s = pres.addSlide();
     s.background = { color: C.lightBg };
-    sectionTitle(s, st("keywordRankings", "Keyword Rankings"), "3");
+    sectionTitle(s, st("contentInsights", "Content & Insights"), "3");
+    const ci = content?.contentInsights || {}, colW = (PW - 2 * M - 0.4) / 2;
+    // Content-board framing when available (posted / approved); legacy
+    // created / optimized columns otherwise.
+    const leftItems = ci.posted?.length ? ci.posted : ci.pagesCreated || [];
+    const leftLabel = ci.posted?.length ? "Posted & Live" : "Pages Created";
+    const rightItems = ci.approved?.length ? ci.approved : ci.pagesOptimized || [];
+    const rightLabel = ci.approved?.length ? "Approved & Up Next" : "Pages Optimized";
+    card(s, M, 2.1, colW, 3.4);
+    s.addText(leftLabel, { x: M + 0.25, y: 2.3, w: colW - 0.5, h: 0.4, margin: 0, fontFace: DISPLAY, fontSize: 17, bold: true, color: C.primary });
+    s.addText(bullets(leftItems.map(stripDomain), { fontSize: 13 }), { x: M + 0.25, y: 2.75, w: colW - 0.5, h: 2.5, margin: 0, valign: "top" });
+    const rx = M + colW + 0.4;
+    card(s, rx, 2.1, colW, 3.4);
+    s.addText(rightLabel, { x: rx + 0.25, y: 2.3, w: colW - 0.5, h: 0.4, margin: 0, fontFace: DISPLAY, fontSize: 17, bold: true, color: C.primary });
+    s.addText(bullets(rightItems.map(stripDomain), { fontSize: 13 }), { x: rx + 0.25, y: 2.75, w: colW - 0.5, h: 2.5, margin: 0, valign: "top" });
+    if (ci.linking) s.addText(ci.linking, { x: M, y: 5.7, w: PW - 2 * M, h: 0.7, margin: 0, fontFace: BODY, fontSize: 14, italic: true, color: C.muted });
+    footer(s);
+  }
+
+  // ===== SLIDE 4 — Pages & Posting / Social =====
+  {
+    const s = pres.addSlide();
+    s.background = { color: C.lightBg };
+    sectionTitle(s, st("postingSocial", "Pages & Posting / Social"), "4");
+    const ps = content?.postingSocial || {}, items: string[] = [];
+    if (ps.flyers) items.push(ps.flyers);
+    if ((ps.channels || []).length) items.push("Active channels: " + (ps.channels || []).join(", "));
+    if (ps.youtube) items.push(ps.youtube);
+    if (ps.misc) items.push(ps.misc);
+    card(s, M, 2.1, PW - 2 * M, ps.outOfScope ? 3.0 : 3.8);
+    s.addText(bullets(items, { fontSize: 15 }), { x: M + 0.35, y: 2.4, w: PW - 2 * M - 0.7, h: 2.4, margin: 0, valign: "top" });
+    if (ps.outOfScope) {
+      card(s, M, 5.3, PW - 2 * M, 1.0, C.panel);
+      s.addText("Out of scope (informational): ", { x: M + 0.35, y: 5.45, w: 3.2, h: 0.7, margin: 0, valign: "middle", fontFace: BODY, fontSize: 12, bold: true, color: C.secondary });
+      s.addText(ps.outOfScope, { x: M + 3.2, y: 5.45, w: PW - 2 * M - 3.5, h: 0.7, margin: 0, valign: "middle", fontFace: BODY, fontSize: 12, color: C.ink });
+    }
+    footer(s);
+  }
+
+  // ===== SLIDE 5 — Photo & Backlink =====
+  {
+    const s = pres.addSlide();
+    s.background = { color: C.lightBg };
+    sectionTitle(s, st("photoBacklink", "Photo & Backlink Optimization"), "5");
+    const pb = content?.photoBacklink || {}, items: string[] = [];
+    if ((pb.refreshes || []).length) items.push("Page refreshes: " + (pb.refreshes || []).map(stripDomain).join(", "));
+    if (pb.backlinksBuilt) items.push(pb.backlinksBuilt);
+    if (pb.toxicRemoved) items.push(pb.toxicRemoved);
+    if (pb.counts && pb.counts.disavowedDomains != null) items.push(`${pb.counts.disavowedDomains} domains disavowed to date`);
+    card(s, M, 2.1, PW - 2 * M, 3.8);
+    s.addText(bullets(items, { fontSize: 15 }), { x: M + 0.35, y: 2.4, w: PW - 2 * M - 0.7, h: 3.2, margin: 0, valign: "top" });
+    footer(s);
+  }
+
+  // ===== SLIDE 6 — Keyword Rankings =====
+  {
+    const s = pres.addSlide();
+    s.background = { color: C.lightBg };
+    sectionTitle(s, st("keywordRankings", "Keyword Rankings"), "6");
     const kr = content?.keywordRankings || {};
     if (kr.note) s.addText(kr.note, { x: M, y: 1.65, w: PW - 2 * M, h: 0.4, margin: 0, fontFace: BODY, fontSize: 13, italic: true, color: C.muted });
     const fmtPos = (v: Any) => (v === 0 || v === "0" || v == null) ? "—" : (typeof v === "number" ? (Number.isInteger(v) ? String(v) : v.toFixed(1)) : String(v));
@@ -284,11 +348,11 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
     footer(s);
   }
 
-  // ===== SLIDE 3B — Competitive Snapshot (Tier 2 & 3) =====
+  // ===== SLIDE 6B — Competitive Snapshot (Tier 2 & 3) =====
   if (TIER !== "1" && content?.competitiveSnapshot) {
     const s = pres.addSlide();
     s.background = { color: C.lightBg };
-    sectionTitle(s, st("competitiveSnapshot", "Competitive Snapshot"), "3B");
+    sectionTitle(s, st("competitiveSnapshot", "Competitive Snapshot"), "6B");
     const cs = content.competitiveSnapshot, colW = (PW - 2 * M - 0.4) / 2;
     card(s, M, 2.1, colW, 3.6);
     s.addText("Competitor Positions", { x: M + 0.25, y: 2.3, w: colW - 0.5, h: 0.4, margin: 0, fontFace: DISPLAY, fontSize: 18, bold: true, color: C.primary });
@@ -310,11 +374,11 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
     footer(s);
   }
 
-  // ===== SLIDE 4 — Organic Traffic =====
+  // ===== SLIDE 7 — Organic Traffic =====
   {
     const s = pres.addSlide();
     s.background = { color: C.lightBg };
-    sectionTitle(s, st("organicTraffic", "Organic Traffic"), "4");
+    sectionTitle(s, st("organicTraffic", "Organic Traffic"), "7");
     const ot = content?.organicTraffic || {};
     const stats = [
       { label: "Total Clicks", o: ot.clicks }, { label: "Total Impressions", o: ot.impressions },
@@ -337,11 +401,11 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
     footer(s);
   }
 
-  // ===== SLIDE 4B — Cross-Channel & AI Visibility (Tier 3) =====
+  // ===== SLIDE 7B — Cross-Channel & AI Visibility (Tier 3) =====
   if (TIER === "3" && content?.crossChannelAi) {
     const s = pres.addSlide();
     s.background = { color: C.lightBg };
-    sectionTitle(s, st("crossChannelAi", "Cross-Channel & AI Visibility"), "4B");
+    sectionTitle(s, st("crossChannelAi", "Cross-Channel & AI Visibility"), "7B");
     const cc = content.crossChannelAi, colW = (PW - 2 * M - 0.4) / 2;
     card(s, M, 2.1, colW, 3.6);
     s.addText("Cross-Channel Performance", { x: M + 0.25, y: 2.3, w: colW - 0.5, h: 0.4, margin: 0, fontFace: DISPLAY, fontSize: 18, bold: true, color: C.primary });
@@ -351,64 +415,6 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
     s.addText("AI Visibility", { x: rx + 0.25, y: 2.3, w: colW - 0.5, h: 0.4, margin: 0, fontFace: DISPLAY, fontSize: 18, bold: true, color: C.primary });
     s.addText((cc.aiVisibility || []).map((c, i, a) => ({ text: c, options: { bullet: { code: "2022" }, breakLine: i !== a.length - 1, color: C.ink, fontSize: 13, fontFace: BODY, paraSpaceAfter: 10 } })), { x: rx + 0.25, y: 2.8, w: colW - 0.5, h: 2.7, margin: 0, valign: "top" });
     if (cc.note) s.addText(cc.note, { x: M, y: 5.9, w: PW - 2 * M, h: 0.6, margin: 0, fontFace: BODY, fontSize: 14, italic: true, color: C.muted });
-    footer(s);
-  }
-
-  // ===== SLIDE 5 — Content & Insights =====
-  {
-    const s = pres.addSlide();
-    s.background = { color: C.lightBg };
-    sectionTitle(s, st("contentInsights", "Content & Insights"), "5");
-    const ci = content?.contentInsights || {}, colW = (PW - 2 * M - 0.4) / 2;
-    // Content-board framing when available (posted / approved); legacy
-    // created / optimized columns otherwise.
-    const leftItems = ci.posted?.length ? ci.posted : ci.pagesCreated || [];
-    const leftLabel = ci.posted?.length ? "Posted & Live" : "Pages Created";
-    const rightItems = ci.approved?.length ? ci.approved : ci.pagesOptimized || [];
-    const rightLabel = ci.approved?.length ? "Approved & Up Next" : "Pages Optimized";
-    card(s, M, 2.1, colW, 3.4);
-    s.addText(leftLabel, { x: M + 0.25, y: 2.3, w: colW - 0.5, h: 0.4, margin: 0, fontFace: DISPLAY, fontSize: 17, bold: true, color: C.primary });
-    s.addText(bullets(leftItems.map(stripDomain), { fontSize: 13 }), { x: M + 0.25, y: 2.75, w: colW - 0.5, h: 2.5, margin: 0, valign: "top" });
-    const rx = M + colW + 0.4;
-    card(s, rx, 2.1, colW, 3.4);
-    s.addText(rightLabel, { x: rx + 0.25, y: 2.3, w: colW - 0.5, h: 0.4, margin: 0, fontFace: DISPLAY, fontSize: 17, bold: true, color: C.primary });
-    s.addText(bullets(rightItems.map(stripDomain), { fontSize: 13 }), { x: rx + 0.25, y: 2.75, w: colW - 0.5, h: 2.5, margin: 0, valign: "top" });
-    if (ci.linking) s.addText(ci.linking, { x: M, y: 5.7, w: PW - 2 * M, h: 0.7, margin: 0, fontFace: BODY, fontSize: 14, italic: true, color: C.muted });
-    footer(s);
-  }
-
-  // ===== SLIDE 6 — Photo & Backlink =====
-  {
-    const s = pres.addSlide();
-    s.background = { color: C.lightBg };
-    sectionTitle(s, st("photoBacklink", "Photo & Backlink Optimization"), "6");
-    const pb = content?.photoBacklink || {}, items: string[] = [];
-    if ((pb.refreshes || []).length) items.push("Page refreshes: " + (pb.refreshes || []).map(stripDomain).join(", "));
-    if (pb.backlinksBuilt) items.push(pb.backlinksBuilt);
-    if (pb.toxicRemoved) items.push(pb.toxicRemoved);
-    if (pb.counts && pb.counts.disavowedDomains != null) items.push(`${pb.counts.disavowedDomains} domains disavowed to date`);
-    card(s, M, 2.1, PW - 2 * M, 3.8);
-    s.addText(bullets(items, { fontSize: 15 }), { x: M + 0.35, y: 2.4, w: PW - 2 * M - 0.7, h: 3.2, margin: 0, valign: "top" });
-    footer(s);
-  }
-
-  // ===== SLIDE 7 — Pages & Posting / Social =====
-  {
-    const s = pres.addSlide();
-    s.background = { color: C.lightBg };
-    sectionTitle(s, st("postingSocial", "Pages & Posting / Social"), "7");
-    const ps = content?.postingSocial || {}, items: string[] = [];
-    if (ps.flyers) items.push(ps.flyers);
-    if ((ps.channels || []).length) items.push("Active channels: " + (ps.channels || []).join(", "));
-    if (ps.youtube) items.push(ps.youtube);
-    if (ps.misc) items.push(ps.misc);
-    card(s, M, 2.1, PW - 2 * M, ps.outOfScope ? 3.0 : 3.8);
-    s.addText(bullets(items, { fontSize: 15 }), { x: M + 0.35, y: 2.4, w: PW - 2 * M - 0.7, h: 2.4, margin: 0, valign: "top" });
-    if (ps.outOfScope) {
-      card(s, M, 5.3, PW - 2 * M, 1.0, C.panel);
-      s.addText("Out of scope (informational): ", { x: M + 0.35, y: 5.45, w: 3.2, h: 0.7, margin: 0, valign: "middle", fontFace: BODY, fontSize: 12, bold: true, color: C.secondary });
-      s.addText(ps.outOfScope, { x: M + 3.2, y: 5.45, w: PW - 2 * M - 3.5, h: 0.7, margin: 0, valign: "middle", fontFace: BODY, fontSize: 12, color: C.ink });
-    }
     footer(s);
   }
 
@@ -516,14 +522,29 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
   }
 
   // ===== SLIDE 10 — Questions =====
+  // The conclusion runs both directions: the floor opens to the client, and
+  // the F1 team asks its own three questions (questions.forClient) so the
+  // meeting ends with the client's priorities on the record.
   {
     const s = pres.addSlide();
     s.background = { color: C.primary };
     const q = content?.questions || {};
-    s.addText("Questions?", { x: M, y: 2.6, w: PW - 2 * M, h: 1.0, margin: 0, fontFace: DISPLAY, fontSize: 52, bold: true, color: C.white });
-    if (q.prompt) s.addText(q.prompt, { x: M, y: 3.8, w: PW - 2 * M, h: 0.6, margin: 0, fontFace: BODY, fontSize: 18, color: "C7CBD4" });
+    const ours = (q.forClient || []).filter(Boolean).slice(0, 3);
+    const top = ours.length ? 1.3 : 2.6;
+    s.addText("Questions?", { x: M, y: top, w: PW - 2 * M, h: 1.0, margin: 0, fontFace: DISPLAY, fontSize: 52, bold: true, color: C.white });
+    if (q.prompt) s.addText(q.prompt, { x: M, y: top + 1.1, w: PW - 2 * M, h: 0.6, margin: 0, fontFace: BODY, fontSize: 18, color: "C7CBD4" });
+    if (ours.length) {
+      s.addText("And a few from us —", { x: M, y: top + 1.95, w: PW - 2 * M, h: 0.4, margin: 0, fontFace: BODY, fontSize: 14, bold: true, color: "C7CBD4", charSpacing: 1 });
+      s.addText(
+        ours.map((t, i, a) => ({
+          text: t,
+          options: { bullet: { code: "2022" }, breakLine: i !== a.length - 1, color: C.white, fontSize: 17, fontFace: BODY, paraSpaceAfter: 12 },
+        })),
+        { x: M + 0.1, y: top + 2.4, w: PW - 2 * M - 0.2, h: 2.4, margin: 0, valign: "top" },
+      );
+    }
     if (q.contact) s.addText(q.contact, { x: M, y: PH - 0.7, w: PW - 2 * M, h: 0.3, margin: 0, fontFace: BODY, fontSize: 12, color: "9AA0AE" });
-    s.addShape(pres.shapes.OVAL, { x: M, y: 2.4, w: 0.16, h: 0.16, fill: { color: C.secondary } });
+    s.addShape(pres.shapes.OVAL, { x: M, y: top - 0.2, w: 0.16, h: 0.16, fill: { color: C.secondary } });
     brandMark(s, true);
   }
 

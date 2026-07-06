@@ -126,7 +126,8 @@ OUTPUT CONTRACT (use these exact keys; omit anything unsupported by data)
   "postingSocial":{"flyers","channels":[],"youtube","misc","outOfScope"},
   "rankingDetail":{"topPages":[{"url","clicks","impressions"}],"aiOverview"},
   "whatsNext":[up to 6 one-line priorities],
-  "questions":{"prompt","contact"},
+  "questions":{"prompt","contact",
+     "forClient":[EXACTLY 3 questions the F1 team asks the client at the end — see DECK ARC]},
   "sectionTitles":{                   // REQUIRED — a headline per slide, keyed by section
      "executiveSummary","keywordRankings","competitiveSnapshot","organicTraffic",
      "crossChannelAi","contentInsights","photoBacklink","postingSocial",
@@ -174,6 +175,23 @@ AI VISIBILITY (first-class for this agency)
   ChatGPT, Perplexity, Gemini), surface them — in rankingDetail.aiOverview and, on tier 3, in
   crossChannelAi. Quantify from tracked data only; if there's no tracked metric, describe confirmed
   appearances qualitatively and omit any percentage. Never fabricate an AI-visibility number.
+
+DECK ARC (the deck reads like an essay — write each section for its place in the story)
+The slides render in this fixed order: cover → executive summary → content & insights →
+posting/social → photo & backlink → keyword rankings → competitive snapshot → organic traffic →
+cross-channel & AI → ranking detail → charts → what's next → questions. Write to that arc:
+- INTRO (executive summary): set the month's story — the progress made, framed for this client.
+- RISING ACTION (content, posting, photo/backlink): the work delivered — what was posted,
+  what the client approved, what got built. Concrete, dated, proud but factual.
+- CLIMAX (rankings, competitive, traffic, cross-channel, ranking detail, charts): the results —
+  positions held or won, the pages earning clicks and impressions, how the client stacks up.
+- FALLING ACTION (what's next): the plan of attack — specific, sequenced, tied to what the
+  climax revealed. This is "here's how we press the advantage", not a generic checklist.
+- CONCLUSION (questions): open the floor — and ask. questions.forClient is EXACTLY 3 questions
+  from the F1 team TO the client, specific to this client and this period: what could we be
+  doing better, what do they want to see more of, where do they want the focus next period.
+  Reference their actual business when possible ("Should the six new brand pages get paid
+  support?" beats "Any feedback?"). Conversational, one line each.
 
 SECTION TITLES (the headline of each slide)
 - sectionTitles.<section> is the big heading printed on that slide. Write it as the slide's

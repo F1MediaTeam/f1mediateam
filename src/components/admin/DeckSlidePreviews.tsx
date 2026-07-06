@@ -670,6 +670,107 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn, lo
     });
   }
 
+  if (c.contentInsights) {
+    const groupLabel = "text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] mb-2";
+    slides.push({
+      label: titleOf("contentInsights"),
+      body: (
+        <div>
+          <Heading sectionKey="contentInsights" />
+          <div className="space-y-6">
+            {c.contentInsights.posted?.length ? (
+              <div>
+                <div className={groupLabel}>Posted &amp; live</div>
+                <Bullets items={c.contentInsights.posted} basePath={["contentInsights", "posted"]} edit={edit} removeItem={removeItem} />
+              </div>
+            ) : null}
+            {c.contentInsights.approved?.length ? (
+              <div>
+                <div className={groupLabel}>Approved &amp; up next</div>
+                <Bullets items={c.contentInsights.approved} basePath={["contentInsights", "approved"]} edit={edit} removeItem={removeItem} />
+              </div>
+            ) : null}
+            <Bullets items={c.contentInsights.pagesCreated} basePath={["contentInsights", "pagesCreated"]} edit={edit} removeItem={removeItem} />
+            <Bullets items={c.contentInsights.pagesOptimized} basePath={["contentInsights", "pagesOptimized"]} edit={edit} removeItem={removeItem} />
+            {c.contentInsights.linking ? (
+              <p className={noteCls}>
+                <EditableText
+                  value={c.contentInsights.linking}
+                  onCommit={edit ? (v) => edit(["contentInsights", "linking"], v) : undefined}
+                  multiline
+                />
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ),
+    });
+  }
+
+  if (c.postingSocial) {
+    slides.push({
+      label: titleOf("postingSocial"),
+      body: (
+        <div>
+          <Heading sectionKey="postingSocial" />
+          <div className="space-y-5">
+            {c.postingSocial.flyers ? (
+              <p className="text-[15px] leading-relaxed">
+                <EditableText
+                  value={c.postingSocial.flyers}
+                  onCommit={edit ? (v) => edit(["postingSocial", "flyers"], v) : undefined}
+                  multiline
+                />
+              </p>
+            ) : null}
+            <Bullets items={c.postingSocial.channels} basePath={["postingSocial", "channels"]} edit={edit} removeItem={removeItem} />
+            {c.postingSocial.youtube ? (
+              <p className={noteCls}>
+                <EditableText
+                  value={c.postingSocial.youtube}
+                  onCommit={edit ? (v) => edit(["postingSocial", "youtube"], v) : undefined}
+                  multiline
+                />
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ),
+    });
+  }
+
+  if (c.photoBacklink) {
+    slides.push({
+      label: titleOf("photoBacklink"),
+      body: (
+        <div>
+          <Heading sectionKey="photoBacklink" />
+          <div className="space-y-5">
+            <Bullets items={c.photoBacklink.refreshes} basePath={["photoBacklink", "refreshes"]} edit={edit} removeItem={removeItem} />
+            {c.photoBacklink.backlinksBuilt ? (
+              <p className="text-[15px] leading-relaxed">
+                <EditableText
+                  value={c.photoBacklink.backlinksBuilt}
+                  onCommit={edit ? (v) => edit(["photoBacklink", "backlinksBuilt"], v) : undefined}
+                  multiline
+                />
+              </p>
+            ) : null}
+            {c.photoBacklink.toxicRemoved ? (
+              <p className={noteCls}>
+                <EditableText
+                  value={c.photoBacklink.toxicRemoved}
+                  onCommit={edit ? (v) => edit(["photoBacklink", "toxicRemoved"], v) : undefined}
+                  multiline
+                />
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ),
+    });
+  }
+
   const kwRows = c.keywordRankings?.rows ?? [];
   if (kwRows.length) {
     slides.push({
@@ -859,107 +960,6 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn, lo
     });
   }
 
-  if (c.contentInsights) {
-    const groupLabel = "text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] mb-2";
-    slides.push({
-      label: titleOf("contentInsights"),
-      body: (
-        <div>
-          <Heading sectionKey="contentInsights" />
-          <div className="space-y-6">
-            {c.contentInsights.posted?.length ? (
-              <div>
-                <div className={groupLabel}>Posted &amp; live</div>
-                <Bullets items={c.contentInsights.posted} basePath={["contentInsights", "posted"]} edit={edit} removeItem={removeItem} />
-              </div>
-            ) : null}
-            {c.contentInsights.approved?.length ? (
-              <div>
-                <div className={groupLabel}>Approved &amp; up next</div>
-                <Bullets items={c.contentInsights.approved} basePath={["contentInsights", "approved"]} edit={edit} removeItem={removeItem} />
-              </div>
-            ) : null}
-            <Bullets items={c.contentInsights.pagesCreated} basePath={["contentInsights", "pagesCreated"]} edit={edit} removeItem={removeItem} />
-            <Bullets items={c.contentInsights.pagesOptimized} basePath={["contentInsights", "pagesOptimized"]} edit={edit} removeItem={removeItem} />
-            {c.contentInsights.linking ? (
-              <p className={noteCls}>
-                <EditableText
-                  value={c.contentInsights.linking}
-                  onCommit={edit ? (v) => edit(["contentInsights", "linking"], v) : undefined}
-                  multiline
-                />
-              </p>
-            ) : null}
-          </div>
-        </div>
-      ),
-    });
-  }
-
-  if (c.photoBacklink) {
-    slides.push({
-      label: titleOf("photoBacklink"),
-      body: (
-        <div>
-          <Heading sectionKey="photoBacklink" />
-          <div className="space-y-5">
-            <Bullets items={c.photoBacklink.refreshes} basePath={["photoBacklink", "refreshes"]} edit={edit} removeItem={removeItem} />
-            {c.photoBacklink.backlinksBuilt ? (
-              <p className="text-[15px] leading-relaxed">
-                <EditableText
-                  value={c.photoBacklink.backlinksBuilt}
-                  onCommit={edit ? (v) => edit(["photoBacklink", "backlinksBuilt"], v) : undefined}
-                  multiline
-                />
-              </p>
-            ) : null}
-            {c.photoBacklink.toxicRemoved ? (
-              <p className={noteCls}>
-                <EditableText
-                  value={c.photoBacklink.toxicRemoved}
-                  onCommit={edit ? (v) => edit(["photoBacklink", "toxicRemoved"], v) : undefined}
-                  multiline
-                />
-              </p>
-            ) : null}
-          </div>
-        </div>
-      ),
-    });
-  }
-
-  if (c.postingSocial) {
-    slides.push({
-      label: titleOf("postingSocial"),
-      body: (
-        <div>
-          <Heading sectionKey="postingSocial" />
-          <div className="space-y-5">
-            {c.postingSocial.flyers ? (
-              <p className="text-[15px] leading-relaxed">
-                <EditableText
-                  value={c.postingSocial.flyers}
-                  onCommit={edit ? (v) => edit(["postingSocial", "flyers"], v) : undefined}
-                  multiline
-                />
-              </p>
-            ) : null}
-            <Bullets items={c.postingSocial.channels} basePath={["postingSocial", "channels"]} edit={edit} removeItem={removeItem} />
-            {c.postingSocial.youtube ? (
-              <p className={noteCls}>
-                <EditableText
-                  value={c.postingSocial.youtube}
-                  onCommit={edit ? (v) => edit(["postingSocial", "youtube"], v) : undefined}
-                  multiline
-                />
-              </p>
-            ) : null}
-          </div>
-        </div>
-      ),
-    });
-  }
-
   const topPages = c.rankingDetail?.topPages ?? [];
   if (topPages.length || c.rankingDetail?.aiOverview) {
     slides.push({
@@ -1103,17 +1103,26 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn, lo
   }
 
   if (c.questions) {
+    const ours = (c.questions.forClient ?? []).filter(Boolean);
     slides.push({
       label: "Questions",
       center: true,
       body: (
-        <div className="flex flex-col items-center justify-center text-center gap-3">
+        <div className="flex w-full max-w-2xl flex-col items-center justify-center gap-6 text-center">
           <div className="text-3xl font-semibold">
             <EditableText
               value={c.questions.prompt ?? "Questions?"}
               onCommit={edit ? (v) => edit(["questions", "prompt"], v) : undefined}
             />
           </div>
+          {ours.length ? (
+            <div className="w-full text-left">
+              <div className="mb-3 text-center text-[11px] uppercase tracking-[0.2em] text-[var(--color-text-muted)]">
+                And a few from us
+              </div>
+              <Bullets items={ours} basePath={["questions", "forClient"]} edit={edit} removeItem={removeItem} />
+            </div>
+          ) : null}
           {c.questions.contact ? (
             <div className="text-sm text-[var(--color-text-muted)]">
               <EditableText

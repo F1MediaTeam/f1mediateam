@@ -197,27 +197,37 @@ interface ClaudeResp {
   stop_reason?: string;
 }
 
-async function synthesize(args: {
+interface SynthesisArgs {
   reportMeta: unknown;
   brandProfile: unknown;
   clientProfile: unknown;
   profileData: unknown;
   fieldyTranscript: string;
   selectedNotes: string;
-}): Promise<MonthlyContent> {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new Error("ANTHROPIC_API_KEY is not set");
-  // PROFILE_DATA is by far the largest block — compact JSON (no indent)
-  // halves its size, which directly cuts synthesis latency. The small
-  // qualitative blocks stay pretty-printed for the model's benefit.
-  const userMsg =
+}
+
+// The synthesis user message — also exported verbatim by the prompt_only
+// path so the admin can run the same draft in the Claude app (subscription)
+// instead of burning API credits here.
+// PROFILE_DATA is by far the largest block — compact JSON (no indent)
+// halves its size, which directly cuts synthesis latency. The small
+// qualitative blocks stay pretty-printed for the model's benefit.
+function buildUserMsg(args: SynthesisArgs): string {
+  return (
     "REPORT_META:\n" + JSON.stringify(args.reportMeta, null, 2) +
     "\n\nBRAND_PROFILE:\n" + JSON.stringify(args.brandProfile, null, 2) +
     "\n\nCLIENT_PROFILE (qualitative — voice, ideal customer, services, growth lanes; NEVER a metrics source):\n" + JSON.stringify(args.clientProfile, null, 2) +
     "\n\nPROFILE_DATA (source of truth for all numbers; compact JSON):\n" + JSON.stringify(args.profileData) +
     "\n\nSELECTED_NOTES (hand-picked directives from the F1 operator for THIS report — weight highly):\n" + (args.selectedNotes || "(none)") +
     "\n\nFIELDY_TRANSCRIPT (qualitative context only — never a metrics source):\n" + (args.fieldyTranscript || "(empty)") +
-    "\n\nReturn ONLY the content object as valid JSON.";
+    "\n\nReturn ONLY the content object as valid JSON."
+  );
+}
+
+async function synthesize(args: SynthesisArgs): Promise<MonthlyContent> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error("ANTHROPIC_API_KEY is not set");
+  const userMsg = buildUserMsg(args);
 
   const res = await fetch(ANTHROPIC_API, {
     method: "POST",
@@ -652,6 +662,26 @@ export async function POST(request: NextRequest) {
       pipeline: pipeline.map((c) => ({ stage: c.stage, title: c.title, link: c.link })),
     },
   };
+
+  // ---------- 2a. Prompt-only export (zero API credits) ----------
+  // Same data pull, no Claude call: hand back the exact system prompt + data
+  // message so the admin can draft in the Claude app on their subscription,
+  // then paste the JSON back via "Import deck JSON".
+  if (field(fd, "prompt_only") === "1") {
+    const user = buildUserMsg({
+      reportMeta,
+      brandProfile,
+      clientProfile,
+      profileData,
+      fieldyTranscript: transcript,
+      selectedNotes,
+    });
+    return Response.json({
+      system: SYNTHESIS_SYSTEM_PROMPT,
+      user,
+      filenameHint: `${slugify(client.company_name)}-${window.toIso}-deck-prompt.txt`,
+    });
+  }
 
   // ---------- 2b. Synthesize the deck content ----------
   let content: MonthlyContent;

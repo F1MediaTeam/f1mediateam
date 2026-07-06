@@ -109,17 +109,20 @@ function ProgressPanel({
   elapsed,
   onCancel,
 }: {
-  mode: "preview" | "generate";
+  mode: "preview" | "generate" | "export";
   hasEditedDeck: boolean;
   elapsed: number;
   onCancel: () => void;
 }) {
   const rendering = mode === "generate" && hasEditedDeck;
-  const stages = rendering
-    ? [{ at: 0, label: "Rendering your edited deck to .pptx" }]
-    : mode === "generate"
-      ? [...DRAFT_STAGES, { at: 120, label: "Rendering to .pptx" }]
-      : DRAFT_STAGES;
+  const stages =
+    mode === "export"
+      ? [{ at: 0, label: "Pulling analytics & packaging the prompt for the Claude app" }]
+      : rendering
+        ? [{ at: 0, label: "Rendering your edited deck to .pptx" }]
+        : mode === "generate"
+          ? [...DRAFT_STAGES, { at: 120, label: "Rendering to .pptx" }]
+          : DRAFT_STAGES;
   const activeIdx = stages.reduce((acc, s, i) => (elapsed >= s.at ? i : acc), 0);
 
   return (
@@ -179,7 +182,9 @@ function ProgressPanel({
 }
 
 export default function GenerateReportForm({ clients, defaultClientId, logos }: Props) {
-  const [busy, setBusy] = useState<"idle" | "generate" | "preview">("idle");
+  const [busy, setBusy] = useState<"idle" | "generate" | "preview" | "export">("idle");
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -227,12 +232,14 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
     const form = e.currentTarget;
     const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const isPreview = submitter?.getAttribute("name") === "dryrun";
+    const isPromptExport = submitter?.getAttribute("name") === "prompt_only";
     const fd = new FormData(form);
     if (range === "custom" && (!fd.get("from") || !fd.get("to"))) {
       setError("Pick a start and end date for the custom range.");
       return;
     }
-    if (isPreview) fd.set("dryrun", "1");
+    if (isPromptExport) fd.set("prompt_only", "1");
+    else if (isPreview) fd.set("dryrun", "1");
     else if (content) fd.set("content_json", JSON.stringify(content));
 
     const controller = new AbortController();
@@ -244,7 +251,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
     }, REQUEST_TIMEOUT_MS);
 
     setElapsed(0);
-    setBusy(isPreview ? "preview" : "generate");
+    setBusy(isPromptExport ? "export" : isPreview ? "preview" : "generate");
     try {
       const res = await fetch("/api/monthly-report", {
         method: "POST",
@@ -263,6 +270,22 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
             ? `The server returned an error page (HTTP ${res.status}). Try again — if it keeps happening, check the Vercel logs.`
             : text || `HTTP ${res.status}`,
         );
+      }
+      if (isPromptExport) {
+        const json = (await res.json()) as { system: string; user: string; filenameHint?: string };
+        const text = `${json.system}\n\n${"=".repeat(60)}\n\n${json.user}`;
+        const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = json.filenameHint ?? "deck-prompt.txt";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        setOk(
+          "Prompt downloaded — zero API credits used. Drop the .txt into the Claude app (or claude.ai) on your subscription, copy the JSON it returns, then click Import deck JSON below. Editing and downloading an imported deck costs nothing.",
+        );
+        return;
       }
       if (isPreview) {
         const json = (await res.json()) as { content: MonthlyContent };
@@ -300,8 +323,38 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
     }
   }
 
+  // Paste-back from the Claude app: accepts the bare content object or the
+  // revise route's {note, content} wrapper, with or without a ```json fence.
+  function handleImport() {
+    const raw = importText.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+    try {
+      let parsed = JSON.parse(raw) as MonthlyContent & { content?: MonthlyContent };
+      if (parsed && typeof parsed === "object" && parsed.content && typeof parsed.content === "object") {
+        parsed = parsed.content as MonthlyContent & { content?: MonthlyContent };
+      }
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+      setContent(parsed as MonthlyContent);
+      setImportOpen(false);
+      setImportText("");
+      setError(null);
+      setOk("Draft imported — edit below. Download renders exactly this deck; no API credits used.");
+    } catch {
+      setError(
+        "That doesn't parse as deck JSON. Paste exactly what Claude returned — starting with { and ending with } (a ```json fence is fine).",
+      );
+    }
+  }
+
+  async function copyDeckJson() {
+    if (!content) return;
+    await navigator.clipboard.writeText(JSON.stringify(content, null, 2));
+    setOk("Deck JSON copied — paste it into the Claude app for big revisions, then Import the result back.");
+  }
+
   const btnBase =
     "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition disabled:opacity-50 disabled:pointer-events-none";
+  const ghostBtn =
+    "rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)] transition disabled:opacity-50 disabled:pointer-events-none";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -456,6 +509,43 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
             Tier, brand, and context come from the client&apos;s profile automatically.
           </p>
         </div>
+
+        {/* ---------- No-credits workflow: draft in the Claude app ---------- */}
+        <div className="relative mt-4 flex flex-wrap items-center gap-2.5 border-t border-[var(--color-border)] pt-4">
+          <span className="text-[11px] uppercase tracking-widest text-[var(--color-text-muted)]">
+            Claude app workflow
+          </span>
+          <button type="submit" name="prompt_only" value="1" disabled={busy !== "idle"} className={ghostBtn}>
+            Export data + prompt
+          </button>
+          <button type="button" onClick={() => setImportOpen((o) => !o)} disabled={busy !== "idle"} className={ghostBtn}>
+            Import deck JSON
+          </button>
+          {content ? (
+            <button type="button" onClick={copyDeckJson} className={ghostBtn}>
+              Copy deck JSON
+            </button>
+          ) : null}
+          <p className="basis-full text-[10px] leading-relaxed text-[var(--color-text-muted)]">
+            Draft on your Claude subscription instead of API credits: Export downloads the full data + prompt as a
+            .txt — drop it into the Claude desktop app, then paste the JSON it returns into Import. Editing and
+            downloading an imported deck uses zero API credits.
+          </p>
+        </div>
+        {importOpen ? (
+          <div className="relative mt-3 space-y-2">
+            <textarea
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              rows={6}
+              placeholder={'Paste the JSON Claude returned — { ... } or a ```json block'}
+              className="w-full rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-4 py-3 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
+            />
+            <button type="button" onClick={handleImport} disabled={!importText.trim()} className={ghostBtn}>
+              Load draft
+            </button>
+          </div>
+        ) : null}
       </section>
 
       {busy !== "idle" ? (

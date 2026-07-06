@@ -134,7 +134,7 @@ OUTPUT CONTRACT (use these exact keys; omit anything unsupported by data)
      "rankingDetail","whatsNext"},    // only keys for sections you actually output
 
   "charts":[                          // OPTIONAL — graphs to render natively from data series
-     {"title","type":"line"|"bar","source":"GSC"|"GA4"|"SEMrush"|"Bing",
+     {"title","type":"line"|"bar","source":"F1 Media Analytics",
       "labels":[...],"series":[{"name","values":[...]}]}
   ]
 }
@@ -175,6 +175,14 @@ AI VISIBILITY (first-class for this agency)
   ChatGPT, Perplexity, Gemini), surface them — in rankingDetail.aiOverview and, on tier 3, in
   crossChannelAi. Quantify from tracked data only; if there's no tracked metric, describe confirmed
   appearances qualitatively and omit any percentage. Never fabricate an AI-visibility number.
+
+WHITE-LABEL (client-facing — no exceptions)
+- Never name third-party tooling anywhere in client-visible text: SEMrush, Google Search
+  Console / GSC, Google Analytics / GA4, Bing Webmaster, and Fieldy do not appear on slides.
+  Attribute ALL data to "F1 Media Analytics" — "F1 Media Analytics tracks 1,618 organic
+  keywords", "AI-visibility score of 16 in F1 Media Analytics". Set every chart "source" to
+  "F1 Media Analytics". Search CHANNELS are fine to name (Google Search, Bing Search) — those
+  are where customers search, not our tools.
 
 DECK ARC (the deck reads like an essay — write each section for its place in the story)
 The slides render in this fixed order: cover → executive summary → content & insights →

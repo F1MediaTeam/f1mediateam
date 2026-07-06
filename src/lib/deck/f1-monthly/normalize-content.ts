@@ -211,5 +211,33 @@ export function normalizeMonthlyContent(raw: unknown): MonthlyContent {
     );
   }
 
-  return c as MonthlyContent;
+  return whitelabel(c) as MonthlyContent;
+}
+
+// ----- white-label: client-facing decks never name our tooling -----
+// Every data source reads as "F1 Media Analytics" on the slides. Applied as
+// a deep pass over all strings so it holds no matter where the JSON came
+// from (API synthesis, revise chat, or a paste from the Claude app). Search
+// CHANNELS ("Google Search", "Bing Search") are left alone — those are where
+// customers search, not tools. URLs are skipped.
+const TOOL_NAMES: Array<[RegExp, string]> = [
+  [/google search console/gi, "F1 Media Analytics"],
+  [/search console/gi, "F1 Media Analytics"],
+  [/google analytics(?: 4)?/gi, "F1 Media Analytics"],
+  [/bing webmaster(?: tools)?/gi, "F1 Media Analytics"],
+  [/\bsemrush\b/gi, "F1 Media Analytics"],
+  [/\bGSC\b/g, "F1 Media Analytics"],
+  [/\bGA4\b/g, "F1 Media Analytics"],
+];
+function whitelabel(v: unknown): unknown {
+  if (typeof v === "string") {
+    if (/^https?:\/\//i.test(v)) return v;
+    let s = v;
+    for (const [re, sub] of TOOL_NAMES) s = s.replace(re, sub);
+    // Collapse artifacts like "F1 Media Analytics's F1 Media Analytics".
+    return s.replace(/(F1 Media Analytics)(['’]s)? (F1 Media Analytics)/g, "$1");
+  }
+  if (Array.isArray(v)) return v.map(whitelabel);
+  if (isObj(v)) return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, whitelabel(x)]));
+  return v;
 }

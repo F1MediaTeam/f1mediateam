@@ -913,7 +913,7 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn, lo
                   series={[{ name: "Clicks", values: trendVals, colorIndex: 0 }]}
                   height={200}
                 />
-                <div className="text-xs text-[var(--color-text-muted)]">Daily clicks — Google Search Console</div>
+                <div className="text-xs text-[var(--color-text-muted)]">Daily clicks — F1 Media Analytics</div>
               </div>
             ) : null}
           </div>

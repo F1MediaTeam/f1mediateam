@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
     // PDFs), and the client onboarding submit action.
     "/api/export/**": ["./public/logo-dark.png"],
     "/client/**": ["./public/logo-dark.png"],
+    // The deck cover centers the client's logo; static-fallback logos live in
+    // public/ and are fs.read at runtime by the monthly-report route.
+    "/api/monthly-report/**": ["./public/*.svg", "./public/*.png"],
   },
   experimental: {
     serverActions: {

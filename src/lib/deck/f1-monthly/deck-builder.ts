@@ -118,6 +118,18 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
   const SAFE_BODY = brand?.safeBodyFont || BODY;
   // Per-slide headline: synthesis/preview override first, stock title second.
   const st = (key: string, stock: string) => content?.sectionTitles?.[key] || stock;
+  // "2026-07-09 → 2026-07-17" → "July 9–17, 2026" (collapses shared month/year).
+  const fmtPeriod = (period: string): string => {
+    const m = period.match(/(\d{4})-(\d{2})-(\d{2})\s*(?:→|to|-)\s*(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return period;
+    const MN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const [, y1, mo1, d1, y2, mo2, d2] = m;
+    const A = { y: +y1, mn: MN[+mo1 - 1], d: +d1 };
+    const B = { y: +y2, mn: MN[+mo2 - 1], d: +d2 };
+    if (A.y === B.y && A.mn === B.mn) return `${A.mn} ${A.d}–${B.d}, ${A.y}`;
+    if (A.y === B.y) return `${A.mn} ${A.d} – ${B.mn} ${B.d}, ${A.y}`;
+    return `${A.mn} ${A.d}, ${A.y} – ${B.mn} ${B.d}, ${B.y}`;
+  };
   const rawTier = String(content?.tier || "1");
   const TIER = ["1", "2", "3"].includes(rawTier.charAt(0))
     ? rawTier.charAt(0)
@@ -205,20 +217,16 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
   {
     const s = pres.addSlide();
     s.background = { color: C.primary };
+    // Client logo dead-center; the wordmark IS the cover. Text fallback when
+    // no logo exists for the client.
     if (brand?.logoData) {
-      s.addImage({ data: brand.logoData, x: M, y: 0.8, w: 3.2, h: 1.0, sizing: { type: "contain", w: 3.2, h: 1.0 } });
+      const lw = 5.2, lh = 2.0;
+      s.addImage({ data: brand.logoData, x: (PW - lw) / 2, y: 1.85, w: lw, h: lh, sizing: { type: "contain", w: lw, h: lh } });
     } else {
-      s.addText((content?.client || brand?.name || "").toUpperCase(), { x: M, y: 0.9, w: PW - 2 * M, h: 0.7, margin: 0, fontFace: DISPLAY, fontSize: 30, bold: true, color: C.white, charSpacing: 1 });
+      s.addText((content?.client || brand?.name || "").toUpperCase(), { x: M, y: 2.3, w: PW - 2 * M, h: 1.1, margin: 0, align: "center", fontFace: DISPLAY, fontSize: 44, bold: true, color: C.white, charSpacing: 1 });
     }
-    s.addText("Monthly Performance Report", { x: M, y: 3.0, w: PW - 2 * M, h: 1.0, margin: 0, fontFace: DISPLAY, fontSize: 46, bold: true, color: C.white });
-    s.addText(
-      [
-        { text: content?.reportPeriod || "", options: { color: C.white, breakLine: true, fontSize: 18 } },
-        { text: content?.meetingDate ? `Meeting: ${content.meetingDate}` : "", options: { color: "C7CBD4", fontSize: 14 } },
-      ],
-      { x: M, y: 4.15, w: PW - 2 * M, h: 0.9, margin: 0, fontFace: BODY },
-    );
-    s.addShape(pres.shapes.OVAL, { x: M, y: 2.78, w: 0.16, h: 0.16, fill: { color: C.secondary } });
+    s.addText("Performance Report", { x: M, y: 4.25, w: PW - 2 * M, h: 0.6, margin: 0, align: "center", fontFace: DISPLAY, fontSize: 24, bold: true, color: C.white });
+    s.addText(fmtPeriod(content?.reportPeriod || ""), { x: M, y: 4.95, w: PW - 2 * M, h: 0.45, margin: 0, align: "center", fontFace: BODY, fontSize: 16, color: "C7CBD4" });
     s.addText("Rank Higher. Get Found. Stay Competitive.", { x: M, y: PH - 0.6, w: PW - 2 * M, h: 0.3, margin: 0, fontFace: BODY, fontSize: 10, italic: true, color: "9AA0AE" });
   }
 

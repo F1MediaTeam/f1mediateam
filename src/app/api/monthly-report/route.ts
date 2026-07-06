@@ -113,6 +113,38 @@ async function resolveBrand(formData: FormData, client: Client): Promise<BrandCo
       // ignore — slide just falls back to the company name in text
     }
   }
+
+  // No explicit logo? Use the client's brand logo (onboarding upload or the
+  // static fallback in public/) — the cover slide centers it. Dark variant
+  // first: the cover background is the dark brand primary.
+  if (!base.logoData) {
+    try {
+      const { getClientBrandLogoUrls } = await import("@/lib/client-logo");
+      const logos = await getClientBrandLogoUrls(client.id, client.company_name);
+      const pick = logos.dark || logos.light;
+      if (pick?.startsWith("http")) {
+        const res = await fetch(pick);
+        if (res.ok) {
+          const buf = Buffer.from(await res.arrayBuffer());
+          if (buf.length > 0 && buf.length < 4_000_000) {
+            const ct = res.headers.get("content-type") || "image/png";
+            base.logoData = `data:${ct};base64,${buf.toString("base64")}`;
+          }
+        }
+      } else if (pick) {
+        // Static fallback path under public/ (traced into this lambda).
+        const { readFile } = await import("node:fs/promises");
+        const { join } = await import("node:path");
+        const buf = await readFile(join(process.cwd(), "public", pick.replace(/^\//, "")));
+        const ext = pick.split(".").pop()?.toLowerCase();
+        const mime =
+          ext === "svg" ? "image/svg+xml" : ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+        base.logoData = `data:${mime};base64,${buf.toString("base64")}`;
+      }
+    } catch {
+      // ignore — cover falls back to the company name in text
+    }
+  }
   return base;
 }
 

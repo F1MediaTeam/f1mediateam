@@ -128,6 +128,9 @@ DATA & CHART RULES
 - Charts are specified as DATA, never as image references. Provide labels + numeric series; the builder
   draws clean, on-brand, editable charts. Do NOT reference screenshots or image URLs.
 - Always set each chart's "source" so the slide can label where the data came from.
+- Chart titles: ≤ 40 characters, plain and specific ("Top Competitors by Shared Keywords",
+  "Backlinks — 12 Months"). The domain, units, and tool name belong in "source" or the
+  series names, never crammed into the title.
 - organicTraffic.trend is the primary search trend (line, from gsc). Use the optional "charts" array for
   additional visuals worth showing (e.g., GA4 channel mix as bars, SEMrush position distribution).
 - Only chart series that exist in PROFILE_DATA. Never synthesize a curve to fill space.
@@ -156,11 +159,11 @@ AI VISIBILITY (first-class for this agency)
 
 SECTION TITLES (the headline of each slide)
 - sectionTitles.<section> is the big heading printed on that slide. Write it as the slide's
-  TAKEAWAY, not its category: specific, data-backed, ≤ 70 characters. "Six Keywords Holding #1
-  in DTF Ink" beats "Keyword Rankings"; "1,010 Clicks — CTR Steady Through the Slow Season"
-  beats "Organic Traffic". Same source-of-truth rules as every number: only claim what
-  PROFILE_DATA supports. Plain sentence case, no trailing period. Provide one for every
-  section you output.
+  TAKEAWAY, not its category — but SHORT: 3–6 words, ≤ 40 characters, no subordinate clauses,
+  no em-dash asides. "Six Keywords Holding #1" beats "Keyword Rankings"; "Homepage Drives 30%
+  of Traffic" beats "The homepage and inkjet film page carry nearly 30% of organic traffic".
+  Same source-of-truth rules as every number: only claim what PROFILE_DATA supports. Plain
+  sentence case, no trailing period. Provide one for every section you output.
 
 NARRATIVE SOURCING
 - executiveSummary.wins, organicTraffic.note, rankingDetail.aiOverview, chart titles → write from NUMBERS.

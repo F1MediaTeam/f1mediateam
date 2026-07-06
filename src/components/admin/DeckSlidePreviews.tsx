@@ -180,12 +180,35 @@ function fmtNum(n: number): string {
 }
 
 const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-// "2025-08" → "Aug '25" · "2026-06-09" → "Jun 9" · anything else passes through.
+// "2025-08" → "Aug '25" · "2026-06-09" → "Jun 9" · anything else truncated —
+// long categorical labels never fight for space under a column chart (those
+// charts render horizontally instead; this is the backstop).
 function fmtTick(raw: string): string {
-  const m = String(raw).match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
-  if (!m) return String(raw);
+  const s = String(raw);
+  const m = s.match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
+  if (!m) return s.length > 12 ? `${s.slice(0, 11)}…` : s;
   const mon = MONTH_ABBR[Number(m[2]) - 1] ?? m[2];
   return m[3] ? `${mon} ${Number(m[3])}` : `${mon} '${m[1].slice(2)}`;
+}
+
+// Time-series labels get columns; anything else (domains, page names) reads
+// better as horizontal bars with the label on its own line.
+function isDateLike(labels: string[]): boolean {
+  if (!labels.length) return false;
+  return labels.filter((l) => /^\d{4}-\d{2}/.test(String(l))).length >= labels.length * 0.7;
+}
+
+// "2026-07-09 → 2026-07-17" → "July 9–17, 2026" (collapses shared month/year).
+const MONTH_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+function fmtPeriodPretty(period: string): string {
+  const m = period.match(/(\d{4})-(\d{2})-(\d{2})\s*(?:→|to|-)\s*(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return period;
+  const [, y1, mo1, d1, y2, mo2, d2] = m;
+  const A = { y: +y1, mn: MONTH_FULL[+mo1 - 1], d: +d1 };
+  const B = { y: +y2, mn: MONTH_FULL[+mo2 - 1], d: +d2 };
+  if (A.y === B.y && A.mn === B.mn) return `${A.mn} ${A.d}–${B.d}, ${A.y}`;
+  if (A.y === B.y) return `${A.mn} ${A.d} – ${B.mn} ${B.d}, ${A.y}`;
+  return `${A.mn} ${A.d}, ${A.y} – ${B.mn} ${B.d}, ${B.y}`;
 }
 
 // Clean-number axis: 0 → a "nice" ceiling (1/2/2.5/5 × 10^k) in 4 steps.
@@ -419,6 +442,41 @@ function ColumnChart({
   );
 }
 
+// Horizontal bars for categorical data (competitor domains, page names):
+// the label gets a full line so nothing collides, the bar grows from the
+// left, and every value sits at its tip.
+function HBarChart({ labels, series }: { labels: string[]; series: SeriesDef[] }) {
+  const s = series[0];
+  if (!s?.values.length) return null;
+  const max = Math.max(...s.values, 1);
+  return (
+    <div className="space-y-2.5">
+      {s.values.map((v, i) => (
+        <div key={i} className="grid grid-cols-[minmax(0,230px)_1fr] items-center gap-3">
+          <span
+            className="truncate text-[13px] text-[var(--color-text-muted)]"
+            title={String(labels[i] ?? "")}
+          >
+            {labels[i] ?? `#${i + 1}`}
+          </span>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div
+              className="h-[14px] shrink-0 rounded-r-[4px]"
+              style={{
+                width: `${Math.max((v / max) * 100, 0.5)}%`,
+                maxWidth: "calc(100% - 44px)",
+                backgroundColor: seriesColor(s.colorIndex),
+              }}
+              title={`${labels[i] ?? ""}: ${fmtNum(v)}`}
+            />
+            <span className="text-[13px] font-semibold tabular-nums">{fmtNum(v)}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Legend: colored key dot + name in text tokens. Present whenever ≥2 series
 // share a plot; series names stay editable here.
 function Legend({
@@ -541,7 +599,7 @@ interface SlideDef {
   onRemove?: () => void;
 }
 
-function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn): SlideDef[] {
+function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn, logoUrl?: string | null): SlideDef[] {
   const slides: SlideDef[] = [];
 
   const titleOf = (key: string) => c.sectionTitles?.[key] || STOCK_TITLES[key] || key;
@@ -561,20 +619,28 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn): S
     label: "Cover",
     center: true,
     body: (
-      <div className="flex flex-col items-center justify-center text-center gap-4">
-        <div className="text-xs uppercase tracking-[0.3em] text-[var(--color-accent)]">
-          F1 Media · Performance Report
-        </div>
-        <div className="text-4xl sm:text-5xl font-semibold leading-tight">
-          <EditableText
-            value={c.client ?? "Client"}
-            onCommit={edit ? (v) => edit(["client"], v) : undefined}
+      <div className="flex flex-col items-center justify-center text-center gap-5">
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logoUrl}
+            alt={c.client ?? "Client logo"}
+            className="max-h-44 w-auto max-w-[460px] object-contain"
           />
+        ) : (
+          <div className="text-4xl sm:text-5xl font-semibold leading-tight">
+            <EditableText
+              value={c.client ?? "Client"}
+              onCommit={edit ? (v) => edit(["client"], v) : undefined}
+            />
+          </div>
+        )}
+        <div className="text-sm uppercase tracking-[0.25em] text-[var(--color-text-muted)]">
+          Performance Report
         </div>
-        <div className="text-base text-[var(--color-text-muted)]">Performance Review</div>
         {c.reportPeriod ? (
-          <div className="mt-2 rounded-full border border-[var(--color-border)] px-4 py-1.5 text-sm tabular-nums text-[var(--color-text-muted)]">
-            {c.reportPeriod}
+          <div className="text-lg font-medium text-[var(--color-text)]">
+            {fmtPeriodPretty(c.reportPeriod)}
           </div>
         ) : null}
       </div>
@@ -942,6 +1008,9 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn): S
       chart.type !== "bar" &&
       series.length > 1 &&
       Math.max(...maxes) / Math.max(Math.min(...maxes), 1) > 6;
+    // Categorical bars (domains, page names) go horizontal — long labels get
+    // a full line each instead of colliding under columns.
+    const horizontal = chart.type === "bar" && series.length === 1 && !isDateLike(chart.labels ?? []);
     const Chart = chart.type === "bar" ? ColumnChart : LineChart;
     const rename = edit ? (si: number, v: string) => edit(["charts", ci, "series", si, "name"], v) : undefined;
 
@@ -972,6 +1041,8 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn): S
                 </div>
               ))}
             </div>
+          ) : horizontal ? (
+            <HBarChart labels={chart.labels ?? []} series={series} />
           ) : (
             <div className="space-y-3">
               <Chart labels={chart.labels ?? []} series={series} />
@@ -1049,9 +1120,12 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn): S
 export default function DeckSlidePreviews({
   content,
   onChange,
+  logoUrl,
 }: {
   content: MonthlyContent;
   onChange?: (content: MonthlyContent) => void;
+  /** Client logo (dark-theme variant) for the cover slide. */
+  logoUrl?: string | null;
 }) {
   const edit: EditFn | undefined = onChange
     ? (path, value) => onChange(setAtPath(content as unknown as Json, path, value) as unknown as MonthlyContent)
@@ -1060,7 +1134,7 @@ export default function DeckSlidePreviews({
     ? (arrayPath, index) =>
         onChange(removeAtPath(content as unknown as Json, arrayPath, index) as unknown as MonthlyContent)
     : undefined;
-  const slides = buildSlides(content, edit, removeItem);
+  const slides = buildSlides(content, edit, removeItem, logoUrl);
   return (
     <div className="space-y-4">
       {onChange ? (

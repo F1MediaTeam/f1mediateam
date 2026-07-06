@@ -36,6 +36,8 @@ import type { Client } from "@/lib/types";
 interface Props {
   clients: Client[];
   defaultClientId: string;
+  /** clientId → logo URL (dark-theme variant) for the preview cover slide. */
+  logos?: Record<string, string | null>;
 }
 
 const MEETING_TYPES = [
@@ -176,7 +178,7 @@ function ProgressPanel({
   );
 }
 
-export default function GenerateReportForm({ clients, defaultClientId }: Props) {
+export default function GenerateReportForm({ clients, defaultClientId, logos }: Props) {
   const [busy, setBusy] = useState<"idle" | "generate" | "preview">("idle");
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -555,7 +557,7 @@ export default function GenerateReportForm({ clients, defaultClientId }: Props) 
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6 items-start">
-            <DeckSlidePreviews content={content} onChange={setContent} />
+            <DeckSlidePreviews content={content} onChange={setContent} logoUrl={logos?.[clientId] ?? null} />
             <DeckChat
               content={content}
               onChange={setContent}

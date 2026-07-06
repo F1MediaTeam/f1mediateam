@@ -6,6 +6,7 @@
 
 import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
+import { getClientBrandLogoUrlsByClients } from "@/lib/client-logo";
 import AdminShell from "@/components/admin/Shell";
 import { aiConfigured } from "@/lib/deck/ai-narrative";
 import GenerateReportForm from "@/components/admin/GenerateReportForm";
@@ -19,6 +20,15 @@ export default async function AdminReports({
   const sp = await searchParams;
   const clients = await data.listClients();
   const clientId = sp.client ?? clients[0]?.id ?? "";
+
+  // Client logos for the deck-preview cover slide (dark variant — the studio
+  // surface is dark). One batched query for every client.
+  const logoMap = await getClientBrandLogoUrlsByClients(
+    clients.map((c) => ({ id: c.id, company_name: c.company_name })),
+  );
+  const logos = Object.fromEntries(
+    [...logoMap].map(([id, l]) => [id, l.dark ?? l.light ?? null]),
+  );
 
   const aiOk = aiConfigured();
 
@@ -49,7 +59,7 @@ export default async function AdminReports({
           </div>
         ) : null}
 
-        <GenerateReportForm clients={clients} defaultClientId={clientId} />
+        <GenerateReportForm clients={clients} defaultClientId={clientId} logos={logos} />
       </div>
     </AdminShell>
   );

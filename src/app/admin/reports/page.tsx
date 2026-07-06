@@ -21,13 +21,13 @@ export default async function AdminReports({
   const clients = await data.listClients();
   const clientId = sp.client ?? clients[0]?.id ?? "";
 
-  // Client logos for the deck-preview cover slide (dark variant — the studio
-  // surface is dark). One batched query for every client.
+  // Client logos for the deck-preview cover slide. Light-theme variant (dark
+  // artwork) — the cover itself is white. One batched query for every client.
   const logoMap = await getClientBrandLogoUrlsByClients(
     clients.map((c) => ({ id: c.id, company_name: c.company_name })),
   );
   const logos = Object.fromEntries(
-    [...logoMap].map(([id, l]) => [id, l.dark ?? l.light ?? null]),
+    [...logoMap].map(([id, l]) => [id, l.light ?? l.dark ?? null]),
   );
 
   const aiOk = aiConfigured();

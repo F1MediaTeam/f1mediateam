@@ -118,6 +118,13 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
   const SAFE_BODY = brand?.safeBodyFont || BODY;
   // Per-slide headline: synthesis/preview override first, stock title second.
   const st = (key: string, stock: string) => content?.sectionTitles?.[key] || stock;
+  // Cover date line, matching the hand-built meeting decks: "7/6/2026 Meeting".
+  // Falls back to the pretty period when there's no meeting date.
+  const fmtMeetingLine = (c: MonthlyContent): string => {
+    const m = String(c?.meetingDate || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${+m[2]}/${+m[3]}/${m[1]} Meeting`;
+    return fmtPeriod(c?.reportPeriod || "");
+  };
   // "2026-07-09 → 2026-07-17" → "July 9–17, 2026" (collapses shared month/year).
   const fmtPeriod = (period: string): string => {
     const m = period.match(/(\d{4})-(\d{2})-(\d{2})\s*(?:→|to|-)\s*(\d{4})-(\d{2})-(\d{2})/);
@@ -215,19 +222,17 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
 
   // ===== SLIDE 1 — Title =====
   {
+    // Minimal white cover, styled after the meeting decks the user builds by
+    // hand: the client's logo huge and dead-center, one plain date line below.
     const s = pres.addSlide();
-    s.background = { color: C.primary };
-    // Client logo dead-center; the wordmark IS the cover. Text fallback when
-    // no logo exists for the client.
+    s.background = { color: C.white };
     if (brand?.logoData) {
-      const lw = 5.2, lh = 2.0;
-      s.addImage({ data: brand.logoData, x: (PW - lw) / 2, y: 1.85, w: lw, h: lh, sizing: { type: "contain", w: lw, h: lh } });
+      const lw = 8.4, lh = 3.1;
+      s.addImage({ data: brand.logoData, x: (PW - lw) / 2, y: 1.55, w: lw, h: lh, sizing: { type: "contain", w: lw, h: lh } });
     } else {
-      s.addText((content?.client || brand?.name || "").toUpperCase(), { x: M, y: 2.3, w: PW - 2 * M, h: 1.1, margin: 0, align: "center", fontFace: DISPLAY, fontSize: 44, bold: true, color: C.white, charSpacing: 1 });
+      s.addText((content?.client || brand?.name || "").toUpperCase(), { x: M, y: 2.4, w: PW - 2 * M, h: 1.3, margin: 0, align: "center", fontFace: DISPLAY, fontSize: 54, bold: true, color: C.primary, charSpacing: 1 });
     }
-    s.addText("Performance Report", { x: M, y: 4.25, w: PW - 2 * M, h: 0.6, margin: 0, align: "center", fontFace: DISPLAY, fontSize: 24, bold: true, color: C.white });
-    s.addText(fmtPeriod(content?.reportPeriod || ""), { x: M, y: 4.95, w: PW - 2 * M, h: 0.45, margin: 0, align: "center", fontFace: BODY, fontSize: 16, color: "C7CBD4" });
-    s.addText("Rank Higher. Get Found. Stay Competitive.", { x: M, y: PH - 0.6, w: PW - 2 * M, h: 0.3, margin: 0, fontFace: BODY, fontSize: 10, italic: true, color: "9AA0AE" });
+    s.addText(fmtMeetingLine(content), { x: M, y: 5.1, w: PW - 2 * M, h: 0.7, margin: 0, align: "center", fontFace: BODY, fontSize: 28, color: C.ink });
   }
 
   // ===== SLIDE 2 — Executive Summary =====

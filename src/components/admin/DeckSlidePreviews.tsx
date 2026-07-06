@@ -596,7 +596,16 @@ interface SlideDef {
   label: string;
   body: React.ReactNode;
   center?: boolean;
+  /** White page (the cover) — body text must use fixed ink colors. */
+  light?: boolean;
   onRemove?: () => void;
+}
+
+// Cover date line, matching the hand-built meeting decks: "7/6/2026 Meeting".
+function fmtMeetingLine(c: MonthlyContent): string {
+  const m = String(c.meetingDate || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${+m[2]}/${+m[3]}/${m[1]} Meeting`;
+  return fmtPeriodPretty(c.reportPeriod ?? "");
 }
 
 function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn, logoUrl?: string | null): SlideDef[] {
@@ -618,31 +627,25 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn, lo
   slides.push({
     label: "Cover",
     center: true,
+    light: true,
     body: (
-      <div className="flex flex-col items-center justify-center text-center gap-5">
+      <div className="flex flex-col items-center justify-center text-center gap-10">
         {logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={logoUrl}
             alt={c.client ?? "Client logo"}
-            className="max-h-44 w-auto max-w-[460px] object-contain"
+            className="h-auto max-h-72 w-[62%] max-w-[640px] object-contain"
           />
         ) : (
-          <div className="text-4xl sm:text-5xl font-semibold leading-tight">
+          <div className="text-5xl sm:text-6xl font-semibold leading-tight text-[#111827]">
             <EditableText
               value={c.client ?? "Client"}
               onCommit={edit ? (v) => edit(["client"], v) : undefined}
             />
           </div>
         )}
-        <div className="text-sm uppercase tracking-[0.25em] text-[var(--color-text-muted)]">
-          Performance Report
-        </div>
-        {c.reportPeriod ? (
-          <div className="text-lg font-medium text-[var(--color-text)]">
-            {fmtPeriodPretty(c.reportPeriod)}
-          </div>
-        ) : null}
+        <div className="text-2xl sm:text-3xl text-[#111827]">{fmtMeetingLine(c)}</div>
       </div>
     ),
   });
@@ -1174,6 +1177,7 @@ export default function DeckSlidePreviews({
               className={cn(
                 "min-h-[420px] p-6 sm:p-10",
                 s.center && "grid place-items-center",
+                s.light && "bg-white",
               )}
             >
               {s.body}

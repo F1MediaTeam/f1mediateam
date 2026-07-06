@@ -6,7 +6,7 @@
 // Admin-only.
 
 import { NextRequest } from "next/server";
-import { requireAdmin } from "@/lib/auth/session";
+import { getSession } from "@/lib/auth/session";
 import { fieldyConfigured, fieldyMeetingsInWindow } from "@/lib/connectors/fieldy";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,11 @@ function isoDate(d: Date): string {
 }
 
 export async function GET(request: NextRequest) {
-  await requireAdmin();
+  // fetch()-only endpoint: 401 beats requireAdmin()'s redirect-to-login here.
+  const session = await getSession();
+  if (!session || session.role !== "admin") {
+    return new Response("Unauthorized", { status: 401 });
+  }
 
   if (!fieldyConfigured()) {
     return Response.json({ error: "FIELDY_API_KEY is not set on this environment." }, { status: 200 });

@@ -14,7 +14,7 @@
 // exist post-migration). Output is `.pptx`.
 
 import { NextRequest } from "next/server";
-import { requireAdmin } from "@/lib/auth/session";
+import { getSession } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import { resolveRange } from "@/lib/deck/ai-narrative";
 import { fieldyMeetingsInWindow, fieldyConfigured } from "@/lib/connectors/fieldy";
@@ -231,7 +231,13 @@ async function synthesize(args: {
 }
 
 export async function POST(request: NextRequest) {
-  await requireAdmin();
+  // fetch()-only endpoint: 401 beats requireAdmin()'s redirect-to-login here —
+  // the redirect hands the client HTML instead of JSON/pptx and surfaces as a
+  // confusing parse error (or a stray 404) in the Deck Studio.
+  const session = await getSession();
+  if (!session || session.role !== "admin") {
+    return new Response("Your session expired — sign in again, then re-draft.", { status: 401 });
+  }
   const fd = await request.formData();
 
   const clientId = field(fd, "client_id");

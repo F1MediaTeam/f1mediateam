@@ -251,7 +251,16 @@ export default function GenerateReportForm({ clients, defaultClientId }: Props) 
       });
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || `HTTP ${res.status}`);
+        // Platform error pages (404/504/etc.) come back as HTML — don't dump
+        // markup into the error box, translate to a readable sentence.
+        const isHtml =
+          (res.headers.get("content-type") ?? "").includes("text/html") ||
+          text.trimStart().startsWith("<");
+        throw new Error(
+          isHtml
+            ? `The server returned an error page (HTTP ${res.status}). Try again — if it keeps happening, check the Vercel logs.`
+            : text || `HTTP ${res.status}`,
+        );
       }
       if (isPreview) {
         const json = (await res.json()) as { content: MonthlyContent };

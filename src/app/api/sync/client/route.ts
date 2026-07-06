@@ -3,7 +3,7 @@
 // Skips connectors that synced within STALE_AFTER_MS to avoid hammering Google.
 
 import { NextRequest } from "next/server";
-import { requireAdmin } from "@/lib/auth/session";
+import { getSession } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import { getConnector } from "@/lib/connectors";
 
@@ -12,7 +12,11 @@ export const dynamic = "force-dynamic";
 const STALE_AFTER_MS = 30 * 60 * 1000; // 30 minutes
 
 export async function POST(request: NextRequest) {
-  await requireAdmin();
+  // fetch()-only endpoint: 401 beats requireAdmin()'s redirect-to-login here.
+  const session = await getSession();
+  if (!session || session.role !== "admin") {
+    return new Response("Unauthorized", { status: 401 });
+  }
   const url = new URL(request.url);
   const clientId = url.searchParams.get("client_id");
   if (!clientId) return new Response("client_id required", { status: 400 });

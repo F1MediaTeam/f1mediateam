@@ -442,11 +442,35 @@ export async function POST(request: NextRequest) {
   const visibilityCur = latest(visibilityAll);
   const aiVisibilityCur = latest(aiVisibilityAll);
 
-  // Content cards posted within the window (slide 5)
-  const postedInWindow = contentCards.filter(
-    (c) => c.stage === "posted" && c.updated_at.slice(0, 10) >= window.fromIso && c.updated_at.slice(0, 10) <= window.toIso,
+  // Content board with approval history (slide 5). The events log says who
+  // moved each card — actor_role "client" on a proposed→ transition means the
+  // CUSTOMER approved it, which is the story that slide needs to tell.
+  const cardEvents = await data
+    .listContentEventsByCards(contentCards.map((c) => c.id))
+    .catch(() => new Map<string, never[]>());
+  const enrichCard = (c: (typeof contentCards)[number]) => {
+    const evs = cardEvents.get(c.id) ?? [];
+    const postedEv = [...evs].reverse().find((e) => e.to_stage === "posted");
+    const approveEv = [...evs].reverse().find((e) => e.from_stage === "proposed" && e.to_stage !== "proposed");
+    return {
+      title: c.title,
+      link: c.link,
+      stage: c.stage,
+      body: (c.body ?? "").slice(0, 280),
+      postedAt: postedEv?.created_at?.slice(0, 10) ?? (c.stage === "posted" ? c.updated_at.slice(0, 10) : null),
+      approvedAt: approveEv?.created_at?.slice(0, 10) ?? null,
+      // "client" = the customer approved it themselves; "admin" = F1 moved it.
+      approvedBy: approveEv?.actor_role ?? null,
+    };
+  };
+  const contentBoard = {
+    posted: contentCards.filter((c) => c.stage === "posted").map(enrichCard),
+    approvedQueued: contentCards.filter((c) => c.stage === "pending").map(enrichCard),
+    awaitingApproval: contentCards.filter((c) => c.stage === "proposed").map(enrichCard),
+  };
+  const postedInWindow = contentBoard.posted.filter(
+    (c) => c.postedAt != null && c.postedAt >= window.fromIso && c.postedAt <= window.toIso,
   );
-  const pipeline = contentCards.filter((c) => c.stage === "proposed" || c.stage === "pending");
 
   // Semrush insights extracted from the deep pull if present
   type SemrushReport = (typeof semrushReports)[number];
@@ -660,8 +684,10 @@ export async function POST(request: NextRequest) {
       deepPullReports: semrushDeepPull,
     },
     content: {
-      postedInWindow: postedInWindow.map((c) => ({ title: c.title, link: c.link, body: (c.body ?? "").slice(0, 280), updated_at: c.updated_at })),
-      pipeline: pipeline.map((c) => ({ stage: c.stage, title: c.title, link: c.link })),
+      postedThisPeriod: postedInWindow,
+      postedAllTime: contentBoard.posted,
+      approvedQueued: contentBoard.approvedQueued,
+      awaitingApproval: contentBoard.awaitingApproval,
     },
   };
 

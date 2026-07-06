@@ -860,12 +860,25 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn, lo
   }
 
   if (c.contentInsights) {
+    const groupLabel = "text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] mb-2";
     slides.push({
       label: titleOf("contentInsights"),
       body: (
         <div>
           <Heading sectionKey="contentInsights" />
-          <div className="space-y-5">
+          <div className="space-y-6">
+            {c.contentInsights.posted?.length ? (
+              <div>
+                <div className={groupLabel}>Posted &amp; live</div>
+                <Bullets items={c.contentInsights.posted} basePath={["contentInsights", "posted"]} edit={edit} removeItem={removeItem} />
+              </div>
+            ) : null}
+            {c.contentInsights.approved?.length ? (
+              <div>
+                <div className={groupLabel}>Approved &amp; up next</div>
+                <Bullets items={c.contentInsights.approved} basePath={["contentInsights", "approved"]} edit={edit} removeItem={removeItem} />
+              </div>
+            ) : null}
             <Bullets items={c.contentInsights.pagesCreated} basePath={["contentInsights", "pagesCreated"]} edit={edit} removeItem={removeItem} />
             <Bullets items={c.contentInsights.pagesOptimized} basePath={["contentInsights", "pagesOptimized"]} edit={edit} removeItem={removeItem} />
             {c.contentInsights.linking ? (

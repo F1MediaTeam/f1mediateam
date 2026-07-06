@@ -59,6 +59,10 @@ export interface MonthlyContent {
     note?: string;
   } | null;
   contentInsights?: {
+    // The content-board story — what the client approved and what went live.
+    // These two carry the slide; created/optimized are legacy fallbacks.
+    posted?: string[];   // posted & live this period, with dates
+    approved?: string[]; // approved (esp. by the customer) and queued to post
     pagesCreated?: string[];
     pagesOptimized?: string[];
     linking?: string;
@@ -356,13 +360,19 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
     s.background = { color: C.lightBg };
     sectionTitle(s, st("contentInsights", "Content & Insights"), "5");
     const ci = content?.contentInsights || {}, colW = (PW - 2 * M - 0.4) / 2;
+    // Content-board framing when available (posted / approved); legacy
+    // created / optimized columns otherwise.
+    const leftItems = ci.posted?.length ? ci.posted : ci.pagesCreated || [];
+    const leftLabel = ci.posted?.length ? "Posted & Live" : "Pages Created";
+    const rightItems = ci.approved?.length ? ci.approved : ci.pagesOptimized || [];
+    const rightLabel = ci.approved?.length ? "Approved & Up Next" : "Pages Optimized";
     card(s, M, 2.1, colW, 3.4);
-    s.addText("Pages Created", { x: M + 0.25, y: 2.3, w: colW - 0.5, h: 0.4, margin: 0, fontFace: DISPLAY, fontSize: 17, bold: true, color: C.primary });
-    s.addText(bullets((ci.pagesCreated || []).map(stripDomain), { fontSize: 13 }), { x: M + 0.25, y: 2.75, w: colW - 0.5, h: 2.5, margin: 0, valign: "top" });
+    s.addText(leftLabel, { x: M + 0.25, y: 2.3, w: colW - 0.5, h: 0.4, margin: 0, fontFace: DISPLAY, fontSize: 17, bold: true, color: C.primary });
+    s.addText(bullets(leftItems.map(stripDomain), { fontSize: 13 }), { x: M + 0.25, y: 2.75, w: colW - 0.5, h: 2.5, margin: 0, valign: "top" });
     const rx = M + colW + 0.4;
     card(s, rx, 2.1, colW, 3.4);
-    s.addText("Pages Optimized", { x: rx + 0.25, y: 2.3, w: colW - 0.5, h: 0.4, margin: 0, fontFace: DISPLAY, fontSize: 17, bold: true, color: C.primary });
-    s.addText(bullets((ci.pagesOptimized || []).map(stripDomain), { fontSize: 13 }), { x: rx + 0.25, y: 2.75, w: colW - 0.5, h: 2.5, margin: 0, valign: "top" });
+    s.addText(rightLabel, { x: rx + 0.25, y: 2.3, w: colW - 0.5, h: 0.4, margin: 0, fontFace: DISPLAY, fontSize: 17, bold: true, color: C.primary });
+    s.addText(bullets(rightItems.map(stripDomain), { fontSize: 13 }), { x: rx + 0.25, y: 2.75, w: colW - 0.5, h: 2.5, margin: 0, valign: "top" });
     if (ci.linking) s.addText(ci.linking, { x: M, y: 5.7, w: PW - 2 * M, h: 0.7, margin: 0, fontFace: BODY, fontSize: 14, italic: true, color: C.muted });
     footer(s);
   }

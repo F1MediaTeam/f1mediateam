@@ -151,6 +151,8 @@ export function normalizeMonthlyContent(raw: unknown): MonthlyContent {
   // ----- plain string-list sections -----
   if (isObj(c.contentInsights)) {
     const ci = { ...c.contentInsights };
+    if (ci.posted != null) ci.posted = strArr(ci.posted);
+    if (ci.approved != null) ci.approved = strArr(ci.approved);
     if (ci.pagesCreated != null) ci.pagesCreated = strArr(ci.pagesCreated);
     if (ci.pagesOptimized != null) ci.pagesOptimized = strArr(ci.pagesOptimized);
     c.contentInsights = ci;

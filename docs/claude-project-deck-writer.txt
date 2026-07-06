@@ -117,7 +117,11 @@ OUTPUT CONTRACT (use these exact keys; omit anything unsupported by data)
   "crossChannelAi":{                 // ONLY if tier "3" AND data exists
      "channels":[{"name","metric"}],          // metric is a short STRING, e.g. "1,010 clicks · 77.5K impressions"
      "aiVisibility":[array of short strings],"note"},
-  "contentInsights":{"pagesCreated":[],"pagesOptimized":[],"linking"},
+  "contentInsights":{
+     "posted":[one line per item posted this period, e.g. "Embroidery page — refreshed lineup (posted Jun 23)"],
+     "approved":[one line per approved-and-queued item; say "approved by the client <date>" when
+        PROFILE_DATA.content shows approvedBy "client"],
+     "pagesCreated":[],"pagesOptimized":[],"linking"},
   "photoBacklink":{"refreshes":[],"backlinksBuilt","toxicRemoved","counts":{"disavowedDomains"}},
   "postingSocial":{"flyers","channels":[],"youtube","misc","outOfScope"},
   "rankingDetail":{"topPages":[{"url","clicks","impressions"}],"aiOverview"},
@@ -188,6 +192,11 @@ NARRATIVE SOURCING
 - whatsNext and all framing/"why" → draw from FIELDY_TRANSCRIPT + SELECTED_NOTES + CLIENT_PROFILE
   (commitments, concerns, agreed direction, plus market.growthOpportunity and footprint.futureExpansion
   when Fieldy is thin). If all three are empty, derive whatsNext conservatively from data trends.
+- contentInsights.posted / .approved come straight from PROFILE_DATA.content — this is the client's
+  content board and the heart of the content slide. List EVERY item posted this period (title + short
+  descriptor + posted date) and every approved-and-queued item. Approval by the customer (approvedBy
+  "client") is a milestone — name it ("Conversion chart page — approved by you on Jul 6"). Never drop
+  board items to save space; never invent items that aren't on the board.
 - contentInsights + rankingDetail — when picking which pages/queries to spotlight, prefer ones tied to
   CLIENT_PROFILE.market.highestRevenueServices or footprint.services[] over generic pages.
 - postingSocial.outOfScope — only surface things that plausibly connect to the client's growth lanes

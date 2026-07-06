@@ -2,11 +2,20 @@
 
 // Slide previews of the synthesized MonthlyContent, shown on /admin/reports
 // after "Preview & edit". One full-width page per slide, stacked vertically —
-// read it top to bottom like a document. Every text element, including the
-// numbers, is click-to-edit in place (Google-Slides style): click, type, blur
-// or Enter to commit, Escape to revert. Clearing a row's main text deletes
-// the row (so does the × that appears on hover). Edits write straight back
-// into the content object, so Generate renders exactly what's on screen.
+// read it top to bottom like a document. Every slide leads with its own
+// headline (synthesis writes a data-specific takeaway into sectionTitles;
+// click it to rewrite it — it prints on the .pptx slide too). Every text
+// element, including the numbers, is click-to-edit in place: click, type,
+// blur or Enter to commit, Escape to revert. Clearing a row's main text
+// deletes the row (so does the × that appears on hover). Edits write straight
+// back into the content object, so Generate renders exactly what's on screen.
+//
+// Charts follow the dataviz mark specs: 2px lines with ringed end-dots,
+// ≤24px columns rounded only at the data end, hairline solid gridlines,
+// clean-number y ticks, sparing direct labels, text in text tokens (never
+// the series color). Series palette #2fa08f/#c98500/#9085e9 is validated
+// (lightness band, chroma, CVD, contrast) against the dark surface #0d1117.
+// Mixed-scale multi-series lines split into small multiples — never dual axes.
 
 import { useLayoutEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
@@ -153,42 +162,288 @@ function RemoveBtn({ onClick, title = "Delete" }: { onClick?: () => void; title?
   );
 }
 
-function Sparkline({ values, height = 80 }: { values: number[]; height?: number }) {
-  if (values.length < 2) return null;
-  const w = 440;
-  const max = Math.max(...values, 1);
-  const min = Math.min(...values, 0);
-  const span = max - min || 1;
-  const pts = values
-    .map((v, i) => `${((i / (values.length - 1)) * w).toFixed(1)},${(height - ((v - min) / span) * height).toFixed(1)}`)
-    .join(" ");
+/* ------------------------------ charts ------------------------------ */
+
+// Categorical slots validated against the dark chart surface (#0d1117):
+// lightness band, chroma floor, CVD separation, and ≥3:1 contrast all pass.
+// Color follows the series' position in the content object, never its rank.
+const SERIES_COLORS = ["#2fa08f", "#c98500", "#9085e9"];
+const seriesColor = (i: number) => SERIES_COLORS[i % SERIES_COLORS.length];
+const SURFACE = "var(--color-bg-elev)"; // ring/gap color
+
+function fmtNum(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  const abs = Math.abs(n);
+  if (abs >= 1e6) return `${(n / 1e6).toFixed(abs >= 1e7 ? 0 : 1).replace(/\.0$/, "")}M`;
+  if (abs >= 1e3) return `${(n / 1e3).toFixed(abs >= 1e4 ? 0 : 1).replace(/\.0$/, "")}K`;
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// "2025-08" → "Aug '25" · "2026-06-09" → "Jun 9" · anything else passes through.
+function fmtTick(raw: string): string {
+  const m = String(raw).match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
+  if (!m) return String(raw);
+  const mon = MONTH_ABBR[Number(m[2]) - 1] ?? m[2];
+  return m[3] ? `${mon} ${Number(m[3])}` : `${mon} '${m[1].slice(2)}`;
+}
+
+// Clean-number axis: 0 → a "nice" ceiling (1/2/2.5/5 × 10^k) in 4 steps.
+function niceTicks(rawMax: number): number[] {
+  const max = rawMax > 0 ? rawMax : 1;
+  const steps = 4;
+  const rough = max / steps;
+  const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s * steps >= max) ?? 10 * mag;
+  return Array.from({ length: steps + 1 }, (_, i) => i * step);
+}
+
+// Evenly sampled label indices, always keeping the first and last.
+function tickIndices(n: number, want: number): number[] {
+  if (n <= want) return Array.from({ length: n }, (_, i) => i);
+  const idx = new Set<number>();
+  for (let i = 0; i < want; i++) idx.add(Math.round((i * (n - 1)) / (want - 1)));
+  return [...idx].sort((a, b) => a - b);
+}
+
+interface SeriesDef {
+  name: string;
+  values: number[];
+  colorIndex: number;
+}
+
+const CHART_W = 680;
+const AXIS_LEFT = 48;
+const AXIS_BOTTOM = 24;
+const AXIS_TOP = 12;
+
+// Shared frame: hairline solid gridlines one step off the surface, muted
+// clean-number y ticks, sampled x labels. Text wears text tokens only.
+function ChartFrame({
+  height,
+  ticks,
+  labels,
+  labelIdx,
+  x,
+  children,
+}: {
+  height: number;
+  ticks: number[];
+  labels: string[];
+  labelIdx: number[];
+  x: (i: number) => number;
+  children: React.ReactNode;
+}) {
+  const innerH = height - AXIS_TOP - AXIS_BOTTOM;
+  const yMax = ticks[ticks.length - 1] || 1;
+  const y = (v: number) => AXIS_TOP + innerH - (v / yMax) * innerH;
   return (
-    <svg viewBox={`0 0 ${w} ${height}`} className="w-full h-24" preserveAspectRatio="none">
-      <polyline
-        points={pts}
-        fill="none"
-        stroke="var(--color-accent)"
-        strokeWidth="2"
-        vectorEffect="non-scaling-stroke"
-      />
+    <svg viewBox={`0 0 ${CHART_W} ${height}`} className="w-full" role="img">
+      {ticks.map((t) => (
+        <g key={t}>
+          <line
+            x1={AXIS_LEFT}
+            x2={CHART_W - 8}
+            y1={y(t)}
+            y2={y(t)}
+            stroke="var(--color-border)"
+            strokeWidth="1"
+          />
+          <text
+            x={AXIS_LEFT - 8}
+            y={y(t) + 3.5}
+            textAnchor="end"
+            fontSize="10.5"
+            fill="var(--color-text-muted)"
+            style={{ fontVariantNumeric: "tabular-nums" }}
+          >
+            {fmtNum(t)}
+          </text>
+        </g>
+      ))}
+      {labelIdx.map((i) => (
+        <text
+          key={i}
+          x={x(i)}
+          y={height - 7}
+          textAnchor="middle"
+          fontSize="10.5"
+          fill="var(--color-text-muted)"
+        >
+          {fmtTick(labels[i] ?? String(i + 1))}
+        </text>
+      ))}
+      {children}
     </svg>
   );
 }
 
-function MiniBars({ series }: { series: number[] }) {
-  const max = Math.max(...series, 1);
+// Multi-series line chart: 2px round-joined lines, end dot with a 2px
+// surface ring, end value in ink (identity comes from the legend beside it).
+function LineChart({
+  labels,
+  series,
+  height = 240,
+}: {
+  labels: string[];
+  series: SeriesDef[];
+  height?: number;
+}) {
+  const n = Math.max(...series.map((s) => s.values.length), 0);
+  if (n < 2) return null;
+  const innerH = height - AXIS_TOP - AXIS_BOTTOM;
+  const right = 46; // room for end-value labels
+  const innerW = CHART_W - AXIS_LEFT - right;
+  const ticks = niceTicks(Math.max(...series.flatMap((s) => s.values), 1));
+  const yMax = ticks[ticks.length - 1] || 1;
+  const x = (i: number) => AXIS_LEFT + (n === 1 ? 0 : (i / (n - 1)) * innerW);
+  const y = (v: number) => AXIS_TOP + innerH - (v / yMax) * innerH;
+  const labelIdx = tickIndices(n, 6);
+
   return (
-    <div className="flex items-end gap-1.5 h-24">
-      {series.slice(0, 24).map((v, i) => (
-        <div
-          key={i}
-          className="flex-1 rounded-sm bg-[var(--color-accent)]/70"
-          style={{ height: `${Math.max(4, (v / max) * 100)}%` }}
-        />
+    <ChartFrame height={height} ticks={ticks} labels={labels} labelIdx={labelIdx} x={x}>
+      {series.map((s) => {
+        const pts = s.values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+        const last = s.values.length - 1;
+        return (
+          <g key={s.colorIndex}>
+            <polyline
+              points={pts}
+              fill="none"
+              stroke={seriesColor(s.colorIndex)}
+              strokeWidth="2"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+            {/* invisible fat hit-targets → native hover tooltips */}
+            {s.values.map((v, i) => (
+              <circle key={i} cx={x(i)} cy={y(v)} r="9" fill="transparent">
+                <title>{`${fmtTick(labels[i] ?? String(i + 1))} — ${s.name}: ${fmtNum(v)}`}</title>
+              </circle>
+            ))}
+            <circle
+              cx={x(last)}
+              cy={y(s.values[last])}
+              r="4"
+              fill={seriesColor(s.colorIndex)}
+              stroke={SURFACE}
+              strokeWidth="2"
+            />
+            <text
+              x={x(last) + 9}
+              y={y(s.values[last]) + 3.5}
+              fontSize="11"
+              fontWeight="600"
+              fill="var(--color-text)"
+              style={{ fontVariantNumeric: "tabular-nums" }}
+            >
+              {fmtNum(s.values[last])}
+            </text>
+          </g>
+        );
+      })}
+    </ChartFrame>
+  );
+}
+
+// Column chart: ≤24px columns growing from a zero baseline, 4px rounded at
+// the data end only, band air as the separator. Sparing direct labels —
+// first, last, and the peak — everything else reads off the axis/tooltip.
+function ColumnChart({
+  labels,
+  series,
+  height = 240,
+}: {
+  labels: string[];
+  series: SeriesDef[];
+  height?: number;
+}) {
+  const n = Math.max(...series.map((s) => s.values.length), 0);
+  if (!n) return null;
+  const innerH = height - AXIS_TOP - AXIS_BOTTOM;
+  const innerW = CHART_W - AXIS_LEFT - 16;
+  const ticks = niceTicks(Math.max(...series.flatMap((s) => s.values), 1));
+  const yMax = ticks[ticks.length - 1] || 1;
+  const band = innerW / n;
+  const k = series.length;
+  const barW = Math.min(24, Math.max(3, (band * 0.72 - (k - 1) * 2) / k));
+  const groupW = k * barW + (k - 1) * 2;
+  const xBand = (i: number) => AXIS_LEFT + i * band + band / 2;
+  const y = (v: number) => AXIS_TOP + innerH - (v / yMax) * innerH;
+  const baseline = AXIS_TOP + innerH;
+  const labelIdx = tickIndices(n, 8);
+
+  // Selective direct labels (single-series only): first, last, peak.
+  const labeled = new Set<number>();
+  if (k === 1) {
+    const vals = series[0].values;
+    labeled.add(0);
+    labeled.add(vals.length - 1);
+    labeled.add(vals.indexOf(Math.max(...vals)));
+  }
+
+  return (
+    <ChartFrame height={height} ticks={ticks} labels={labels} labelIdx={labelIdx} x={xBand}>
+      {series.map((s, si) =>
+        s.values.map((v, i) => {
+          const bx = xBand(i) - groupW / 2 + si * (barW + 2);
+          const by = y(Math.max(v, 0));
+          const h = Math.max(baseline - by, v > 0 ? 2 : 0);
+          const r = Math.min(4, barW / 2, h);
+          return (
+            <g key={`${si}-${i}`}>
+              <path
+                d={`M${bx},${baseline} L${bx},${by + r} Q${bx},${by} ${bx + r},${by} L${bx + barW - r},${by} Q${bx + barW},${by} ${bx + barW},${by + r} L${bx + barW},${baseline} Z`}
+                fill={seriesColor(s.colorIndex)}
+              >
+                <title>{`${fmtTick(labels[i] ?? String(i + 1))} — ${s.name}: ${fmtNum(v)}`}</title>
+              </path>
+              {labeled.has(i) && k === 1 ? (
+                <text
+                  x={bx + barW / 2}
+                  y={by - 5}
+                  textAnchor="middle"
+                  fontSize="10.5"
+                  fontWeight="600"
+                  fill="var(--color-text)"
+                  style={{ fontVariantNumeric: "tabular-nums" }}
+                >
+                  {fmtNum(v)}
+                </text>
+              ) : null}
+            </g>
+          );
+        }),
+      )}
+    </ChartFrame>
+  );
+}
+
+// Legend: colored key dot + name in text tokens. Present whenever ≥2 series
+// share a plot; series names stay editable here.
+function Legend({
+  series,
+  onRename,
+}: {
+  series: SeriesDef[];
+  onRename?: (index: number, name: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+      {series.map((s, si) => (
+        <span key={si} className="inline-flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
+          <span
+            className="h-2.5 w-2.5 shrink-0 rounded-full"
+            style={{ backgroundColor: seriesColor(s.colorIndex) }}
+          />
+          <EditableText value={s.name} onCommit={onRename ? (v) => onRename(si, v) : undefined} />
+        </span>
       ))}
     </div>
   );
 }
+
+/* ----------------------------- slide bits ----------------------------- */
 
 function Bullets({
   items,
@@ -264,6 +519,21 @@ function StatTile({
 const noteCls = "text-sm leading-relaxed text-[var(--color-text-muted)]";
 const rowCls = "group/row flex items-center gap-3 text-[15px]";
 
+// Stock slide headings — mirror the .pptx section titles exactly, so what the
+// preview shows is what prints when there's no override.
+const STOCK_TITLES: Record<string, string> = {
+  executiveSummary: "Executive Summary",
+  keywordRankings: "Keyword Rankings",
+  competitiveSnapshot: "Competitive Snapshot",
+  organicTraffic: "Organic Traffic",
+  crossChannelAi: "Cross-Channel & AI Visibility",
+  contentInsights: "Content & Insights",
+  photoBacklink: "Photo & Backlink Optimization",
+  postingSocial: "Pages & Posting / Social",
+  rankingDetail: "Webpage Ranking Detail",
+  whatsNext: "What's Next",
+};
+
 interface SlideDef {
   label: string;
   body: React.ReactNode;
@@ -273,6 +543,19 @@ interface SlideDef {
 
 function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn): SlideDef[] {
   const slides: SlideDef[] = [];
+
+  const titleOf = (key: string) => c.sectionTitles?.[key] || STOCK_TITLES[key] || key;
+  // The big headline at the top of a section slide. Edits write to
+  // sectionTitles.<key>, which the .pptx builder prints as the slide title.
+  const Heading = ({ sectionKey }: { sectionKey: string }) => (
+    <h3 className="mb-6 text-2xl sm:text-[28px] font-semibold tracking-tight leading-snug">
+      <EditableText
+        value={titleOf(sectionKey)}
+        onCommit={edit ? (v) => edit(["sectionTitles", sectionKey], v) : undefined}
+        multiline
+      />
+    </h3>
+  );
 
   slides.push({
     label: "Cover",
@@ -300,19 +583,22 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn): S
 
   if (c.executiveSummary) {
     slides.push({
-      label: "Executive summary",
+      label: titleOf("executiveSummary"),
       body: (
-        <div className="space-y-5">
-          {c.executiveSummary.intro ? (
-            <p className="text-base leading-relaxed text-[var(--color-text-muted)]">
-              <EditableText
-                value={c.executiveSummary.intro}
-                onCommit={edit ? (v) => edit(["executiveSummary", "intro"], v) : undefined}
-                multiline
-              />
-            </p>
-          ) : null}
-          <Bullets items={c.executiveSummary.wins} basePath={["executiveSummary", "wins"]} edit={edit} removeItem={removeItem} />
+        <div>
+          <Heading sectionKey="executiveSummary" />
+          <div className="space-y-5">
+            {c.executiveSummary.intro ? (
+              <p className="text-base leading-relaxed text-[var(--color-text-muted)]">
+                <EditableText
+                  value={c.executiveSummary.intro}
+                  onCommit={edit ? (v) => edit(["executiveSummary", "intro"], v) : undefined}
+                  multiline
+                />
+              </p>
+            ) : null}
+            <Bullets items={c.executiveSummary.wins} basePath={["executiveSummary", "wins"]} edit={edit} removeItem={removeItem} />
+          </div>
         </div>
       ),
     });
@@ -321,58 +607,61 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn): S
   const kwRows = c.keywordRankings?.rows ?? [];
   if (kwRows.length) {
     slides.push({
-      label: "Keyword rankings",
+      label: titleOf("keywordRankings"),
       body: (
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-3 pb-1 text-[11px] uppercase tracking-wider text-[var(--color-text-muted)]">
-              <span className="flex-1">Keyword</span>
-              <span className="w-14 text-right">{c.keywordRankings?.priorLabel || "Prior"}</span>
-              <span className="w-4" />
-              <span className="w-14 text-right">{c.keywordRankings?.currentLabel || "Current"}</span>
-              <span className="w-6" />
-            </div>
-            {kwRows.map((r, i) => (
-              <div key={i} className={cn(rowCls, "border-b border-[var(--color-border)]/50 pb-1.5")}>
-                <EditableText
-                  value={r.keyword}
-                  onCommit={
-                    edit
-                      ? (v) =>
-                          v.trim() === "" && removeItem
-                            ? removeItem(["keywordRankings", "rows"], i)
-                            : edit(["keywordRankings", "rows", i, "keyword"], v)
-                      : undefined
-                  }
-                  className="flex-1"
-                />
-                <EditableNum
-                  value={r.prior}
-                  onCommit={edit ? (v) => edit(["keywordRankings", "rows", i, "prior"], v) : undefined}
-                  className="w-14 text-right text-[var(--color-text-muted)]"
-                />
-                <span className="w-4 text-center text-[var(--color-text-muted)]">→</span>
-                <EditableNum
-                  value={r.current}
-                  onCommit={edit ? (v) => edit(["keywordRankings", "rows", i, "current"], v) : undefined}
-                  className={cn(
-                    "w-14 text-right font-semibold",
-                    r.current <= r.prior && "text-[var(--color-accent)]",
-                  )}
-                />
-                <RemoveBtn onClick={removeItem ? () => removeItem(["keywordRankings", "rows"], i) : undefined} />
+        <div>
+          <Heading sectionKey="keywordRankings" />
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-3 pb-1 text-[11px] uppercase tracking-wider text-[var(--color-text-muted)]">
+                <span className="flex-1">Keyword</span>
+                <span className="w-14 text-right">{c.keywordRankings?.priorLabel || "Prior"}</span>
+                <span className="w-4" />
+                <span className="w-14 text-right">{c.keywordRankings?.currentLabel || "Current"}</span>
+                <span className="w-6" />
               </div>
-            ))}
+              {kwRows.map((r, i) => (
+                <div key={i} className={cn(rowCls, "border-b border-[var(--color-border)]/50 pb-1.5")}>
+                  <EditableText
+                    value={r.keyword}
+                    onCommit={
+                      edit
+                        ? (v) =>
+                            v.trim() === "" && removeItem
+                              ? removeItem(["keywordRankings", "rows"], i)
+                              : edit(["keywordRankings", "rows", i, "keyword"], v)
+                        : undefined
+                    }
+                    className="flex-1"
+                  />
+                  <EditableNum
+                    value={r.prior}
+                    onCommit={edit ? (v) => edit(["keywordRankings", "rows", i, "prior"], v) : undefined}
+                    className="w-14 text-right text-[var(--color-text-muted)]"
+                  />
+                  <span className="w-4 text-center text-[var(--color-text-muted)]">→</span>
+                  <EditableNum
+                    value={r.current}
+                    onCommit={edit ? (v) => edit(["keywordRankings", "rows", i, "current"], v) : undefined}
+                    className={cn(
+                      "w-14 text-right font-semibold",
+                      r.current <= r.prior && "text-[var(--color-accent)]",
+                    )}
+                  />
+                  <RemoveBtn onClick={removeItem ? () => removeItem(["keywordRankings", "rows"], i) : undefined} />
+                </div>
+              ))}
+            </div>
+            {c.keywordRankings?.note ? (
+              <p className={noteCls}>
+                <EditableText
+                  value={c.keywordRankings.note}
+                  onCommit={edit ? (v) => edit(["keywordRankings", "note"], v) : undefined}
+                  multiline
+                />
+              </p>
+            ) : null}
           </div>
-          {c.keywordRankings?.note ? (
-            <p className={noteCls}>
-              <EditableText
-                value={c.keywordRankings.note}
-                onCommit={edit ? (v) => edit(["keywordRankings", "note"], v) : undefined}
-                multiline
-              />
-            </p>
-          ) : null}
         </div>
       ),
     });
@@ -380,44 +669,47 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn): S
 
   if (c.competitiveSnapshot) {
     slides.push({
-      label: "Competitive snapshot",
+      label: titleOf("competitiveSnapshot"),
       body: (
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            {(c.competitiveSnapshot.competitors ?? []).map((comp, i) => (
-              <div key={i} className={cn(rowCls, "border-b border-[var(--color-border)]/50 pb-1.5")}>
+        <div>
+          <Heading sectionKey="competitiveSnapshot" />
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              {(c.competitiveSnapshot.competitors ?? []).map((comp, i) => (
+                <div key={i} className={cn(rowCls, "border-b border-[var(--color-border)]/50 pb-1.5")}>
+                  <EditableText
+                    value={comp.domain}
+                    onCommit={
+                      edit
+                        ? (v) =>
+                            v.trim() === "" && removeItem
+                              ? removeItem(["competitiveSnapshot", "competitors"], i)
+                              : edit(["competitiveSnapshot", "competitors", i, "domain"], v)
+                        : undefined
+                    }
+                    className="flex-1"
+                  />
+                  <EditableText
+                    value={comp.position}
+                    onCommit={edit ? (v) => edit(["competitiveSnapshot", "competitors", i, "position"], v) : undefined}
+                    className="tabular-nums text-[var(--color-text-muted)]"
+                  />
+                  <RemoveBtn
+                    onClick={removeItem ? () => removeItem(["competitiveSnapshot", "competitors"], i) : undefined}
+                  />
+                </div>
+              ))}
+            </div>
+            {c.competitiveSnapshot.closing ? (
+              <p className={noteCls}>
                 <EditableText
-                  value={comp.domain}
-                  onCommit={
-                    edit
-                      ? (v) =>
-                          v.trim() === "" && removeItem
-                            ? removeItem(["competitiveSnapshot", "competitors"], i)
-                            : edit(["competitiveSnapshot", "competitors", i, "domain"], v)
-                      : undefined
-                  }
-                  className="flex-1"
+                  value={c.competitiveSnapshot.closing}
+                  onCommit={edit ? (v) => edit(["competitiveSnapshot", "closing"], v) : undefined}
+                  multiline
                 />
-                <EditableText
-                  value={comp.position}
-                  onCommit={edit ? (v) => edit(["competitiveSnapshot", "competitors", i, "position"], v) : undefined}
-                  className="tabular-nums text-[var(--color-text-muted)]"
-                />
-                <RemoveBtn
-                  onClick={removeItem ? () => removeItem(["competitiveSnapshot", "competitors"], i) : undefined}
-                />
-              </div>
-            ))}
+              </p>
+            ) : null}
           </div>
-          {c.competitiveSnapshot.closing ? (
-            <p className={noteCls}>
-              <EditableText
-                value={c.competitiveSnapshot.closing}
-                onCommit={edit ? (v) => edit(["competitiveSnapshot", "closing"], v) : undefined}
-                multiline
-              />
-            </p>
-          ) : null}
         </div>
       ),
     });
@@ -425,26 +717,39 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn): S
 
   if (c.organicTraffic) {
     const t = c.organicTraffic;
+    const trendVals = t.trend?.clicks ?? [];
     slides.push({
-      label: "Organic traffic",
+      label: titleOf("organicTraffic"),
       body: (
-        <div className="space-y-5">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <StatTile label="Clicks" value={t.clicks?.value} prior={t.clicks?.prior} valuePath={["organicTraffic", "clicks", "value"]} priorPath={["organicTraffic", "clicks", "prior"]} edit={edit} />
-            <StatTile label="Impressions" value={t.impressions?.value} prior={t.impressions?.prior} valuePath={["organicTraffic", "impressions", "value"]} priorPath={["organicTraffic", "impressions", "prior"]} edit={edit} />
-            <StatTile label="CTR" value={t.ctr?.value} valuePath={["organicTraffic", "ctr", "value"]} edit={edit} />
-            <StatTile label="Avg position" value={t.avgPosition?.value} valuePath={["organicTraffic", "avgPosition", "value"]} edit={edit} />
+        <div>
+          <Heading sectionKey="organicTraffic" />
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <StatTile label="Clicks" value={t.clicks?.value} prior={t.clicks?.prior} valuePath={["organicTraffic", "clicks", "value"]} priorPath={["organicTraffic", "clicks", "prior"]} edit={edit} />
+              <StatTile label="Impressions" value={t.impressions?.value} prior={t.impressions?.prior} valuePath={["organicTraffic", "impressions", "value"]} priorPath={["organicTraffic", "impressions", "prior"]} edit={edit} />
+              <StatTile label="CTR" value={t.ctr?.value} valuePath={["organicTraffic", "ctr", "value"]} edit={edit} />
+              <StatTile label="Avg position" value={t.avgPosition?.value} valuePath={["organicTraffic", "avgPosition", "value"]} edit={edit} />
+            </div>
+            {t.note ? (
+              <p className={noteCls}>
+                <EditableText
+                  value={t.note}
+                  onCommit={edit ? (v) => edit(["organicTraffic", "note"], v) : undefined}
+                  multiline
+                />
+              </p>
+            ) : null}
+            {trendVals.length >= 2 ? (
+              <div className="space-y-2">
+                <LineChart
+                  labels={t.trend?.labels ?? []}
+                  series={[{ name: "Clicks", values: trendVals, colorIndex: 0 }]}
+                  height={200}
+                />
+                <div className="text-xs text-[var(--color-text-muted)]">Daily clicks — Google Search Console</div>
+              </div>
+            ) : null}
           </div>
-          {t.note ? (
-            <p className={noteCls}>
-              <EditableText
-                value={t.note}
-                onCommit={edit ? (v) => edit(["organicTraffic", "note"], v) : undefined}
-                multiline
-              />
-            </p>
-          ) : null}
-          {t.trend?.clicks?.length ? <Sparkline values={t.trend.clicks} /> : null}
         </div>
       ),
     });
@@ -452,34 +757,37 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn): S
 
   if (c.crossChannelAi) {
     slides.push({
-      label: "Cross-channel & AI",
+      label: titleOf("crossChannelAi"),
       body: (
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            {(c.crossChannelAi.channels ?? []).map((ch, i) => (
-              <div key={i} className={cn(rowCls, "border-b border-[var(--color-border)]/50 pb-1.5")}>
-                <EditableText
-                  value={ch.name}
-                  onCommit={
-                    edit
-                      ? (v) =>
-                          v.trim() === "" && removeItem
-                            ? removeItem(["crossChannelAi", "channels"], i)
-                            : edit(["crossChannelAi", "channels", i, "name"], v)
-                      : undefined
-                  }
-                  className="flex-1"
-                />
-                <EditableText
-                  value={ch.metric}
-                  onCommit={edit ? (v) => edit(["crossChannelAi", "channels", i, "metric"], v) : undefined}
-                  className="tabular-nums text-[var(--color-text-muted)]"
-                />
-                <RemoveBtn onClick={removeItem ? () => removeItem(["crossChannelAi", "channels"], i) : undefined} />
-              </div>
-            ))}
+        <div>
+          <Heading sectionKey="crossChannelAi" />
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              {(c.crossChannelAi.channels ?? []).map((ch, i) => (
+                <div key={i} className={cn(rowCls, "border-b border-[var(--color-border)]/50 pb-1.5")}>
+                  <EditableText
+                    value={ch.name}
+                    onCommit={
+                      edit
+                        ? (v) =>
+                            v.trim() === "" && removeItem
+                              ? removeItem(["crossChannelAi", "channels"], i)
+                              : edit(["crossChannelAi", "channels", i, "name"], v)
+                        : undefined
+                    }
+                    className="flex-1"
+                  />
+                  <EditableText
+                    value={ch.metric}
+                    onCommit={edit ? (v) => edit(["crossChannelAi", "channels", i, "metric"], v) : undefined}
+                    className="tabular-nums text-[var(--color-text-muted)]"
+                  />
+                  <RemoveBtn onClick={removeItem ? () => removeItem(["crossChannelAi", "channels"], i) : undefined} />
+                </div>
+              ))}
+            </div>
+            <Bullets items={c.crossChannelAi.aiVisibility} basePath={["crossChannelAi", "aiVisibility"]} edit={edit} removeItem={removeItem} />
           </div>
-          <Bullets items={c.crossChannelAi.aiVisibility} basePath={["crossChannelAi", "aiVisibility"]} edit={edit} removeItem={removeItem} />
         </div>
       ),
     });
@@ -487,20 +795,23 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn): S
 
   if (c.contentInsights) {
     slides.push({
-      label: "Content insights",
+      label: titleOf("contentInsights"),
       body: (
-        <div className="space-y-5">
-          <Bullets items={c.contentInsights.pagesCreated} basePath={["contentInsights", "pagesCreated"]} edit={edit} removeItem={removeItem} />
-          <Bullets items={c.contentInsights.pagesOptimized} basePath={["contentInsights", "pagesOptimized"]} edit={edit} removeItem={removeItem} />
-          {c.contentInsights.linking ? (
-            <p className={noteCls}>
-              <EditableText
-                value={c.contentInsights.linking}
-                onCommit={edit ? (v) => edit(["contentInsights", "linking"], v) : undefined}
-                multiline
-              />
-            </p>
-          ) : null}
+        <div>
+          <Heading sectionKey="contentInsights" />
+          <div className="space-y-5">
+            <Bullets items={c.contentInsights.pagesCreated} basePath={["contentInsights", "pagesCreated"]} edit={edit} removeItem={removeItem} />
+            <Bullets items={c.contentInsights.pagesOptimized} basePath={["contentInsights", "pagesOptimized"]} edit={edit} removeItem={removeItem} />
+            {c.contentInsights.linking ? (
+              <p className={noteCls}>
+                <EditableText
+                  value={c.contentInsights.linking}
+                  onCommit={edit ? (v) => edit(["contentInsights", "linking"], v) : undefined}
+                  multiline
+                />
+              </p>
+            ) : null}
+          </div>
         </div>
       ),
     });
@@ -508,28 +819,31 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn): S
 
   if (c.photoBacklink) {
     slides.push({
-      label: "Photos & backlinks",
+      label: titleOf("photoBacklink"),
       body: (
-        <div className="space-y-5">
-          <Bullets items={c.photoBacklink.refreshes} basePath={["photoBacklink", "refreshes"]} edit={edit} removeItem={removeItem} />
-          {c.photoBacklink.backlinksBuilt ? (
-            <p className="text-[15px] leading-relaxed">
-              <EditableText
-                value={c.photoBacklink.backlinksBuilt}
-                onCommit={edit ? (v) => edit(["photoBacklink", "backlinksBuilt"], v) : undefined}
-                multiline
-              />
-            </p>
-          ) : null}
-          {c.photoBacklink.toxicRemoved ? (
-            <p className={noteCls}>
-              <EditableText
-                value={c.photoBacklink.toxicRemoved}
-                onCommit={edit ? (v) => edit(["photoBacklink", "toxicRemoved"], v) : undefined}
-                multiline
-              />
-            </p>
-          ) : null}
+        <div>
+          <Heading sectionKey="photoBacklink" />
+          <div className="space-y-5">
+            <Bullets items={c.photoBacklink.refreshes} basePath={["photoBacklink", "refreshes"]} edit={edit} removeItem={removeItem} />
+            {c.photoBacklink.backlinksBuilt ? (
+              <p className="text-[15px] leading-relaxed">
+                <EditableText
+                  value={c.photoBacklink.backlinksBuilt}
+                  onCommit={edit ? (v) => edit(["photoBacklink", "backlinksBuilt"], v) : undefined}
+                  multiline
+                />
+              </p>
+            ) : null}
+            {c.photoBacklink.toxicRemoved ? (
+              <p className={noteCls}>
+                <EditableText
+                  value={c.photoBacklink.toxicRemoved}
+                  onCommit={edit ? (v) => edit(["photoBacklink", "toxicRemoved"], v) : undefined}
+                  multiline
+                />
+              </p>
+            ) : null}
+          </div>
         </div>
       ),
     });
@@ -537,28 +851,31 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn): S
 
   if (c.postingSocial) {
     slides.push({
-      label: "Posting & social",
+      label: titleOf("postingSocial"),
       body: (
-        <div className="space-y-5">
-          {c.postingSocial.flyers ? (
-            <p className="text-[15px] leading-relaxed">
-              <EditableText
-                value={c.postingSocial.flyers}
-                onCommit={edit ? (v) => edit(["postingSocial", "flyers"], v) : undefined}
-                multiline
-              />
-            </p>
-          ) : null}
-          <Bullets items={c.postingSocial.channels} basePath={["postingSocial", "channels"]} edit={edit} removeItem={removeItem} />
-          {c.postingSocial.youtube ? (
-            <p className={noteCls}>
-              <EditableText
-                value={c.postingSocial.youtube}
-                onCommit={edit ? (v) => edit(["postingSocial", "youtube"], v) : undefined}
-                multiline
-              />
-            </p>
-          ) : null}
+        <div>
+          <Heading sectionKey="postingSocial" />
+          <div className="space-y-5">
+            {c.postingSocial.flyers ? (
+              <p className="text-[15px] leading-relaxed">
+                <EditableText
+                  value={c.postingSocial.flyers}
+                  onCommit={edit ? (v) => edit(["postingSocial", "flyers"], v) : undefined}
+                  multiline
+                />
+              </p>
+            ) : null}
+            <Bullets items={c.postingSocial.channels} basePath={["postingSocial", "channels"]} edit={edit} removeItem={removeItem} />
+            {c.postingSocial.youtube ? (
+              <p className={noteCls}>
+                <EditableText
+                  value={c.postingSocial.youtube}
+                  onCommit={edit ? (v) => edit(["postingSocial", "youtube"], v) : undefined}
+                  multiline
+                />
+              </p>
+            ) : null}
+          </div>
         </div>
       ),
     });
@@ -567,74 +884,103 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn): S
   const topPages = c.rankingDetail?.topPages ?? [];
   if (topPages.length || c.rankingDetail?.aiOverview) {
     slides.push({
-      label: "Ranking detail",
+      label: titleOf("rankingDetail"),
       body: (
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            {topPages.map((p, i) => (
-              <div key={i} className={cn(rowCls, "text-sm border-b border-[var(--color-border)]/50 pb-1.5")}>
-                <EditableText
-                  value={p.url}
-                  onCommit={
-                    edit
-                      ? (v) =>
-                          v.trim() === "" && removeItem
-                            ? removeItem(["rankingDetail", "topPages"], i)
-                            : edit(["rankingDetail", "topPages", i, "url"], v)
-                      : undefined
-                  }
-                  className="flex-1 break-all text-[var(--color-text-muted)]"
-                />
-                {p.clicks != null ? (
-                  <EditableNum
-                    value={p.clicks}
-                    onCommit={edit ? (v) => edit(["rankingDetail", "topPages", i, "clicks"], v) : undefined}
+        <div>
+          <Heading sectionKey="rankingDetail" />
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              {topPages.map((p, i) => (
+                <div key={i} className={cn(rowCls, "text-sm border-b border-[var(--color-border)]/50 pb-1.5")}>
+                  <EditableText
+                    value={p.url}
+                    onCommit={
+                      edit
+                        ? (v) =>
+                            v.trim() === "" && removeItem
+                              ? removeItem(["rankingDetail", "topPages"], i)
+                              : edit(["rankingDetail", "topPages", i, "url"], v)
+                        : undefined
+                    }
+                    className="flex-1 break-all text-[var(--color-text-muted)]"
                   />
-                ) : null}
-                <RemoveBtn onClick={removeItem ? () => removeItem(["rankingDetail", "topPages"], i) : undefined} />
-              </div>
-            ))}
+                  {p.clicks != null ? (
+                    <EditableNum
+                      value={p.clicks}
+                      onCommit={edit ? (v) => edit(["rankingDetail", "topPages", i, "clicks"], v) : undefined}
+                    />
+                  ) : null}
+                  <RemoveBtn onClick={removeItem ? () => removeItem(["rankingDetail", "topPages"], i) : undefined} />
+                </div>
+              ))}
+            </div>
+            {c.rankingDetail?.aiOverview ? (
+              <p className={noteCls}>
+                <EditableText
+                  value={c.rankingDetail.aiOverview}
+                  onCommit={edit ? (v) => edit(["rankingDetail", "aiOverview"], v) : undefined}
+                  multiline
+                />
+              </p>
+            ) : null}
           </div>
-          {c.rankingDetail?.aiOverview ? (
-            <p className={noteCls}>
-              <EditableText
-                value={c.rankingDetail.aiOverview}
-                onCommit={edit ? (v) => edit(["rankingDetail", "aiOverview"], v) : undefined}
-                multiline
-              />
-            </p>
-          ) : null}
         </div>
       ),
     });
   }
 
   for (const [ci, chart] of (c.charts ?? []).entries()) {
-    const first = chart.series?.[0]?.values ?? [];
+    const series: SeriesDef[] = (chart.series ?? [])
+      .map((s, si) => ({ name: s?.name || `Series ${si + 1}`, values: (s?.values ?? []).filter((v) => Number.isFinite(v)), colorIndex: si }))
+      .filter((s) => s.values.length > 0);
+    if (!series.length) continue;
+    // Mixed scales on one axis flatten the smaller series into a floor line
+    // (and a second axis is off the table) — split into small multiples when
+    // the biggest series dwarfs the smallest by ~6× or more.
+    const maxes = series.map((s) => Math.max(...s.values, 0));
+    const smallMultiples =
+      chart.type !== "bar" &&
+      series.length > 1 &&
+      Math.max(...maxes) / Math.max(Math.min(...maxes), 1) > 6;
+    const Chart = chart.type === "bar" ? ColumnChart : LineChart;
+    const rename = edit ? (si: number, v: string) => edit(["charts", ci, "series", si, "name"], v) : undefined;
+
     slides.push({
       label: chart.title || "Chart",
       onRemove: removeItem ? () => removeItem(["charts"], ci) : undefined,
       body: (
-        <div className="flex h-full flex-col justify-center gap-4">
-          <div className="text-lg font-medium">
+        <div>
+          <h3 className="mb-6 text-2xl sm:text-[28px] font-semibold tracking-tight leading-snug">
             <EditableText
               value={chart.title}
               onCommit={edit ? (v) => edit(["charts", ci, "title"], v) : undefined}
+              multiline
             />
-          </div>
-          {chart.type === "bar" ? <MiniBars series={first} /> : <Sparkline values={first} height={96} />}
-          <div className="text-sm text-[var(--color-text-muted)]">
-            {(chart.series ?? []).map((s, si) => (
-              <span key={si}>
-                {si > 0 ? " · " : ""}
-                <EditableText
-                  value={s.name}
-                  onCommit={edit ? (v) => edit(["charts", ci, "series", si, "name"], v) : undefined}
-                />
-              </span>
-            ))}
-            {chart.source ? ` — ${chart.source}` : ""}
-          </div>
+          </h3>
+          {smallMultiples ? (
+            <div className="space-y-7">
+              {series.map((s, si) => (
+                <div key={si} className="space-y-1.5">
+                  <span className="inline-flex items-center gap-2 text-sm font-medium">
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: seriesColor(s.colorIndex) }}
+                    />
+                    <EditableText value={s.name} onCommit={rename ? (v) => rename(si, v) : undefined} />
+                  </span>
+                  <Chart labels={chart.labels ?? []} series={[s]} height={170} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <Chart labels={chart.labels ?? []} series={series} />
+              {series.length > 1 ? <Legend series={series} onRename={rename} /> : null}
+            </div>
+          )}
+          {chart.source ? (
+            <div className="mt-4 text-xs text-[var(--color-text-muted)]">Source: {chart.source}</div>
+          ) : null}
         </div>
       ),
     });
@@ -662,8 +1008,13 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn): S
 
   if (c.whatsNext?.length) {
     slides.push({
-      label: "What's next",
-      body: <Bullets items={c.whatsNext} basePath={["whatsNext"]} edit={edit} removeItem={removeItem} />,
+      label: titleOf("whatsNext"),
+      body: (
+        <div>
+          <Heading sectionKey="whatsNext" />
+          <Bullets items={c.whatsNext} basePath={["whatsNext"]} edit={edit} removeItem={removeItem} />
+        </div>
+      ),
     });
   }
 
@@ -714,8 +1065,8 @@ export default function DeckSlidePreviews({
     <div className="space-y-4">
       {onChange ? (
         <p className="text-xs text-[var(--color-text-muted)]">
-          Click anything on a slide to edit it — text and numbers alike. Enter or click away to
-          save, Esc to cancel. Clear a line (or hit its ×) to delete it.
+          Click anything on a slide to edit it — headlines, text, and numbers alike. Enter or
+          click away to save, Esc to cancel. Clear a line (or hit its ×) to delete it.
         </p>
       ) : null}
       <div className="space-y-8">
@@ -728,10 +1079,10 @@ export default function DeckSlidePreviews({
               <span className="rounded bg-[var(--color-accent)]/15 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-[var(--color-accent)]">
                 {String(i + 1).padStart(2, "0")}
               </span>
-              <span className="text-[11px] uppercase tracking-wider text-[var(--color-text-muted)]">
+              <span className="truncate text-[11px] uppercase tracking-wider text-[var(--color-text-muted)]">
                 {s.label}
               </span>
-              <span className="ml-auto text-[10px] uppercase tracking-wider text-[var(--color-accent)] opacity-0 transition group-hover:opacity-100">
+              <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wider text-[var(--color-accent)] opacity-0 transition group-hover:opacity-100">
                 editable
               </span>
               {s.onRemove ? (
@@ -739,7 +1090,7 @@ export default function DeckSlidePreviews({
                   type="button"
                   onClick={s.onRemove}
                   title="Remove this slide"
-                  className="grid h-6 w-6 place-items-center rounded-md text-sm leading-none text-[var(--color-text-muted)] opacity-0 transition group-hover:opacity-100 hover:bg-red-500/15 hover:text-red-300"
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-sm leading-none text-[var(--color-text-muted)] opacity-0 transition group-hover:opacity-100 hover:bg-red-500/15 hover:text-red-300"
                 >
                   ×
                 </button>

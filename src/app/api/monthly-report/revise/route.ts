@@ -23,7 +23,7 @@ const REVISE_SYSTEM_PROMPT = `You edit the content JSON for a client-facing SEO 
 Rules:
 - Apply ONLY what the instruction asks for. Preserve every other field byte-for-byte — same keys, same order, same values.
 - Never invent, alter, or estimate metrics/numbers unless the instruction (or an attached image) explicitly supplies new values. The numbers came from real analytics data.
-- Keep the same overall JSON shape. Do not add new top-level keys. Setting an optional section to null removes that slide.
+- Keep the same overall JSON shape. Do not add new top-level keys (exception: "sectionTitles", a {section: headline} map of per-slide headings — add or edit entries there when asked to change a slide's title). Setting an optional section to null removes that slide.
 - IMAGES: the admin may attach screenshots or photos — a screenshot of a slide they want changed, a screenshot of data/numbers to incorporate, a reference for wording, or a photo of handwritten notes. Read them carefully and treat their contents as part of the instruction. If an image contains data the admin asks to include, transcribe it faithfully — never estimate what you can't read clearly; say so in the note instead.
 - Tone: professional, client-friendly, confident but factual.
 - If the instruction is ambiguous, make the most reasonable interpretation and say what you assumed in the note.

@@ -82,6 +82,10 @@ export interface MonthlyContent {
   };
   whatsNext?: string[];
   questions?: { prompt?: string; contact?: string | null };
+  // Per-slide headline overrides — short, data-specific takeaways written by
+  // synthesis (and editable in the preview). Keyed by section; a missing key
+  // falls back to the section's stock title.
+  sectionTitles?: { [section: string]: string };
   // Optional extra charts the bot specifies as DATA (labels + numeric series).
   // Each renders as its own slide before "What's Next".
   charts?: Array<{
@@ -112,6 +116,8 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
   const DISPLAY = brand?.displayFont || "Century Schoolbook";
   const BODY = brand?.bodyFont || "Calibri";
   const SAFE_BODY = brand?.safeBodyFont || BODY;
+  // Per-slide headline: synthesis/preview override first, stock title second.
+  const st = (key: string, stock: string) => content?.sectionTitles?.[key] || stock;
   const rawTier = String(content?.tier || "1");
   const TIER = ["1", "2", "3"].includes(rawTier.charAt(0))
     ? rawTier.charAt(0)
@@ -220,7 +226,7 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
   {
     const s = pres.addSlide();
     s.background = { color: C.lightBg };
-    sectionTitle(s, "Executive Summary", "2");
+    sectionTitle(s, st("executiveSummary", "Executive Summary"), "2");
     const es = content?.executiveSummary || {};
     if (es.intro) s.addText(es.intro, { x: M, y: 1.7, w: PW - 2 * M, h: 0.5, margin: 0, fontFace: BODY, fontSize: 15, italic: true, color: C.muted });
     const wins = (es.wins || []).slice(0, 5);
@@ -239,7 +245,7 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
   {
     const s = pres.addSlide();
     s.background = { color: C.lightBg };
-    sectionTitle(s, "Keyword Rankings", "3");
+    sectionTitle(s, st("keywordRankings", "Keyword Rankings"), "3");
     const kr = content?.keywordRankings || {};
     if (kr.note) s.addText(kr.note, { x: M, y: 1.65, w: PW - 2 * M, h: 0.4, margin: 0, fontFace: BODY, fontSize: 13, italic: true, color: C.muted });
     const fmtPos = (v: Any) => (v === 0 || v === "0" || v == null) ? "—" : (typeof v === "number" ? (Number.isInteger(v) ? String(v) : v.toFixed(1)) : String(v));
@@ -264,7 +270,7 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
   if (TIER !== "1" && content?.competitiveSnapshot) {
     const s = pres.addSlide();
     s.background = { color: C.lightBg };
-    sectionTitle(s, "Competitive Snapshot", "3B");
+    sectionTitle(s, st("competitiveSnapshot", "Competitive Snapshot"), "3B");
     const cs = content.competitiveSnapshot, colW = (PW - 2 * M - 0.4) / 2;
     card(s, M, 2.1, colW, 3.6);
     s.addText("Competitor Positions", { x: M + 0.25, y: 2.3, w: colW - 0.5, h: 0.4, margin: 0, fontFace: DISPLAY, fontSize: 18, bold: true, color: C.primary });
@@ -290,7 +296,7 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
   {
     const s = pres.addSlide();
     s.background = { color: C.lightBg };
-    sectionTitle(s, "Organic Traffic", "4");
+    sectionTitle(s, st("organicTraffic", "Organic Traffic"), "4");
     const ot = content?.organicTraffic || {};
     const stats = [
       { label: "Total Clicks", o: ot.clicks }, { label: "Total Impressions", o: ot.impressions },
@@ -317,7 +323,7 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
   if (TIER === "3" && content?.crossChannelAi) {
     const s = pres.addSlide();
     s.background = { color: C.lightBg };
-    sectionTitle(s, "Cross-Channel & AI Visibility", "4B");
+    sectionTitle(s, st("crossChannelAi", "Cross-Channel & AI Visibility"), "4B");
     const cc = content.crossChannelAi, colW = (PW - 2 * M - 0.4) / 2;
     card(s, M, 2.1, colW, 3.6);
     s.addText("Cross-Channel Performance", { x: M + 0.25, y: 2.3, w: colW - 0.5, h: 0.4, margin: 0, fontFace: DISPLAY, fontSize: 18, bold: true, color: C.primary });
@@ -334,7 +340,7 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
   {
     const s = pres.addSlide();
     s.background = { color: C.lightBg };
-    sectionTitle(s, "Content & Insights", "5");
+    sectionTitle(s, st("contentInsights", "Content & Insights"), "5");
     const ci = content?.contentInsights || {}, colW = (PW - 2 * M - 0.4) / 2;
     card(s, M, 2.1, colW, 3.4);
     s.addText("Pages Created", { x: M + 0.25, y: 2.3, w: colW - 0.5, h: 0.4, margin: 0, fontFace: DISPLAY, fontSize: 17, bold: true, color: C.primary });
@@ -351,7 +357,7 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
   {
     const s = pres.addSlide();
     s.background = { color: C.lightBg };
-    sectionTitle(s, "Photo & Backlink Optimization", "6");
+    sectionTitle(s, st("photoBacklink", "Photo & Backlink Optimization"), "6");
     const pb = content?.photoBacklink || {}, items: string[] = [];
     if ((pb.refreshes || []).length) items.push("Page refreshes: " + (pb.refreshes || []).map(stripDomain).join(", "));
     if (pb.backlinksBuilt) items.push(pb.backlinksBuilt);
@@ -366,7 +372,7 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
   {
     const s = pres.addSlide();
     s.background = { color: C.lightBg };
-    sectionTitle(s, "Pages & Posting / Social", "7");
+    sectionTitle(s, st("postingSocial", "Pages & Posting / Social"), "7");
     const ps = content?.postingSocial || {}, items: string[] = [];
     if (ps.flyers) items.push(ps.flyers);
     if ((ps.channels || []).length) items.push("Active channels: " + (ps.channels || []).join(", "));
@@ -386,7 +392,7 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
   {
     const s = pres.addSlide();
     s.background = { color: C.lightBg };
-    sectionTitle(s, "Webpage Ranking Detail", "8");
+    sectionTitle(s, st("rankingDetail", "Webpage Ranking Detail"), "8");
     const rd = content?.rankingDetail || {}, tp = rd.topPages || [];
     if (tp.length) {
       const head = [{ text: "Top Page", options: hcell() }, { text: "Clicks", options: hcell(true) }, { text: "Impressions", options: hcell(true) }];
@@ -472,7 +478,7 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
   {
     const s = pres.addSlide();
     s.background = { color: C.lightBg };
-    sectionTitle(s, "What's Next", "9");
+    sectionTitle(s, st("whatsNext", "What's Next"), "9");
     const next = (content?.whatsNext || []).slice(0, 6);
     const top = 2.1, gap = 0.18, h = Math.min(0.85, (PH - top - 0.7 - gap * (next.length - 1)) / Math.max(next.length, 1));
     next.forEach((t, i) => {

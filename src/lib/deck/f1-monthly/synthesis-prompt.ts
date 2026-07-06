@@ -109,6 +109,11 @@ OUTPUT CONTRACT (use these exact keys; omit anything unsupported by data)
   "rankingDetail":{"topPages":[{"url","clicks","impressions"}],"aiOverview"},
   "whatsNext":[up to 6 one-line priorities],
   "questions":{"prompt","contact"},
+  "sectionTitles":{                   // REQUIRED — a headline per slide, keyed by section
+     "executiveSummary","keywordRankings","competitiveSnapshot","organicTraffic",
+     "crossChannelAi","contentInsights","photoBacklink","postingSocial",
+     "rankingDetail","whatsNext"},    // only keys for sections you actually output
+
   "charts":[                          // OPTIONAL — graphs to render natively from data series
      {"title","type":"line"|"bar","source":"GSC"|"GA4"|"SEMrush"|"Bing",
       "labels":[...],"series":[{"name","values":[...]}]}
@@ -148,6 +153,14 @@ AI VISIBILITY (first-class for this agency)
   ChatGPT, Perplexity, Gemini), surface them — in rankingDetail.aiOverview and, on tier 3, in
   crossChannelAi. Quantify from tracked data only; if there's no tracked metric, describe confirmed
   appearances qualitatively and omit any percentage. Never fabricate an AI-visibility number.
+
+SECTION TITLES (the headline of each slide)
+- sectionTitles.<section> is the big heading printed on that slide. Write it as the slide's
+  TAKEAWAY, not its category: specific, data-backed, ≤ 70 characters. "Six Keywords Holding #1
+  in DTF Ink" beats "Keyword Rankings"; "1,010 Clicks — CTR Steady Through the Slow Season"
+  beats "Organic Traffic". Same source-of-truth rules as every number: only claim what
+  PROFILE_DATA supports. Plain sentence case, no trailing period. Provide one for every
+  section you output.
 
 NARRATIVE SOURCING
 - executiveSummary.wins, organicTraffic.note, rankingDetail.aiOverview, chart titles → write from NUMBERS.

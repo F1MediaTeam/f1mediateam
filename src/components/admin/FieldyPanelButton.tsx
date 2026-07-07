@@ -33,8 +33,9 @@ interface ListResp {
 interface Props {
   /** Selected client's company name — scopes the list + default filter. */
   clientName?: string;
-  /** The report window in days — the panel's default date range follows it. */
-  windowDays?: number;
+  /** The report window (ISO dates) — the panel's default range follows it. */
+  windowFrom?: string;
+  windowTo?: string;
   /** Changes when the client changes: committed picks are cleared, since a
    *  conversation curated for client A must never ride into client B's deck. */
   resetKey?: string;
@@ -49,10 +50,10 @@ function isoDaysAgo(n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export default function FieldyPanelButton({ clientName, windowDays, resetKey }: Props) {
+export default function FieldyPanelButton({ clientName, windowFrom, windowTo, resetKey }: Props) {
   const [open, setOpen] = useState(false);
-  const [from, setFrom] = useState(isoDaysAgo(windowDays ?? 30));
-  const [to, setTo] = useState(isoToday());
+  const [from, setFrom] = useState(windowFrom ?? isoDaysAgo(30));
+  const [to, setTo] = useState(windowTo ?? isoToday());
   const [loading, setLoading] = useState(false);
   const [list, setList] = useState<ListResp | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -75,15 +76,15 @@ export default function FieldyPanelButton({ clientName, windowDays, resetKey }: 
     }
   }, []);
 
-  // Follow the report window: when the meeting type changes, the panel's
-  // default range tracks it (a manual range set inside the panel still wins
-  // until the next change).
+  // Follow the report window: when the meeting type or custom dates change,
+  // the panel's default range tracks them (a manual range set inside the
+  // panel still wins until the next change).
   useEffect(() => {
-    setFrom(isoDaysAgo(windowDays ?? 30));
-    setTo(isoToday());
+    setFrom(windowFrom ?? isoDaysAgo(30));
+    setTo(windowTo ?? isoToday());
     cacheRef.current = null;
     setList(null);
-  }, [windowDays]);
+  }, [windowFrom, windowTo]);
 
   // Client switched: clear committed picks + stale list.
   useEffect(() => {

@@ -28,6 +28,9 @@ interface Props {
   toName: string;
   defaultFrom?: string; // ISO yyyy-MM-dd
   defaultTo?: string;
+  /** Fires on every selection change so the parent can react (readiness
+   *  chips, Fieldy scoping) — the hidden inputs alone are invisible to React. */
+  onChange?: (from: string | null, to: string | null) => void;
 }
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -112,10 +115,15 @@ function Month({
   );
 }
 
-export default function DateRangePicker({ fromName, toName, defaultFrom, defaultTo }: Props) {
+export default function DateRangePicker({ fromName, toName, defaultFrom, defaultTo, onChange }: Props) {
   const [open, setOpen] = useState(false);
-  const [from, setFrom] = useState<string | null>(defaultFrom || null);
-  const [to, setTo] = useState<string | null>(defaultTo || null);
+  const [from, setFromRaw] = useState<string | null>(defaultFrom || null);
+  const [to, setToRaw] = useState<string | null>(defaultTo || null);
+  const setRange = (nextFrom: string | null, nextTo: string | null) => {
+    setFromRaw(nextFrom);
+    setToRaw(nextTo);
+    onChange?.(nextFrom, nextTo);
+  };
   const [hovered, setHovered] = useState<string | null>(null);
   const [viewMonth, setViewMonth] = useState<Date>(() =>
     startOfMonth(defaultFrom ? parseISO(defaultFrom) : new Date()),
@@ -140,12 +148,11 @@ export default function DateRangePicker({ fromName, toName, defaultFrom, default
 
   function pick(day: string) {
     if (!from || (from && to)) {
-      setFrom(day);
-      setTo(null);
+      setRange(day, null);
     } else if (day < from) {
-      setFrom(day);
+      setRange(day, to);
     } else {
-      setTo(day);
+      setRange(from, day);
       setOpen(false);
     }
   }
@@ -215,10 +222,7 @@ export default function DateRangePicker({ fromName, toName, defaultFrom, default
           <div className="flex items-center justify-between mt-6 pt-4 border-t border-[var(--color-border)]">
             <button
               type="button"
-              onClick={() => {
-                setFrom(null);
-                setTo(null);
-              }}
+              onClick={() => setRange(null, null)}
               className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] underline"
             >
               Clear

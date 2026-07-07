@@ -49,17 +49,22 @@ export async function GET(
 
   // The chips must answer "will THIS deck have data" — so they count within
   // the same window the deck will pull, not all-time. Same range resolution
-  // as /api/monthly-report; "since_last" falls back to 28d here (close
-  // enough for a pre-flight when no meeting is on record).
+  // as /api/monthly-report, including anchoring "since_last" to the client's
+  // previous meeting (falls back to 28d when no meeting is on record).
   const today = todayIso("America/Los_Angeles");
   const sp = req.nextUrl.searchParams;
   const rawRange = sp.get("range") || "28d";
-  const window = resolveRange(
-    rawRange === "since_last" ? "28d" : rawRange,
-    sp.get("from"),
-    sp.get("to"),
-    today,
-  );
+  let window;
+  if (rawRange === "since_last") {
+    const lastMeeting = (await data.listMeetings().catch(() => []))
+      .filter((m) => m.client_id === clientId && m.scheduled_at.slice(0, 10) <= today)
+      .sort((a, b) => b.scheduled_at.localeCompare(a.scheduled_at))[0];
+    window = lastMeeting
+      ? resolveRange("custom", lastMeeting.scheduled_at.slice(0, 10), today, today)
+      : resolveRange("28d", null, null, today);
+  } else {
+    window = resolveRange(rawRange, sp.get("from"), sp.get("to"), today);
+  }
   const inWin = (iso: string) => iso >= window.fromIso && iso <= window.toIso;
 
   const [clicks, sessions, bingClicks, semrushKeywords, semrushReports, onboarding, contentCards] =

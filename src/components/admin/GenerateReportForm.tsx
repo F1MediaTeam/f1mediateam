@@ -234,6 +234,24 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
   const range = MEETING_TYPES.find((t) => t.value === meetingType)?.range ?? "28d";
   const draftKey = `deckDraft:${clientId}`;
 
+  // The custom range lives in React state too (the picker's hidden inputs
+  // are invisible to effects) so the readiness chips and Fieldy scoping can
+  // track the exact dates the deck will pull. Defaults: trailing 28 days.
+  const [defaultCustom] = useState(() => ({
+    from: new Date(Date.now() - 27 * 86_400_000).toISOString().slice(0, 10),
+    to: new Date().toISOString().slice(0, 10),
+  }));
+  const [customRange, setCustomRange] = useState<{ from: string | null; to: string | null }>(defaultCustom);
+  // The window the deck will actually pull, expressed as ISO dates for the
+  // pre-flight surfaces. since_last resolves server-side (needs the meetings
+  // table); client-side it previews as 90 days.
+  const windowDays = range === "7d" ? 7 : range === "28d" ? 28 : range === "90d" ? 90 : range === "12m" ? 365 : 90;
+  const windowFrom =
+    range === "custom" && customRange.from
+      ? customRange.from
+      : new Date(Date.now() - (windowDays - 1) * 86_400_000).toISOString().slice(0, 10);
+  const windowTo = range === "custom" && customRange.to ? customRange.to : defaultCustom.to;
+
   // Crash-proofing: the drafted deck is the most expensive artifact in this
   // flow, and it used to live only in React state. Autosave to localStorage
   // per client; offer restore after a refresh / accidental client switch.
@@ -282,11 +300,16 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
   }, [busy]);
 
   // Data-readiness rail for the selected client AND window — the chips answer
-  // "will this deck have data", so they re-check when the meeting type moves.
+  // "will this deck have data", so they re-check when the meeting type or the
+  // picked custom dates move.
   useEffect(() => {
     let stale = false;
     if (!clientId) return;
     const params = new URLSearchParams({ range });
+    if (range === "custom" && customRange.from && customRange.to) {
+      params.set("from", customRange.from);
+      params.set("to", customRange.to);
+    }
     fetch(`/api/report-readiness/${clientId}?${params.toString()}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json: { sources?: SourceStatus[] } | null) => {
@@ -296,7 +319,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
     return () => {
       stale = true;
     };
-  }, [clientId, range]);
+  }, [clientId, range, customRange]);
   const sources = readiness?.clientId === clientId ? readiness.sources : null;
 
   // Past decks for the selected client (deck_reports history).
@@ -560,8 +583,9 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
             <DateRangePicker
               fromName="from"
               toName="to"
-              defaultFrom={new Date(Date.now() - 27 * 86_400_000).toISOString().slice(0, 10)}
-              defaultTo={new Date().toISOString().slice(0, 10)}
+              defaultFrom={defaultCustom.from}
+              defaultTo={defaultCustom.to}
+              onChange={(from, to) => setCustomRange({ from, to })}
             />
           </div>
         ) : null}
@@ -617,9 +641,8 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
         <div className="relative mt-6 flex items-center gap-3 border-t border-[var(--color-border)] pt-4">
           <FieldyPanelButton
             clientName={clients.find((c) => c.id === clientId)?.company_name}
-            windowDays={
-              range === "7d" ? 7 : range === "28d" ? 28 : range === "90d" ? 90 : range === "12m" ? 365 : 90
-            }
+            windowFrom={windowFrom}
+            windowTo={windowTo}
             resetKey={clientId}
           />
           <p className="ml-auto text-xs text-[var(--color-text-muted)]">

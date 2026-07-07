@@ -500,8 +500,11 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
         <div className="pointer-events-none absolute -top-32 -right-24 h-72 w-72 rounded-full bg-[var(--color-accent)]/15 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-40 -left-24 h-72 w-72 rounded-full bg-emerald-400/[0.07] blur-3xl" />
 
-        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end">
-          <div className="flex-1 min-w-0 xl:max-w-md">
+        {/* flex-wrap + a hard min width on the client column: the meeting
+            tab row grew a sixth option, and without these the client select
+            (flex-1 min-w-0) collapses to zero width on narrower screens. */}
+        <div className="relative flex flex-col gap-6 xl:flex-row xl:flex-wrap xl:items-end">
+          <div className="flex-1 min-w-[260px] xl:max-w-md">
             <label className={labelCls}>Client</label>
             <select
               name="client_id"

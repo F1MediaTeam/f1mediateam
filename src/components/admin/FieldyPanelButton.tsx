@@ -19,6 +19,8 @@ interface Conversation {
   summary: string;
   keywords: string[];
   hasContent: boolean;
+  /** Fuzzy name-match against the selected client (server-side). */
+  matchesClient?: boolean;
 }
 
 interface ListResp {
@@ -26,6 +28,16 @@ interface ListResp {
   count?: number;
   conversations?: Conversation[];
   error?: string;
+}
+
+interface Props {
+  /** Selected client's company name — scopes the list + default filter. */
+  clientName?: string;
+  /** The report window in days — the panel's default date range follows it. */
+  windowDays?: number;
+  /** Changes when the client changes: committed picks are cleared, since a
+   *  conversation curated for client A must never ride into client B's deck. */
+  resetKey?: string;
 }
 
 function isoToday(): string {
@@ -37,16 +49,18 @@ function isoDaysAgo(n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export default function FieldyPanelButton() {
+export default function FieldyPanelButton({ clientName, windowDays, resetKey }: Props) {
   const [open, setOpen] = useState(false);
-  const [from, setFrom] = useState(isoDaysAgo(30));
+  const [from, setFrom] = useState(isoDaysAgo(windowDays ?? 30));
   const [to, setTo] = useState(isoToday());
   const [loading, setLoading] = useState(false);
   const [list, setList] = useState<ListResp | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [chosenCount, setChosenCount] = useState(0); // how many are committed to the parent form
+  const [onlyClient, setOnlyClient] = useState(true);
   const rootRef = useRef<HTMLSpanElement | null>(null);
   const cacheRef = useRef<{ key: string; data: ListResp; at: number } | null>(null);
+  const prevResetKey = useRef(resetKey);
 
   // On mount, pre-load any previously-committed IDs from the parent form's
   // hidden input — so reopening the panel shows the existing selection.
@@ -61,6 +75,30 @@ export default function FieldyPanelButton() {
     }
   }, []);
 
+  // Follow the report window: when the meeting type changes, the panel's
+  // default range tracks it (a manual range set inside the panel still wins
+  // until the next change).
+  useEffect(() => {
+    setFrom(isoDaysAgo(windowDays ?? 30));
+    setTo(isoToday());
+    cacheRef.current = null;
+    setList(null);
+  }, [windowDays]);
+
+  // Client switched: clear committed picks + stale list.
+  useEffect(() => {
+    if (prevResetKey.current === resetKey) return;
+    prevResetKey.current = resetKey;
+    const form = rootRef.current?.closest("form");
+    const input = form?.querySelector<HTMLInputElement>('input[name="fieldy_ids"]');
+    if (input) input.value = "";
+    setSelected(new Set());
+    setChosenCount(0);
+    setOnlyClient(true);
+    cacheRef.current = null;
+    setList(null);
+  }, [resetKey]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -71,7 +109,7 @@ export default function FieldyPanelButton() {
   }, [open]);
 
   async function loadConversations(force = false) {
-    const cacheKey = `${from}|${to}`;
+    const cacheKey = `${from}|${to}|${clientName ?? ""}`;
     if (!force && cacheRef.current && cacheRef.current.key === cacheKey && Date.now() - cacheRef.current.at < 60_000) {
       setList(cacheRef.current.data);
       return;
@@ -80,6 +118,7 @@ export default function FieldyPanelButton() {
     setList(null);
     try {
       const params = new URLSearchParams({ from, to });
+      if (clientName) params.set("client", clientName);
       const res = await fetch(`/api/fieldy/conversations?${params.toString()}`);
       const json = (await res.json()) as ListResp;
       setList(json);
@@ -91,6 +130,15 @@ export default function FieldyPanelButton() {
     }
   }
 
+  // What the list shows: with a client selected and the scope toggle on,
+  // only that client's name-matched conversations — unless none match, in
+  // which case show everything (the matcher is fuzzy; hiding all would read
+  // as "no meetings exist").
+  const all = list?.conversations ?? [];
+  const matchCount = all.filter((c) => c.matchesClient).length;
+  const scoped = Boolean(clientName) && onlyClient && matchCount > 0;
+  const visible = scoped ? all.filter((c) => c.matchesClient) : all;
+
   function toggle(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -100,8 +148,7 @@ export default function FieldyPanelButton() {
     });
   }
   function selectAll() {
-    if (!list?.conversations) return;
-    setSelected(new Set(list.conversations.map((c) => c.id)));
+    setSelected(new Set(visible.map((c) => c.id)));
   }
   function clearAll() {
     setSelected(new Set());
@@ -208,19 +255,36 @@ export default function FieldyPanelButton() {
               </div>
             ) : list?.conversations ? (
               <>
-                <div className="flex items-center justify-between mb-2 text-xs text-[var(--color-text-muted)]">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs text-[var(--color-text-muted)]">
                   <span>
-                    {list.conversations.length} conversation{list.conversations.length === 1 ? "" : "s"} ·
-                    {" "}
+                    {visible.length} conversation{visible.length === 1 ? "" : "s"}
+                    {scoped ? ` for ${clientName}` : ""} ·{" "}
                     <strong className="text-[var(--color-text)]">{selected.size} selected</strong>
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-3">
+                    {clientName ? (
+                      matchCount > 0 ? (
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={onlyClient}
+                            onChange={(e) => setOnlyClient(e.target.checked)}
+                            className="h-3.5 w-3.5 accent-[var(--color-accent)]"
+                          />
+                          Only {clientName} ({matchCount})
+                        </label>
+                      ) : (
+                        <span className="text-amber-300/90">
+                          None mention {clientName} by name — showing all
+                        </span>
+                      )
+                    ) : null}
                     <button type="button" onClick={selectAll} className="underline hover:text-[var(--color-text)]">Select all</button>
                     <button type="button" onClick={clearAll} className="underline hover:text-[var(--color-text)]">Clear</button>
                   </div>
                 </div>
                 <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1 mb-4">
-                  {list.conversations.map((c) => {
+                  {visible.map((c) => {
                     const on = selected.has(c.id);
                     return (
                       <label
@@ -239,7 +303,14 @@ export default function FieldyPanelButton() {
                         />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-3">
-                            <div className="text-sm font-medium truncate">{c.title}</div>
+                            <div className="flex min-w-0 items-center gap-2">
+                              <div className="text-sm font-medium truncate">{c.title}</div>
+                              {!scoped && clientName && c.matchesClient ? (
+                                <span className="shrink-0 rounded-full border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 px-2 py-0.5 text-[10px] text-[var(--color-accent)]">
+                                  {clientName}
+                                </span>
+                              ) : null}
+                            </div>
                             <div className="shrink-0 text-[11px] font-mono text-[var(--color-text-muted)]">
                               {c.date ? c.date.slice(0, 10) : ""}
                             </div>

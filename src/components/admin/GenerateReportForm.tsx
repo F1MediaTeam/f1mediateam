@@ -631,9 +631,16 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
         ) : null}
 
         <div className="relative mt-6 flex items-center gap-3 border-t border-[var(--color-border)] pt-4">
-          <FieldyPanelButton />
+          <FieldyPanelButton
+            clientName={clients.find((c) => c.id === clientId)?.company_name}
+            windowDays={
+              range === "7d" ? 7 : range === "28d" ? 28 : range === "90d" ? 90 : range === "12m" ? 365 : 90
+            }
+            resetKey={clientId}
+          />
           <p className="ml-auto text-xs text-[var(--color-text-muted)]">
-            Tier, brand, and context come from the client&apos;s profile automatically.
+            Fieldy opens scoped to this client &amp; window — untick the filter to browse everything.
+            Tier, brand, and context come from the profile automatically.
           </p>
         </div>
 

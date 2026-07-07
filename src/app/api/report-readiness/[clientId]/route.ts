@@ -91,7 +91,9 @@ export async function GET(
     }
   }
 
-  const winLabel = window.label.toLowerCase();
+  // Preset labels read well inline ("last 28 days"); a custom span like
+  // "2026-06-10 → 2026-07-07" truncates the chip — call it "this window".
+  const winLabel = window.label.length > 16 ? "this window" : window.label.toLowerCase();
   const sources: SourceStatus[] = [
     {
       key: "gsc",

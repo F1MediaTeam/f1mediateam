@@ -550,32 +550,6 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
             </div>
           </div>
 
-          <div className="flex gap-3 xl:ml-auto">
-            <button
-              type="submit"
-              name="dryrun"
-              value="1"
-              disabled={busy !== "idle"}
-              className={cn(
-                btnBase,
-                "h-14 px-6 text-sm border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20",
-              )}
-            >
-              <Sparkles size={16} />
-              {content ? "Re-draft" : "Draft the deck"}
-            </button>
-            <button
-              type="submit"
-              disabled={busy !== "idle"}
-              className={cn(
-                btnBase,
-                "h-14 px-7 text-sm bg-gradient-to-r from-[var(--color-accent)] to-emerald-400 text-[var(--color-on-accent)] shadow-[0_0_35px_-8px_var(--color-accent)] hover:brightness-110",
-              )}
-            >
-              <Download size={16} />
-              {content ? "Download .pptx" : "Generate & download"}
-            </button>
-          </div>
         </div>
 
         {range === "custom" ? (
@@ -645,6 +619,39 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
             Fieldy opens scoped to this client &amp; window — untick the filter to browse everything.
             Tier, brand, and context come from the profile automatically.
           </p>
+        </div>
+
+        {/* ---------- Actions — the end of the configure-then-act flow ---------- */}
+        <div className="relative mt-5 flex flex-wrap items-center gap-3 border-t border-[var(--color-border)] pt-5">
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Draft first to preview &amp; edit every slide — Generate goes straight to the .pptx.
+          </p>
+          <div className="ml-auto flex gap-3">
+            <button
+              type="submit"
+              name="dryrun"
+              value="1"
+              disabled={busy !== "idle"}
+              className={cn(
+                btnBase,
+                "h-12 px-6 text-sm border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20",
+              )}
+            >
+              <Sparkles size={16} />
+              {content ? "Re-draft" : "Draft the deck"}
+            </button>
+            <button
+              type="submit"
+              disabled={busy !== "idle"}
+              className={cn(
+                btnBase,
+                "h-12 px-7 text-sm bg-gradient-to-r from-[var(--color-accent)] to-emerald-400 text-[var(--color-on-accent)] shadow-[0_0_35px_-8px_var(--color-accent)] hover:brightness-110",
+              )}
+            >
+              <Download size={16} />
+              {content ? "Download .pptx" : "Generate & download"}
+            </button>
+          </div>
         </div>
 
         {savedDraftAvailable ? (

@@ -108,6 +108,13 @@ function fmtElapsed(s: number): string {
   return m > 0 ? `${m}m ${String(s % 60).padStart(2, "0")}s` : `${s}s`;
 }
 
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// "2026-06-10" → "Jun 10" — the window readout next to "Claude builds from".
+function fmtShortDate(iso: string): string {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${SHORT_MONTHS[+m[2] - 1]} ${+m[3]}` : iso;
+}
+
 function ProgressPanel({
   mode,
   hasEditedDeck,
@@ -603,7 +610,14 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
 
         {sources ? (
           <div className="relative mt-6">
-            <label className={labelCls}>Claude builds from</label>
+            <label className={labelCls}>
+              Claude builds from
+              <span className="ml-2 normal-case tracking-normal font-semibold text-[var(--color-accent)]">
+                {meetingType === "sincelast"
+                  ? "· window: since the last meeting"
+                  : `· window: ${fmtShortDate(windowFrom)} → ${fmtShortDate(windowTo)}`}
+              </span>
+            </label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
               {sources.map((s) => {
                 const Icon = SOURCE_ICONS[s.key] ?? FileText;

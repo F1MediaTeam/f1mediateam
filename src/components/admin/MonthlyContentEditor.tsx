@@ -141,23 +141,55 @@ export default function MonthlyContentEditor({
     onChange(setAtPath(root, path, value) as unknown as MonthlyContent);
   }
 
+  // Downscale before embedding (same approach as the DeckChat attachments):
+  // the data: URI rides inside content_json on Download and inside every
+  // revise-chat POST, so a full-size phone photo (~5 MB as base64) would blow
+  // Vercel's 4.5 MB function-payload cap at the finish line.
+  const PASSTHROUGH_BYTES = 400_000;
+  const MAX_EDGE_PX = 1600;
+
   function addImage(files: FileList | null) {
     const file = files?.[0];
     if (!file) return;
-    if (file.size > 4 * 1024 * 1024) {
-      window.alert("Keep slide images under 4 MB — they embed directly in the deck.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
+    const commit = (dataUrl: string) => {
       const images = [
         ...(content.images ?? []),
-        { title: file.name.replace(/\.[a-z0-9]+$/i, ""), caption: "", data: String(reader.result) },
+        { title: file.name.replace(/\.[a-z0-9]+$/i, ""), caption: "", data: dataUrl },
       ];
       onChange({ ...content, images });
       if (fileRef.current) fileRef.current.value = "";
     };
-    reader.readAsDataURL(file);
+    if (file.size <= PASSTHROUGH_BYTES) {
+      const reader = new FileReader();
+      reader.onload = () => commit(String(reader.result));
+      reader.readAsDataURL(file);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, MAX_EDGE_PX / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        URL.revokeObjectURL(url);
+        window.alert("Couldn't process that image — try a different file.");
+        return;
+      }
+      // White backing so transparent PNGs don't turn black in JPEG.
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      commit(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      window.alert("Couldn't read that image — try a different file.");
+    };
+    img.src = url;
   }
 
   const sections = Object.entries(root).filter(

@@ -15,10 +15,11 @@
 
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { data } from "@/lib/data";
-import { resolveRange } from "@/lib/deck/ai-narrative";
+import { data, usingMock } from "@/lib/data";
+import { resolveRange, meetingMatchesClient } from "@/lib/deck/ai-narrative";
 import { fieldyMeetingsInWindow, fieldyConfigured } from "@/lib/connectors/fieldy";
-import { fetchClientGscPages, fetchClientGscQueries } from "@/lib/connectors/gsc";
+import { fetchClientGscPages, fetchClientGscQueries, fetchClientGscBreakdown } from "@/lib/connectors/gsc";
+import { fetchGa4Channels, fetchGa4LandingPages } from "@/lib/connectors/ga4";
 import { todayIso } from "@/lib/utils";
 import { generateDeck, type BrandConfig, type MonthlyContent } from "@/lib/deck/f1-monthly/deck-builder";
 import { inlineWorkGalleryImages } from "@/lib/deck/f1-monthly/gallery-images";
@@ -69,7 +70,40 @@ function brandingHex(branding: unknown, key: "primary" | "secondary" | "tertiary
   return m ? m[0].toUpperCase() : null;
 }
 
-async function resolveBrand(formData: FormData, client: Client): Promise<BrandConfig> {
+// Fetch a logo (remote URL or public/ path) into a data URI, or null.
+async function logoToDataUri(pick: string | null): Promise<string | null> {
+  if (!pick) return null;
+  try {
+    if (pick.startsWith("http")) {
+      const res = await fetch(pick);
+      if (!res.ok) return null;
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length === 0 || buf.length >= 4_000_000) return null;
+      const ct = res.headers.get("content-type") || "image/png";
+      return `data:${ct};base64,${buf.toString("base64")}`;
+    }
+    // Static fallback path under public/ (traced into this lambda).
+    const { readFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const buf = await readFile(join(process.cwd(), "public", pick.replace(/^\//, "")));
+    const ext = pick.split(".").pop()?.toLowerCase();
+    const mime =
+      ext === "svg" ? "image/svg+xml" : ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+    return `data:${mime};base64,${buf.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
+// Read a hex off the 0008 brand_* columns (may not exist pre-migration).
+function columnHex(client: Client, key: string): string | null {
+  const raw = (client as unknown as Record<string, unknown>)[key];
+  if (typeof raw !== "string") return null;
+  const m = raw.replace(/^#/, "").match(/^[0-9a-fA-F]{6}$/);
+  return m ? m[0].toUpperCase() : null;
+}
+
+async function resolveBrand(formData: FormData, client: Client, ob: OnboardingData): Promise<BrandConfig> {
   const brandKey = field(formData, "brand_key") || slugify(client.company_name);
   const known = (brandConfigs as Record<string, BrandConfig>)[brandKey];
   const base: BrandConfig = known
@@ -79,7 +113,21 @@ async function resolveBrand(formData: FormData, client: Client): Promise<BrandCo
   // Precedence for brand colors:
   //   1. explicit form field (admin override for this run)
   //   2. clients.branding.colors saved in the DB (customer's palette)
-  //   3. brand-configs.json[brandKey]  (bundled defaults, already in `base`)
+  //   3. clients.brand_primary/secondary/tertiary columns (0008)
+  //   4. onboarding brand_color_hex (what the customer told us — primary only)
+  //   5. brand-configs.json[brandKey]  (bundled defaults, already in `base`)
+  const obPrimary = (() => {
+    const raw = typeof ob.brand_color_hex === "string" ? ob.brand_color_hex : "";
+    const m = raw.replace(/^#/, "").match(/^[0-9a-fA-F]{6}$/);
+    return m ? m[0].toUpperCase() : null;
+  })();
+  if (obPrimary) base.primary = obPrimary;
+  const colPrimary = columnHex(client, "brand_primary");
+  const colSecondary = columnHex(client, "brand_secondary");
+  const colTertiary = columnHex(client, "brand_tertiary");
+  if (colPrimary) base.primary = colPrimary;
+  if (colSecondary) base.secondary = colSecondary;
+  if (colTertiary) base.tertiary = colTertiary;
   const dbPrimary = brandingHex(client.branding, "primary");
   const dbSecondary = brandingHex(client.branding, "secondary");
   const dbTertiary = brandingHex(client.branding, "tertiary");
@@ -94,58 +142,34 @@ async function resolveBrand(formData: FormData, client: Client): Promise<BrandCo
   if (fs) base.secondary = fs.replace(/^#/, "");
   if (ft) base.tertiary = ft.replace(/^#/, "");
 
-  // Per-run font overrides from the deck style bar.
+  // Fonts: per-run style-bar override wins; otherwise the fonts the customer
+  // named in onboarding ("Montserrat, Open Sans" → display, body).
   const df = field(formData, "display_font");
   const bf = field(formData, "body_font");
+  const obFonts = (typeof ob.brand_fonts === "string" ? ob.brand_fonts : "")
+    .split(/[,/;·|]+/)
+    .map((s) => s.trim())
+    .filter((s) => /^[A-Za-z][A-Za-z0-9 .'-]{1,40}$/.test(s));
+  if (obFonts[0]) base.displayFont = obFonts[0];
+  if (obFonts[1]) base.bodyFont = obFonts[1];
   if (df) base.displayFont = df;
   if (bf) base.bodyFont = bf;
 
   const logoUrl = field(formData, "logo_url");
   if (logoUrl) {
-    try {
-      const res = await fetch(logoUrl);
-      if (res.ok) {
-        const buf = Buffer.from(await res.arrayBuffer());
-        if (buf.length > 0 && buf.length < 4_000_000) {
-          const ct = res.headers.get("content-type") || "image/png";
-          base.logoData = `data:${ct};base64,${buf.toString("base64")}`;
-        }
-      }
-    } catch {
-      // ignore — slide just falls back to the company name in text
-    }
+    base.logoData = (await logoToDataUri(logoUrl)) ?? base.logoData;
   }
 
-  // No explicit logo? Use the client's brand logo (onboarding upload or the
-  // static fallback in public/) — the cover slide centers it. Dark-theme
-  // variant first: the cover background is the dark brand primary.
-  if (!base.logoData) {
-    try {
-      const { getClientBrandLogoUrls } = await import("@/lib/client-logo");
-      const logos = await getClientBrandLogoUrls(client.id, client.company_name);
-      const pick = logos.dark || logos.light;
-      if (pick?.startsWith("http")) {
-        const res = await fetch(pick);
-        if (res.ok) {
-          const buf = Buffer.from(await res.arrayBuffer());
-          if (buf.length > 0 && buf.length < 4_000_000) {
-            const ct = res.headers.get("content-type") || "image/png";
-            base.logoData = `data:${ct};base64,${buf.toString("base64")}`;
-          }
-        }
-      } else if (pick) {
-        // Static fallback path under public/ (traced into this lambda).
-        const { readFile } = await import("node:fs/promises");
-        const { join } = await import("node:path");
-        const buf = await readFile(join(process.cwd(), "public", pick.replace(/^\//, "")));
-        const ext = pick.split(".").pop()?.toLowerCase();
-        const mime =
-          ext === "svg" ? "image/svg+xml" : ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
-        base.logoData = `data:${mime};base64,${buf.toString("base64")}`;
-      }
-    } catch {
-      // ignore — cover falls back to the company name in text
-    }
+  // Brand logos: the cover sits on the dark brand primary (dark-theme
+  // variant), interior slides are white (light-theme variant). Fetch both so
+  // each surface gets art that's actually legible on it.
+  try {
+    const { getClientBrandLogoUrls } = await import("@/lib/client-logo");
+    const logos = await getClientBrandLogoUrls(client.id, client.company_name);
+    if (!base.logoData) base.logoData = await logoToDataUri(logos.dark || logos.light);
+    base.logoLightData = await logoToDataUri(logos.light || logos.dark);
+  } catch {
+    // ignore — slides fall back to the company name in text
   }
   return base;
 }
@@ -206,6 +230,8 @@ interface SynthesisArgs {
   profileData: unknown;
   fieldyTranscript: string;
   selectedNotes: string;
+  clientMessages: string;
+  priorDeck: string;
 }
 
 // The synthesis user message — also exported verbatim by the prompt_only
@@ -221,18 +247,23 @@ function buildUserMsg(args: SynthesisArgs): string {
     "\n\nCLIENT_PROFILE (qualitative — voice, ideal customer, services, growth lanes; NEVER a metrics source):\n" + JSON.stringify(args.clientProfile, null, 2) +
     "\n\nPROFILE_DATA (source of truth for all numbers; compact JSON):\n" + JSON.stringify(args.profileData) +
     "\n\nSELECTED_NOTES (hand-picked directives from the F1 operator for THIS report — weight highly):\n" + (args.selectedNotes || "(none)") +
+    "\n\nCLIENT_MESSAGES (the client's portal messages this period — their own asks/concerns; qualitative only):\n" + (args.clientMessages || "(none)") +
+    "\n\nPRIOR_DECK (the previous meeting deck's plan — review these commitments in sinceLastMeeting; never a metrics source):\n" + (args.priorDeck || "(none — first deck on record)") +
     "\n\nFIELDY_TRANSCRIPT (qualitative context only — never a metrics source):\n" + (args.fieldyTranscript || "(empty)") +
     "\n\nReturn ONLY the content object as valid JSON."
   );
 }
 
-async function synthesize(args: SynthesisArgs): Promise<MonthlyContent> {
+async function synthesize(args: SynthesisArgs, signal?: AbortSignal): Promise<MonthlyContent> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY is not set");
   const userMsg = buildUserMsg(args);
 
   const res = await fetch(ANTHROPIC_API, {
     method: "POST",
+    // Propagate the browser's cancel: aborting here stops the API spend
+    // instead of letting a canceled draft run (and bill) to completion.
+    signal,
     headers: {
       "x-api-key": key,
       "anthropic-version": "2023-06-01",
@@ -291,21 +322,43 @@ export async function POST(request: NextRequest) {
   if (!client) return new Response("Client not found", { status: 404 });
 
   const today = todayIso("America/Los_Angeles");
-  const window = resolveRange(field(fd, "range") || "28d", field(fd, "from") || null, field(fd, "to") || null, today);
+
+  // Onboarding early: brand colors/fonts and the client profile both read it.
+  const onboardingRow = await data.getOnboarding(clientId);
+  const ob = (onboardingRow?.data ?? {}) as OnboardingData;
+
+  // The client's meeting history — anchors the "since last meeting" window
+  // and gives REPORT_META a last-meeting date for continuity framing.
+  const clientMeetings = (await data.listMeetings().catch(() => []))
+    .filter((m) => m.client_id === clientId)
+    .filter((m) => m.scheduled_at.slice(0, 10) <= today)
+    .sort((a, b) => b.scheduled_at.localeCompare(a.scheduled_at));
+  const lastMeetingDate = clientMeetings[0]?.scheduled_at.slice(0, 10) ?? null;
+
+  // "since_last" range: pull exactly the span since the client was last seen.
+  // Falls back to the standard 28d window when no meeting is on record.
+  const rawRange = field(fd, "range") || "28d";
+  const window =
+    rawRange === "since_last" && lastMeetingDate
+      ? resolveRange("custom", lastMeetingDate, today, today)
+      : resolveRange(rawRange === "since_last" ? "28d" : rawRange, field(fd, "from") || null, field(fd, "to") || null, today);
 
   // ---------- Form overrides (needed by both paths) ----------
   // Tier order: explicit form field wins, otherwise fall back to the tier the
   // admin assigned on the client's profile (clients.tier). Default to "1".
   const clientTier = client.tier === "1" || client.tier === "2" || client.tier === "3" ? client.tier : "";
   const tier = normalizeTier(field(fd, "tier") || clientTier || "1");
-  const brand = await resolveBrand(fd, client);
+  const brand = await resolveBrand(fd, client, ob);
   const brandKey = field(fd, "brand_key") || slugify(client.company_name);
 
   // Meeting cadence — shapes how the bot frames the narrative (weekly
-  // check-in vs. yearly review) and names the output file.
+  // check-in vs. yearly review) and names the output file. "sincelast" reads
+  // as a custom-window review.
   const REPORT_TYPES = ["weekly", "monthly", "quarterly", "yearly", "custom"] as const;
   const rawType = field(fd, "report_type").toLowerCase();
-  const reportType = (REPORT_TYPES as readonly string[]).includes(rawType) ? rawType : "monthly";
+  const reportType = rawType === "sincelast"
+    ? "custom"
+    : (REPORT_TYPES as readonly string[]).includes(rawType) ? rawType : "monthly";
 
   // Hand-picked operator directives for this specific report.
   const selectedNotes = field(fd, "selected_notes");
@@ -329,6 +382,13 @@ export async function POST(request: NextRequest) {
     await inlineWorkGalleryImages(content);
     const buf = await generateDeck(brand, content);
 
+    // A canceled run must not publish: without this check the .pptx of a
+    // draft the operator never reviewed lands in the files table — which the
+    // client's Files page lists.
+    if (request.signal.aborted) {
+      return new Response("Canceled", { status: 499 });
+    }
+
     try {
       const supabase = await createServiceClient();
       const storagePath = `${clientId}/reports/${window.toIso}-${randomUUID()}.pptx`;
@@ -343,6 +403,24 @@ export async function POST(request: NextRequest) {
         mime_type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         size_bytes: buf.length,
         category: "monthly-report",
+      });
+      // Deck history: persist the editable content JSON so this deck can be
+      // reopened/re-rendered later and the NEXT deck can review this one's
+      // commitments. Inlined image bytes are stripped — URLs re-inline on
+      // re-render. Best-effort: pre-migration this just returns null.
+      const storableContent = JSON.parse(
+        JSON.stringify(content, (k, v) =>
+          k === "data" && typeof v === "string" && v.startsWith("data:") ? undefined : v,
+        ),
+      ) as Record<string, unknown>;
+      await data.saveDeckReport({
+        client_id: clientId,
+        report_type: reportType,
+        period_from: window.fromIso,
+        period_to: window.toIso,
+        meeting_date: today,
+        content: storableContent,
+        pptx_path: storagePath,
       });
     } catch (err) {
       console.error("report storage upload failed", err);
@@ -378,13 +456,21 @@ export async function POST(request: NextRequest) {
   const [
     clicksAll, imprAll, posAll, ctrAll,
     sessionsAll, activeUsersAll, conversionsAll,
-    bingClicksAll, bingImprAll, bingAvgPosAll,
+    bingClicksAll, bingImprAll, bingAvgPosAll, bingAvgImprPosAll,
     semrushKeywordsAll, semrushTrafficAll, semrushAuthorityAll,
     visibilityAll, aiVisibilityAll,
+    semrushBacklinksAll, semrushRefDomainsAll, siteHealthAll, mentionsAll,
+    semrushPaidKeywordsAll, semrushPaidTrafficAll, semrushPaidCostAll,
     contentCards,
     topPages,
     semrushReports,
     topQueries,
+    gscDevices, gscCountries,
+    ga4Channels, ga4LandingPages,
+    allTasks,
+    calendarEvents,
+    portalMessages,
+    loginAudit,
   ] = await Promise.all([
     data.listSnapshots({ clientId, metric: "clicks" }),
     data.listSnapshots({ clientId, metric: "impressions" }),
@@ -396,15 +482,31 @@ export async function POST(request: NextRequest) {
     data.listSnapshots({ clientId, metric: "bing_clicks" }),
     data.listSnapshots({ clientId, metric: "bing_impressions" }),
     data.listSnapshots({ clientId, metric: "bing_avg_click_position" }),
+    data.listSnapshots({ clientId, metric: "bing_avg_impression_position" }),
     data.listSnapshots({ clientId, metric: "semrush_organic_keywords" }),
     data.listSnapshots({ clientId, metric: "semrush_organic_traffic" }),
     data.listSnapshots({ clientId, metric: "semrush_authority_score" }),
     data.listSnapshots({ clientId, metric: "visibility" }),
     data.listSnapshots({ clientId, metric: "ai_visibility" }),
+    data.listSnapshots({ clientId, metric: "semrush_backlinks" }),
+    data.listSnapshots({ clientId, metric: "semrush_referring_domains" }),
+    data.listSnapshots({ clientId, metric: "site_health" }),
+    data.listSnapshots({ clientId, metric: "mentions" }),
+    data.listSnapshots({ clientId, metric: "semrush_paid_keywords" }),
+    data.listSnapshots({ clientId, metric: "semrush_paid_traffic" }),
+    data.listSnapshots({ clientId, metric: "semrush_paid_cost" }),
     data.listContent({ clientId }),
     fetchClientGscPages(clientId, window.fromIso, window.toIso, 25).catch(() => []),
     data.listSemrushReports(clientId).catch(() => []),
     fetchClientGscQueries(clientId, window.fromIso, window.toIso, 25).catch(() => []),
+    fetchClientGscBreakdown(clientId, "device", window.fromIso, window.toIso, 6).catch(() => []),
+    fetchClientGscBreakdown(clientId, "country", window.fromIso, window.toIso, 8).catch(() => []),
+    fetchGa4Channels(clientId, window.fromIso, window.toIso, 8).catch(() => []),
+    fetchGa4LandingPages(clientId, window.fromIso, window.toIso, 10).catch(() => []),
+    data.listTasks({ clientId }).catch(() => []),
+    data.listCalendar({ clientId }).catch(() => []),
+    data.listMessages(clientId).catch(() => []),
+    data.listAudit({ clientId, limit: 200 }).catch(() => []),
   ]);
 
   // ----- GSC -----
@@ -426,7 +528,9 @@ export async function POST(request: NextRequest) {
   const sessionsCur = sumInRange(sessionsAll, window.fromIso, window.toIso);
   const sessionsPrev = priorSumOrNull(sessionsAll, window.prevFromIso, window.prevToIso);
   const activeUsersCur = sumInRange(activeUsersAll, window.fromIso, window.toIso);
+  const activeUsersPrev = priorSumOrNull(activeUsersAll, window.prevFromIso, window.prevToIso);
   const conversionsCur = sumInRange(conversionsAll, window.fromIso, window.toIso);
+  const conversionsPrev = priorSumOrNull(conversionsAll, window.prevFromIso, window.prevToIso);
   const sessionsTrend = sessionsAll
     .filter((s) => inRange(s.captured_at, window.fromIso, window.toIso))
     .sort((a, b) => a.captured_at.localeCompare(b.captured_at));
@@ -437,15 +541,43 @@ export async function POST(request: NextRequest) {
   const bingImprCur = sumInRange(bingImprAll, window.fromIso, window.toIso);
   const bingImprPrev = priorSumOrNull(bingImprAll, window.prevFromIso, window.prevToIso);
   const bingAvgPosCur = avgInRange(bingAvgPosAll, window.fromIso, window.toIso);
+  const bingAvgImprPosCur = avgInRange(bingAvgImprPosAll, window.fromIso, window.toIso);
+  const bingClicksTrend = bingClicksAll
+    .filter((s) => inRange(s.captured_at, window.fromIso, window.toIso))
+    .sort((a, b) => a.captured_at.localeCompare(b.captured_at));
 
   // ----- SEMrush -----
-  const latest = (series: { captured_at: string; value: number }[]) =>
-    series.length ? series[series.length - 1].value : null;
-  const semrushKeywordsCur = latest(semrushKeywordsAll);
-  const semrushTrafficCur = latest(semrushTrafficAll);
-  const semrushAuthorityCur = latest(semrushAuthorityAll);
-  const visibilityCur = latest(visibilityAll);
-  const aiVisibilityCur = latest(aiVisibilityAll);
+  // These series are periodic history pulls, not daily syncs. Read the value
+  // AS OF the window end (not "latest ever" — a deck for a past window must
+  // not show today's numbers) and the prior-window value for a real delta.
+  type Series = { captured_at: string; value: number }[];
+  const valueAsOf = (series: Series, iso: string): number | null => {
+    const rows = series.filter((s) => s.captured_at <= iso);
+    return rows.length ? rows[rows.length - 1].value : null;
+  };
+  const monthlySeries = (series: Series): Array<{ date: string; value: number }> =>
+    series
+      .filter((s) => s.captured_at <= window.toIso)
+      .slice(-24)
+      .map((s) => ({ date: s.captured_at, value: s.value }));
+  const semrushKeywordsCur = valueAsOf(semrushKeywordsAll, window.toIso);
+  const semrushKeywordsPrev = valueAsOf(semrushKeywordsAll, window.prevToIso);
+  const semrushTrafficCur = valueAsOf(semrushTrafficAll, window.toIso);
+  const semrushTrafficPrev = valueAsOf(semrushTrafficAll, window.prevToIso);
+  const semrushAuthorityCur = valueAsOf(semrushAuthorityAll, window.toIso);
+  const semrushBacklinksCur = valueAsOf(semrushBacklinksAll, window.toIso);
+  const semrushBacklinksPrev = valueAsOf(semrushBacklinksAll, window.prevToIso);
+  const semrushRefDomainsCur = valueAsOf(semrushRefDomainsAll, window.toIso);
+  const semrushRefDomainsPrev = valueAsOf(semrushRefDomainsAll, window.prevToIso);
+  const siteHealthCur = valueAsOf(siteHealthAll, window.toIso);
+  const mentionsCur = valueAsOf(mentionsAll, window.toIso);
+  const semrushPaid = {
+    keywords: valueAsOf(semrushPaidKeywordsAll, window.toIso),
+    traffic: valueAsOf(semrushPaidTrafficAll, window.toIso),
+    trafficCost: valueAsOf(semrushPaidCostAll, window.toIso),
+  };
+  const visibilityCur = valueAsOf(visibilityAll, window.toIso);
+  const aiVisibilityCur = valueAsOf(aiVisibilityAll, window.toIso);
 
   // Content board with approval history (slide 5). The events log says who
   // moved each card — actor_role "client" on a proposed→ transition means the
@@ -453,23 +585,38 @@ export async function POST(request: NextRequest) {
   const cardEvents = await data
     .listContentEventsByCards(contentCards.map((c) => c.id))
     .catch(() => new Map<string, never[]>());
-  // Mirror ContentDetailModal's thumbnail extraction: any image link in the
-  // card body (bare URL, markdown ![](), [ATTACH:https://…]) plus an image-ish
-  // file_url. These feed the posted-work gallery — whatever shows a thumbnail
-  // on the content board can land on a slide. SVG/HEIC are excluded: PowerPoint
-  // can't render them reliably.
+  // Image links on a card feed the posted-work gallery. Two capture modes:
+  //   • Marker context — markdown ![]() and [ATTACH:…] declare "this is an
+  //     image", so no file extension is required (scheduler/CDN URLs like
+  //     lh3.googleusercontent.com carry none) and query strings are KEPT
+  //     (they're the signature on S3/Supabase/Instagram signed URLs).
+  //   • Bare URLs — need an image extension so ordinary links don't match,
+  //     but keep any query string after it.
+  // The render-time fetch (gallery-images.ts) is the format gate: it embeds
+  // only PowerPoint-safe types, so a non-image marker URL just drops out.
   const extractCardImages = (body: string | null, fileUrl: string | null): string[] => {
     const urls: string[] = [];
-    const re = /(?:\!\[[^\]]*\]\(|\[ATTACH:|^|\s)(https?:\/\/[^\s\)]+\.(?:png|jpe?g|gif|webp))/gi;
+    const hay = body ?? "";
     let m: RegExpExecArray | null;
-    while ((m = re.exec(body ?? "")) !== null) urls.push(m[1]);
-    if (fileUrl && /^https?:\/\/\S+\.(?:png|jpe?g|gif|webp)(?:\?|#|$)/i.test(fileUrl)) urls.push(fileUrl);
-    return Array.from(new Set(urls)).slice(0, 3);
+    const marked = /(?:\!\[[^\]]*\]\(|\[ATTACH:)\s*(https?:\/\/[^\s\)\]]+)/gi;
+    while ((m = marked.exec(hay)) !== null) urls.push(m[1]);
+    const bare = /(?:^|\s)(https?:\/\/[^\s\)\]]+\.(?:png|jpe?g|gif)(?:\?[^\s\)\]]*)?)/gi;
+    while ((m = bare.exec(hay)) !== null) urls.push(m[1]);
+    if (fileUrl && /^https?:\/\//i.test(fileUrl)) urls.push(fileUrl);
+    return Array.from(new Set(urls)).slice(0, 4);
   };
   const enrichCard = (c: (typeof contentCards)[number]) => {
     const evs = cardEvents.get(c.id) ?? [];
     const postedEv = [...evs].reverse().find((e) => e.to_stage === "posted");
     const approveEv = [...evs].reverse().find((e) => e.from_stage === "proposed" && e.to_stage !== "proposed");
+    // Open change request on a still-proposed card: the client's own words on
+    // what they want different — direct "topics to address" material.
+    const crEv = c.stage === "proposed"
+      ? [...evs].reverse().find((e) => (e.note ?? "").startsWith("CHANGES REQUESTED"))
+      : undefined;
+    const changeRequestNote = crEv?.note
+      ? crEv.note.replace(/^CHANGES REQUESTED:\s*/, "").replace(/\[ATTACH:[^\]]+\]/g, "").trim().slice(0, 300) || null
+      : null;
     return {
       title: c.title,
       link: c.link,
@@ -479,6 +626,7 @@ export async function POST(request: NextRequest) {
       approvedAt: approveEv?.created_at?.slice(0, 10) ?? null,
       // "client" = the customer approved it themselves; "admin" = F1 moved it.
       approvedBy: approveEv?.actor_role ?? null,
+      changeRequestNote,
       // Image URLs on the card — the posted-work gallery copies these into
       // workGallery entries verbatim.
       images: extractCardImages(c.body, c.file_url),
@@ -492,6 +640,37 @@ export async function POST(request: NextRequest) {
   const postedInWindow = contentBoard.posted.filter(
     (c) => c.postedAt != null && c.postedAt >= window.fromIso && c.postedAt <= window.toIso,
   );
+
+  // Image deliverables from the client's file folder this period — uploads
+  // (flyer scans, photos, screenshots) that never got pasted onto a card
+  // body, so card extraction can't see them. Signed for 30 days so the
+  // render (and a re-render within the month) can fetch them.
+  const deliverableImages: Array<{ filename: string; category: string | null; uploadedAt: string; image: string }> = [];
+  try {
+    const fileRows = await data.listFiles(clientId);
+    const imgRows = fileRows
+      .filter((f) => /^image\/(png|jpe?g|gif)/i.test(f.mime_type ?? ""))
+      .filter((f) => f.created_at.slice(0, 10) >= window.fromIso && f.created_at.slice(0, 10) <= window.toIso)
+      .slice(0, 12);
+    if (imgRows.length && !usingMock) {
+      const supabase = await createServiceClient();
+      for (const f of imgRows) {
+        const { data: signed } = await supabase.storage
+          .from(ATTACHMENT_BUCKET)
+          .createSignedUrl(f.storage_path, 60 * 60 * 24 * 30);
+        if (signed?.signedUrl) {
+          deliverableImages.push({
+            filename: f.filename,
+            category: f.category,
+            uploadedAt: f.created_at.slice(0, 10),
+            image: signed.signedUrl,
+          });
+        }
+      }
+    }
+  } catch {
+    // deliverables are additive — never block the deck
+  }
 
   // Semrush insights extracted from the deep pull if present
   type SemrushReport = (typeof semrushReports)[number];
@@ -508,17 +687,25 @@ export async function POST(request: NextRequest) {
   // Every deep-pull report goes to the bot, but under a hard serialized-size
   // budget — a client with 17 fat reports would otherwise balloon the prompt
   // past what synthesis can chew through inside the function time limit.
-  const DEEP_PULL_CHAR_BUDGET = 120_000;
+  // A too-fat report is SKIPPED (not a hard stop — `break` used to silently
+  // drop every report after the first fat one) and named in deepPullDropped
+  // so the omission is visible instead of silent.
+  const DEEP_PULL_CHAR_BUDGET = 150_000;
   let deepPullChars = 0;
   const semrushDeepPull: Array<{ report: string; rows: Array<Record<string, unknown>> }> = [];
+  const deepPullDropped: string[] = [];
   for (const r of semrushReports) {
     const meta = (r.meta ?? {}) as Record<string, unknown>;
+    const label = String(meta.label ?? r.report_type);
     const entry = {
-      report: String(meta.label ?? r.report_type),
-      rows: ((r.rows ?? []) as Array<Record<string, unknown>>).slice(0, 12),
+      report: label,
+      rows: ((r.rows ?? []) as Array<Record<string, unknown>>).slice(0, 25),
     };
     const size = JSON.stringify(entry).length;
-    if (deepPullChars + size > DEEP_PULL_CHAR_BUDGET) break;
+    if (deepPullChars + size > DEEP_PULL_CHAR_BUDGET) {
+      deepPullDropped.push(label);
+      continue;
+    }
     deepPullChars += size;
     semrushDeepPull.push(entry);
   }
@@ -537,6 +724,10 @@ export async function POST(request: NextRequest) {
   // not, fall back to the auto-pull: every conversation in the window that
   // mentions the client by name.
   let transcript = "";
+  // Anything that silently degrades the deck's inputs gets named here and
+  // surfaced to the operator (prompt_only response + server logs) — an
+  // operator-curated conversation quietly missing is worse than an error.
+  const warnings: string[] = [];
   const curatedIds = field(fd, "fieldy_ids")
     .split(",")
     .map((s) => s.trim())
@@ -544,21 +735,25 @@ export async function POST(request: NextRequest) {
 
   if (fieldyConfigured()) {
     try {
-      let chosen;
+      let chosen: Awaited<ReturnType<typeof fieldyMeetingsInWindow>>;
       if (curatedIds.length > 0) {
-        // Pull a wide window so older curated picks still resolve.
+        // Pull a wide window (paginated) so older curated picks still resolve.
         const wide = new Date();
-        wide.setUTCDate(wide.getUTCDate() - 365);
+        wide.setUTCDate(wide.getUTCDate() - 730);
         const wideFrom = wide.toISOString().slice(0, 10);
-        const all = await fieldyMeetingsInWindow(wideFrom, today, 100);
+        const all = await fieldyMeetingsInWindow(wideFrom, today, 500);
         chosen = all.filter((n) => curatedIds.includes(n.id));
+        const missing = curatedIds.filter((id) => !chosen.some((n) => n.id === id));
+        if (missing.length) {
+          warnings.push(
+            `${missing.length} of your ${curatedIds.length} selected Fieldy conversation(s) could not be resolved and are NOT in this deck's transcript.`,
+          );
+        }
       } else {
-        const notes = await fieldyMeetingsInWindow(window.fromIso, window.toIso);
-        chosen = notes.filter((n) =>
-          [n.title, n.summary, n.content].some((s) =>
-            (s ?? "").toLowerCase().includes(client.company_name.toLowerCase()),
-          ),
-        );
+        const notes = await fieldyMeetingsInWindow(window.fromIso, window.toIso, 100);
+        // Token-based matcher (shared with the meetings deck) — survives
+        // partial names like "Buckets" for "Buckets Of Ink LLC".
+        chosen = notes.filter((n) => meetingMatchesClient(n, client.company_name));
       }
       transcript = chosen
         .map((n) => {
@@ -569,10 +764,17 @@ export async function POST(request: NextRequest) {
           return `# ${n.title}${n.startTime ? ` (${n.startTime.slice(0, 10)})` : ""}\n${n.summary ?? ""}\n${n.content ?? ""}${kw}${quotes}`;
         })
         .join("\n\n---\n\n");
-    } catch {
+    } catch (e) {
       transcript = "";
+      warnings.push(
+        `Fieldy fetch failed (${e instanceof Error ? e.message.slice(0, 120) : "unknown error"}) — this deck has NO meeting-notes context.`,
+      );
     }
   }
+  if (deepPullDropped.length) {
+    warnings.push(`SEMrush deep-pull reports omitted for size: ${deepPullDropped.join(", ")}.`);
+  }
+  for (const w of warnings) console.warn("[monthly-report]", w);
 
   // ---------- CLIENT_PROFILE from onboarding ----------
   // Pull the onboarding row (if the customer has submitted one) and hand the
@@ -581,11 +783,14 @@ export async function POST(request: NextRequest) {
   // to spotlight, what growth lanes matter. The bot uses this to tailor
   // narrative sections (executiveSummary.intro, whatsNext, framing) so a
   // print shop's report doesn't sound like a law firm's.
-  const onboardingRow = await data.getOnboarding(clientId);
-  const ob = (onboardingRow?.data ?? {}) as OnboardingData;
   const trimmed = (v: unknown): string | null => {
     const s = typeof v === "string" ? v.trim() : "";
     return s ? s : null;
+  };
+  const labeled = (label: string | null | undefined, text: string | null): string | null => {
+    if (!text) return null;
+    const l = trimmed(label);
+    return l ? `${l}: ${text}` : text;
   };
   const clientProfile = {
     submitted: Boolean(onboardingRow),
@@ -594,6 +799,7 @@ export async function POST(request: NextRequest) {
       differentiator: trimmed(ob.brand_diff),
       threeWords: trimmed(ob.brand_3words),
       brandFonts: trimmed(ob.brand_fonts),
+      brandGuidelines: trimmed(ob.brand_guidelines_notes),
     },
     market: {
       idealCustomer: trimmed(ob.ideal_client),
@@ -601,27 +807,63 @@ export async function POST(request: NextRequest) {
       projectsToAvoid: trimmed(ob.cases_to_avoid),
       saturatedMarkets: trimmed(ob.saturated_markets),
       growthOpportunity: trimmed(ob.growth_opportunity),
+      competitionFocus: trimmed(ob.market_focus_competition),
+      priorityCities: trimmed(ob.market_focus_priority_cities),
+      marketsToAvoid: trimmed(ob.market_focus_avoid),
     },
     footprint: {
       primaryCity: trimmed(ob.primary_city?.name),
+      primaryCityDetail: ob.primary_city
+        ? {
+            hasOffice: trimmed(ob.primary_city.has_office),
+            priority: trimmed(ob.primary_city.priority),
+            revenueMarket: trimmed(ob.primary_city.revenue_market),
+          }
+        : null,
       services: Array.isArray(ob.services)
         ? ob.services
             .map((s) => ({ name: trimmed(s?.name), description: trimmed(s?.description), priority: s?.priority ?? null }))
             .filter((s) => s.name)
         : [],
       surroundingCities: Array.isArray(ob.service_locations)
-        ? ob.service_locations.map((l) => trimmed(l?.city)).filter(Boolean)
+        ? ob.service_locations
+            .map((l) => ({ city: trimmed(l?.city), priority: trimmed(l?.priority), hasOffice: trimmed(l?.has_office) }))
+            .filter((l) => l.city)
+        : [],
+      countiesServed: Array.isArray(ob.counties_served)
+        ? ob.counties_served
+            .map((c) => ({ name: trimmed(c?.name), priority: trimmed(c?.priority) }))
+            .filter((c) => c.name)
+        : [],
+      statewide: ob.statewide_coverage?.provides === "yes"
+        ? { limitations: trimmed(ob.statewide_coverage.limitations), priority: trimmed(ob.statewide_coverage.priority) }
+        : null,
+      outOfState: Array.isArray(ob.out_of_state)
+        ? ob.out_of_state
+            .map((o) => ({ state: trimmed(o?.state), serviceType: trimmed(o?.service_type), priority: trimmed(o?.priority) }))
+            .filter((o) => o.state)
         : [],
       futureExpansion: trimmed(ob.future_expansion_targets),
+      // The client's actual social channels — lets postingSocial name real
+      // handles instead of generic channel labels.
+      socials: Object.entries(ob.socials ?? {})
+        .map(([platform, v]) => ({ platform, handle: trimmed(v?.username) }))
+        .filter((s) => s.handle),
     },
     performance: {
       pastSuccesses: [
-        ob.perf_social_active ? trimmed(ob.perf_social_explanation) : null,
+        ob.perf_social_active ? labeled(ob.perf_social_used, trimmed(ob.perf_social_explanation)) : null,
         ob.perf_website_active ? trimmed(ob.perf_website_explanation) : null,
-        ob.perf_paid_active ? trimmed(ob.perf_paid_explanation) : null,
-        ob.perf_podcast_active ? trimmed(ob.perf_podcast_explanation) : null,
+        ob.perf_paid_active ? labeled(ob.perf_paid_platforms, trimmed(ob.perf_paid_explanation)) : null,
+        ob.perf_podcast_active ? labeled(ob.perf_podcast_name, trimmed(ob.perf_podcast_explanation)) : null,
+        ob.perf_other_active ? labeled(ob.perf_other, trimmed(ob.perf_other_explanation)) : null,
       ].filter(Boolean),
+      // What already failed — so the deck never proposes a strategy the
+      // client told us didn't work.
       underperformed: trimmed(ob.perf_underperforming),
+      underperformedChannel: trimmed(ob.perf_underperforming_channel),
+      underperformedAttempted: trimmed(ob.perf_underperforming_attempted),
+      additionalNotes: trimmed(ob.perf_additional_notes),
     },
   };
 
@@ -639,6 +881,10 @@ export async function POST(request: NextRequest) {
     reportType,
     periodLabel: window.label,
     meetingDate: today,
+    // The previous meeting on record — the continuity anchor for "since our
+    // last meeting" framing. Null = first meeting / no history.
+    lastMeetingDate,
+    windowAnchoredToLastMeeting: rawRange === "since_last" && Boolean(lastMeetingDate),
     tier,
   };
 
@@ -680,37 +926,116 @@ export async function POST(request: NextRequest) {
       ctr: ctrCur != null ? pct(ctrCur, 2) : null,
       topPages: topPages.map((p) => ({ url: p.key, clicks: p.clicks, impressions: p.impressions, position: p.position })),
       topQueries: topQueries.map((q) => ({ query: q.key, clicks: q.clicks, impressions: q.impressions, position: q.position })),
+      byDevice: gscDevices.map((d) => ({ device: d.key, clicks: d.clicks, impressions: d.impressions, position: d.position })),
+      byCountry: gscCountries.map((c) => ({ country: c.key, clicks: c.clicks, impressions: c.impressions })),
       trendDailyClicks: capSeries(trendPoints).map((p) => ({ date: p.captured_at, value: p.value })),
       trendDailyImpressions: capSeries(imprTrend).map((p) => ({ date: p.captured_at, value: p.value })),
     },
     ga4: {
       sessions: { current: sessionsCur, prior: sessionsPrev },
-      activeUsers: activeUsersCur || null,
-      conversions: conversionsCur || null,
+      // Real zeros are data (a site with no conversions is a true statement),
+      // so no ||-null coercion here.
+      activeUsers: { current: activeUsersCur, prior: activeUsersPrev },
+      conversions: { current: conversionsCur, prior: conversionsPrev },
+      channels: ga4Channels.map((c) => ({ channel: c.key, sessions: c.sessions, activeUsers: c.activeUsers, conversions: c.conversions })),
+      topLandingPages: ga4LandingPages.map((p) => ({ page: p.key, sessions: p.sessions, conversions: p.conversions })),
       trendDailySessions: capSeries(sessionsTrend).map((p) => ({ date: p.captured_at, value: p.value })),
     },
     bing: {
       clicks: { current: bingClicksCur, prior: bingClicksPrev },
       impressions: { current: bingImprCur, prior: bingImprPrev },
       avgClickPosition: bingAvgPosCur != null ? Number(bingAvgPosCur.toFixed(1)) : null,
+      avgImpressionPosition: bingAvgImprPosCur != null ? Number(bingAvgImprPosCur.toFixed(1)) : null,
+      trendDailyClicks: capSeries(bingClicksTrend).map((p) => ({ date: p.captured_at, value: p.value })),
     },
     semrush: {
-      organicKeywords: semrushKeywordsCur,
-      organicTraffic: semrushTrafficCur,
+      // Window-aware values (as of the window end) with prior-window deltas
+      // and monthly history series — chartable growth, not just one number.
+      organicKeywords: { current: semrushKeywordsCur, prior: semrushKeywordsPrev, trendMonthly: monthlySeries(semrushKeywordsAll) },
+      organicTraffic: { current: semrushTrafficCur, prior: semrushTrafficPrev, trendMonthly: monthlySeries(semrushTrafficAll) },
       authorityScore: semrushAuthorityCur,
+      backlinks: { current: semrushBacklinksCur, prior: semrushBacklinksPrev, trendMonthly: monthlySeries(semrushBacklinksAll) },
+      referringDomains: { current: semrushRefDomainsCur, prior: semrushRefDomainsPrev },
+      siteHealth: siteHealthCur,
+      mentions: mentionsCur,
+      paid: semrushPaid,
       visibility: visibilityCur,
       aiVisibility: aiVisibilityCur,
       competitors: semrushCompetitors,
       backlinksOverviewRows: semrushBacklinks,
       deepPullReports: semrushDeepPull,
+      deepPullDropped,
     },
     content: {
       postedThisPeriod: postedInWindow,
       postedAllTime: contentBoard.posted,
       approvedQueued: contentBoard.approvedQueued,
       awaitingApproval: contentBoard.awaitingApproval,
+      // Image deliverables uploaded to the client's folder this period
+      // (signed URLs, 30 days) — extra posted-work gallery candidates for
+      // work delivered as uploads rather than pasted links.
+      deliverableImages,
+    },
+    // Internal work queue: real completed/upcoming items ground the
+    // "work delivered" and whatsNext sections in actual tasks.
+    internalWork: {
+      completedThisPeriod: allTasks
+        .filter((t) => t.status === "done" && t.updated_at.slice(0, 10) >= window.fromIso && t.updated_at.slice(0, 10) <= window.toIso)
+        .slice(0, 20)
+        .map((t) => ({ title: t.title, completedOn: t.updated_at.slice(0, 10) })),
+      open: allTasks
+        .filter((t) => t.status === "open")
+        .sort((a, b) => (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999"))
+        .slice(0, 15)
+        .map((t) => ({ title: t.title, due: t.due_date })),
+    },
+    calendar: {
+      thisPeriod: calendarEvents
+        .filter((e) => e.starts_at.slice(0, 10) >= window.fromIso && e.starts_at.slice(0, 10) <= window.toIso)
+        .slice(0, 15)
+        .map((e) => ({ title: e.title, type: e.type, date: e.starts_at.slice(0, 10) })),
+      upcoming: calendarEvents
+        .filter((e) => e.starts_at.slice(0, 10) > today)
+        .slice(0, 10)
+        .map((e) => ({ title: e.title, type: e.type, date: e.starts_at.slice(0, 10) })),
+    },
+    engagement: {
+      lastClientLogin: loginAudit[0]?.logged_in_at?.slice(0, 10) ?? null,
+      loginsThisPeriod: loginAudit.filter(
+        (l) => l.logged_in_at.slice(0, 10) >= window.fromIso && l.logged_in_at.slice(0, 10) <= window.toIso,
+      ).length,
     },
   };
+
+  // ---------- CLIENT_MESSAGES — the portal thread this period ----------
+  // The client's own questions/asks since the last deck, straight from the
+  // portal messenger. Qualitative context for "topics to address".
+  const messagesBlock = portalMessages
+    .filter((m) => m.created_at.slice(0, 10) >= window.fromIso && m.created_at.slice(0, 10) <= window.toIso)
+    .slice(-40)
+    .map((m) => `• [${m.created_at.slice(0, 10)}] ${m.from_role}: ${m.body.slice(0, 400)}`)
+    .join("\n");
+
+  // ---------- PRIOR_DECK — what we promised last time ----------
+  // The previous deck's plan + questions, so this deck can review commitments
+  // ("since our last meeting") instead of starting from a blank page.
+  const priorDeckRow = await data.latestDeckReport(clientId).catch(() => null);
+  const priorContent = (priorDeckRow?.content ?? null) as (MonthlyContent & Record<string, unknown>) | null;
+  const priorDeckBlock = priorDeckRow && priorContent
+    ? JSON.stringify(
+        {
+          generatedOn: priorDeckRow.created_at.slice(0, 10),
+          meetingDate: priorDeckRow.meeting_date,
+          period: `${priorDeckRow.period_from ?? "?"} → ${priorDeckRow.period_to ?? "?"}`,
+          whatsNext: priorContent.whatsNext ?? [],
+          questionsForClient: priorContent.questions && typeof priorContent.questions === "object"
+            ? (priorContent.questions as { forClient?: string[] }).forClient ?? []
+            : [],
+        },
+        null,
+        2,
+      )
+    : "";
 
   // ---------- 2a. Prompt-only export (zero API credits) ----------
   // Same data pull, no Claude call: hand back the exact system prompt + data
@@ -724,10 +1049,13 @@ export async function POST(request: NextRequest) {
       profileData,
       fieldyTranscript: transcript,
       selectedNotes,
+      clientMessages: messagesBlock,
+      priorDeck: priorDeckBlock,
     });
     return Response.json({
       system: SYNTHESIS_SYSTEM_PROMPT,
       user,
+      warnings,
       filenameHint: `${slugify(client.company_name)}-${window.toIso}-deck-prompt.txt`,
     });
   }
@@ -735,15 +1063,21 @@ export async function POST(request: NextRequest) {
   // ---------- 2b. Synthesize the deck content ----------
   let content: MonthlyContent;
   try {
-    content = await synthesize({
-      reportMeta,
-      brandProfile,
-      clientProfile,
-      profileData,
-      fieldyTranscript: transcript,
-      selectedNotes,
-    });
+    content = await synthesize(
+      {
+        reportMeta,
+        brandProfile,
+        clientProfile,
+        profileData,
+        fieldyTranscript: transcript,
+        selectedNotes,
+        clientMessages: messagesBlock,
+        priorDeck: priorDeckBlock,
+      },
+      request.signal,
+    );
   } catch (err) {
+    if (request.signal.aborted) return new Response("Canceled", { status: 499 });
     const msg = err instanceof Error ? err.message : "synthesis failed";
     return new Response(`Synthesis failed: ${msg}`, { status: 502 });
   }
@@ -755,6 +1089,7 @@ export async function POST(request: NextRequest) {
   if (field(fd, "dryrun") === "1") {
     return Response.json({
       window,
+      warnings,
       sentToBot: {
         reportMeta,
         brandProfile,
@@ -762,6 +1097,8 @@ export async function POST(request: NextRequest) {
         profileData,
         fieldyTranscript: transcript,
         selectedNotes,
+        clientMessages: messagesBlock,
+        priorDeck: priorDeckBlock,
       },
       content,
     });

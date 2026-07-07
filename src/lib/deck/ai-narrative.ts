@@ -104,7 +104,7 @@ const NAME_STOPWORDS = new Set([
   "holdings", "global", "digital", "online", "services", "solutions", "studio",
 ]);
 
-function meetingMatchesClient(m: FieldyMeetingNote, companyName: string): boolean {
+export function meetingMatchesClient(m: FieldyMeetingNote, companyName: string): boolean {
   const hay = `${m.title}\n${m.keywords.join(" ")}\n${m.summary}\n${m.content}`.toLowerCase();
   const name = companyName.toLowerCase().trim();
   if (name && hay.includes(name)) return true;

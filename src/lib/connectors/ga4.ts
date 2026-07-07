@@ -4,6 +4,7 @@
 
 import type { Connector, SyncContext, SyncResult } from "./index";
 import { getValidAccessToken } from "./google-oauth";
+import { data } from "@/lib/data";
 
 const SCOPE = "https://www.googleapis.com/auth/analytics.readonly";
 
@@ -96,3 +97,76 @@ export const ga4Connector: Connector = {
 };
 
 export const GA4_SCOPE = SCOPE;
+
+// ---------------------------------------------------------------------------
+// On-demand breakdown queries (channel mix / landing pages). Like the GSC
+// breakdowns, these are NOT stored — fetched live for the report window with
+// a tight row cap. Answers the meeting question "where is the traffic
+// actually coming from", which site totals alone cannot.
+// ---------------------------------------------------------------------------
+
+export interface Ga4BreakdownRow {
+  key: string;
+  sessions: number;
+  activeUsers: number;
+  conversions: number;
+}
+
+async function resolveProperty(clientId: string): Promise<{ access_token: string; propertyId: string } | null> {
+  const tokens = await data.listConnectors(clientId);
+  const token = tokens.find((t) => t.provider === "ga4");
+  if (!token) return null;
+  const { access_token, credentials } = await getValidAccessToken(token.id);
+  const propertyId = credentials.account_label;
+  if (!propertyId) return null;
+  return { access_token, propertyId };
+}
+
+async function runGa4Breakdown(
+  ctx: { access_token: string; propertyId: string },
+  dimension: "sessionDefaultChannelGroup" | "landingPagePlusQueryString",
+  from: string,
+  to: string,
+  limit: number,
+): Promise<Ga4BreakdownRow[]> {
+  const body = {
+    dateRanges: [{ startDate: from, endDate: to }],
+    dimensions: [{ name: dimension }],
+    metrics: [{ name: "sessions" }, { name: "activeUsers" }, { name: "conversions" }],
+    orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+    limit: String(Math.max(1, Math.min(limit, 50))),
+  };
+  const res = await fetch(
+    `https://analyticsdata.googleapis.com/v1beta/properties/${ctx.propertyId}:runReport`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${ctx.access_token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GA4 ${dimension} breakdown failed (${res.status}): ${text.slice(0, 200)}`);
+  }
+  const json = (await res.json()) as RunReportResponse;
+  return (json.rows ?? []).map((r) => ({
+    key: r.dimensionValues[0]?.value ?? "",
+    sessions: Number(r.metricValues[0]?.value ?? 0),
+    activeUsers: Number(r.metricValues[1]?.value ?? 0),
+    conversions: Number(r.metricValues[2]?.value ?? 0),
+  }));
+}
+
+/** Sessions by default channel group (Organic Search, Direct, Referral, …). */
+export async function fetchGa4Channels(clientId: string, from: string, to: string, limit = 8): Promise<Ga4BreakdownRow[]> {
+  const ctx = await resolveProperty(clientId);
+  if (!ctx) return [];
+  return runGa4Breakdown(ctx, "sessionDefaultChannelGroup", from, to, limit);
+}
+
+/** Top landing pages by sessions. */
+export async function fetchGa4LandingPages(clientId: string, from: string, to: string, limit = 10): Promise<Ga4BreakdownRow[]> {
+  const ctx = await resolveProperty(clientId);
+  if (!ctx) return [];
+  return runGa4Breakdown(ctx, "landingPagePlusQueryString", from, to, limit);
+}

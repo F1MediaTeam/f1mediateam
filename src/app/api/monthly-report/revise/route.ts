@@ -25,6 +25,7 @@ Rules:
 - Apply ONLY what the instruction asks for. Preserve every other field byte-for-byte — same keys, same order, same values.
 - Never invent, alter, or estimate metrics/numbers unless the instruction (or an attached image) explicitly supplies new values. The numbers came from real analytics data.
 - Keep the same overall JSON shape. Do not add new top-level keys (exception: "sectionTitles", a {section: headline} map of per-slide headings — add or edit entries there when asked to change a slide's title). Setting an optional section to null removes that slide.
+- Embedded image bytes may arrive as placeholders like "[image-data-omitted:0]" (in images[].data) or as gallery entries with only an "image" URL. Leave placeholders and image URLs EXACTLY as they are — never expand, edit, invent, or remove them unless the instruction explicitly deletes that image.
 - IMAGES: the admin may attach screenshots or photos — a screenshot of a slide they want changed, a screenshot of data/numbers to incorporate, a reference for wording, or a photo of handwritten notes. Read them carefully and treat their contents as part of the instruction. If an image contains data the admin asks to include, transcribe it faithfully — never estimate what you can't read clearly; say so in the note instead.
 - Tone: professional, client-friendly, confident but factual.
 - If the instruction is ambiguous, make the most reasonable interpretation and say what you assumed in the note.
@@ -59,6 +60,7 @@ export async function POST(request: NextRequest) {
     content?: unknown;
     instruction?: string;
     images?: Array<{ media_type?: string; data?: string }>;
+    history?: Array<{ role?: string; text?: string }>;
   };
   try {
     body = await request.json();
@@ -73,8 +75,18 @@ export async function POST(request: NextRequest) {
     return new Response("instruction required", { status: 400 });
   }
 
+  // Recent chat turns (client-truncated) so follow-up instructions read in
+  // context. Text-only and size-capped — never a place for embedded images.
+  const historyBlock = (body.history ?? [])
+    .filter((h) => (h.role === "user" || h.role === "assistant") && typeof h.text === "string" && h.text)
+    .slice(-6)
+    .map((h) => `${h.role === "user" ? "Admin" : "You"}: ${h.text!.slice(0, 600)}`)
+    .join("\n")
+    .slice(0, 5_000);
+
   const userText =
     "CURRENT_CONTENT:\n" + JSON.stringify(body.content, null, 2) +
+    (historyBlock ? "\n\nRECENT_CHAT (earlier turns of this editing session, oldest first):\n" + historyBlock : "") +
     "\n\nINSTRUCTION:\n" + (instruction || "(see attached images)") +
     "\n\nReturn ONLY the {note, content} JSON object.";
 

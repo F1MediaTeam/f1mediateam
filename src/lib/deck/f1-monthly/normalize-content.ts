@@ -53,6 +53,15 @@ export function normalizeMonthlyContent(raw: unknown): MonthlyContent {
     c.executiveSummary = es;
   }
 
+  // ----- sinceLastMeeting: topics/commitments as string lists -----
+  if (isObj(c.sinceLastMeeting)) {
+    const slm = { ...c.sinceLastMeeting };
+    if (slm.topics != null) slm.topics = strArr(slm.topics);
+    if (slm.commitments != null) slm.commitments = strArr(slm.commitments);
+    if (slm.note != null) slm.note = toStr(slm.note);
+    c.sinceLastMeeting = slm;
+  }
+
   // ----- keywordRankings.rows: keyword/url strings, prior/current numbers -----
   if (isObj(c.keywordRankings)) {
     const kr = { ...c.keywordRankings };

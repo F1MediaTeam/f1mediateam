@@ -21,7 +21,8 @@ export interface BrandConfig {
   safeDisplayFont?: string;
   safeBodyFont?: string;
   logo?: string | null;
-  logoData?: string | null; // data URI for base64 logo
+  logoData?: string | null; // data URI — dark-surface variant (cover)
+  logoLightData?: string | null; // data URI — light-surface variant (interior brand mark)
 }
 
 export interface MonthlyContent {
@@ -34,6 +35,15 @@ export interface MonthlyContent {
   tier?: string; // "1" | "2" | "3" | tier full name
   brandKey?: string;
   executiveSummary?: { intro?: string; wins?: string[] };
+  // "Since our last meeting" — the continuity slide. topics = what the client
+  // raised (portal messages, Fieldy, open change requests) that this meeting
+  // must address; commitments = last deck's whatsNext items with an honest
+  // status ("✓ done — …", "in progress — …").
+  sinceLastMeeting?: {
+    topics?: string[];
+    commitments?: string[];
+    note?: string;
+  } | null;
   keywordRankings?: {
     note?: string;
     priorLabel?: string;
@@ -190,8 +200,11 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
 
   const brandMark = (slide: Any, onDark: boolean) => {
     const markW = 2.4, markH = 0.42, mx = PW - M - markW, my = 0.4;
-    if (brand?.logoData) {
-      slide.addImage({ data: brand.logoData, x: mx, y: my, w: markW, h: markH, sizing: { type: "contain", w: markW, h: markH } });
+    // Interior slides are white — prefer the light-surface logo variant so a
+    // white-art cover logo doesn't vanish against the white background.
+    const markData = onDark ? brand?.logoData : (brand?.logoLightData || brand?.logoData);
+    if (markData) {
+      slide.addImage({ data: markData, x: mx, y: my, w: markW, h: markH, sizing: { type: "contain", w: markW, h: markH } });
     } else {
       slide.addText((content?.client || brand?.name || "").toUpperCase(), {
         x: mx, y: my, w: markW, h: markH, margin: 0,
@@ -275,6 +288,36 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
       s.addText(w, { x: M + 0.85, y, w: PW - 2 * M - 1.1, h, margin: 0, valign: "middle", fontFace: BODY, fontSize: 15, color: C.ink });
     });
     footer(s);
+  }
+
+  // ===== SLIDE 2B — Since Our Last Meeting =====
+  // Continuity: commitments from the previous deck reviewed honestly, and the
+  // topics the client raised that this meeting must address.
+  {
+    const slm = content?.sinceLastMeeting;
+    const topics = (slm?.topics || []).filter(Boolean);
+    const commitments = (slm?.commitments || []).filter(Boolean);
+    if (slm && (topics.length || commitments.length)) {
+      const s = pres.addSlide();
+      s.background = { color: C.lightBg };
+      sectionTitle(s, st("sinceLastMeeting", "Since Our Last Meeting"), "2B");
+      const both = topics.length > 0 && commitments.length > 0;
+      const colW = both ? (PW - 2 * M - 0.4) / 2 : PW - 2 * M;
+      let x = M;
+      if (commitments.length) {
+        card(s, x, 2.1, colW, 3.8);
+        s.addText("What we committed to — and where it stands", { x: x + 0.25, y: 2.3, w: colW - 0.5, h: 0.4, margin: 0, fontFace: DISPLAY, fontSize: 16, bold: true, color: C.primary });
+        s.addText(bullets(commitments, { fontSize: 13 }), { x: x + 0.25, y: 2.8, w: colW - 0.5, h: 2.9, margin: 0, valign: "top" });
+        x += colW + 0.4;
+      }
+      if (topics.length) {
+        card(s, x, 2.1, colW, 3.8);
+        s.addText("Topics to address today", { x: x + 0.25, y: 2.3, w: colW - 0.5, h: 0.4, margin: 0, fontFace: DISPLAY, fontSize: 16, bold: true, color: C.primary });
+        s.addText(bullets(topics, { fontSize: 13 }), { x: x + 0.25, y: 2.8, w: colW - 0.5, h: 2.9, margin: 0, valign: "top" });
+      }
+      if (slm.note) s.addText(slm.note, { x: M, y: 6.1, w: PW - 2 * M, h: 0.6, margin: 0, fontFace: BODY, fontSize: 13, italic: true, color: C.muted });
+      footer(s);
+    }
   }
 
   // ===== SLIDE 3 — Content & Insights =====

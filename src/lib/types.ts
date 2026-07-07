@@ -166,6 +166,19 @@ export interface ContentCardEvent {
   created_at: ISODateTime;
 }
 
+/** A Deck Studio generation: the editable content JSON + rendered .pptx path. */
+export interface DeckReport {
+  id: UUID;
+  client_id: UUID;
+  report_type: string;
+  period_from: ISODate | null;
+  period_to: ISODate | null;
+  meeting_date: ISODate | null;
+  content: Record<string, unknown>;
+  pptx_path: string | null;
+  created_at: ISODateTime;
+}
+
 export interface FileRecord {
   id: UUID;
   client_id: UUID;

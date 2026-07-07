@@ -59,9 +59,15 @@ function fmt(iso: string) {
 function extractImages(body: string | null): string[] {
   if (!body) return [];
   const urls: string[] = [];
-  const re = /(?:\!\[[^\]]*\]\(|\[ATTACH:|^|\s)(https?:\/\/[^\s\)]+\.(?:png|jpe?g|gif|webp|svg|heic))/gi;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(body)) !== null) urls.push(m[1]);
+  // Marker contexts (markdown image / ATTACH) declare "this is an image" —
+  // no extension needed (scheduler CDN URLs often carry none) and query
+  // strings are KEPT (signed URLs 403 without their signature params).
+  const marked = /(?:\!\[[^\]]*\]\(|\[ATTACH:)\s*(https?:\/\/[^\s\)\]]+)/gi;
+  while ((m = marked.exec(body)) !== null) urls.push(m[1]);
+  // Bare URLs still need an image extension so ordinary links don't match.
+  const bare = /(?:^|\s)(https?:\/\/[^\s\)\]]+\.(?:png|jpe?g|gif|webp|svg|heic)(?:\?[^\s\)\]]*)?)/gi;
+  while ((m = bare.exec(body)) !== null) urls.push(m[1]);
   return Array.from(new Set(urls));
 }
 

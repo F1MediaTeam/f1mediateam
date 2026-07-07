@@ -17,7 +17,7 @@
 // (lightness band, chroma, CVD, contrast) against the dark surface #0d1117.
 // Mixed-scale multi-series lines split into small multiples — never dual axes.
 
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { MonthlyContent } from "@/lib/deck/f1-monthly/deck-builder";
 
@@ -159,6 +159,27 @@ function RemoveBtn({ onClick, title = "Delete" }: { onClick?: () => void; title?
     >
       ×
     </button>
+  );
+}
+
+// Gallery-cell image with an honest failure state: if the browser can't load
+// the URL, the render-time fetch almost certainly can't either — say so here
+// instead of letting the admin discover a missing cell in the .pptx.
+function GalleryImg({ src, alt }: { src: string; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div className="flex h-40 w-full flex-col items-center justify-center gap-1 rounded bg-red-500/10 border border-red-500/30 px-3 text-center">
+        <span className="text-xs font-semibold text-red-300">Image won&apos;t load</span>
+        <span className="text-[10px] leading-tight text-red-300/80">
+          This cell will be dropped from the .pptx — fix or remove it (×).
+        </span>
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt={alt} onError={() => setFailed(true)} className="w-full h-40 rounded-lg object-contain bg-white/5" />
   );
 }
 
@@ -581,6 +602,7 @@ const rowCls = "group/row flex items-center gap-3 text-[15px]";
 // preview shows is what prints when there's no override.
 const STOCK_TITLES: Record<string, string> = {
   executiveSummary: "Executive Summary",
+  sinceLastMeeting: "Since Our Last Meeting",
   keywordRankings: "Keyword Rankings",
   competitiveSnapshot: "Competitive Snapshot",
   organicTraffic: "Organic Traffic",
@@ -671,6 +693,42 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn, lo
     });
   }
 
+  if (c.sinceLastMeeting && ((c.sinceLastMeeting.commitments?.length ?? 0) > 0 || (c.sinceLastMeeting.topics?.length ?? 0) > 0)) {
+    const slm = c.sinceLastMeeting;
+    const groupLabel = "text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] mb-2";
+    slides.push({
+      label: titleOf("sinceLastMeeting"),
+      body: (
+        <div>
+          <Heading sectionKey="sinceLastMeeting" />
+          <div className="space-y-6">
+            {slm.commitments?.length ? (
+              <div>
+                <div className={groupLabel}>What we committed to — and where it stands</div>
+                <Bullets items={slm.commitments} basePath={["sinceLastMeeting", "commitments"]} edit={edit} removeItem={removeItem} />
+              </div>
+            ) : null}
+            {slm.topics?.length ? (
+              <div>
+                <div className={groupLabel}>Topics to address today</div>
+                <Bullets items={slm.topics} basePath={["sinceLastMeeting", "topics"]} edit={edit} removeItem={removeItem} />
+              </div>
+            ) : null}
+            {slm.note ? (
+              <p className={noteCls}>
+                <EditableText
+                  value={slm.note}
+                  onCommit={edit ? (v) => edit(["sinceLastMeeting", "note"], v) : undefined}
+                  multiline
+                />
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ),
+    });
+  }
+
   if (c.contentInsights) {
     const groupLabel = "text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] mb-2";
     slides.push({
@@ -739,12 +797,7 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn, lo
                       <RemoveBtn onClick={() => removeItem(["workGallery"], i)} title="Remove image" />
                     </div>
                   ) : null}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={g.data || g.image}
-                    alt={g.title ?? ""}
-                    className="w-full h-40 rounded-lg object-contain bg-white/5"
-                  />
+                  <GalleryImg src={g.data || g.image || ""} alt={g.title ?? ""} />
                   <div className="text-sm font-medium leading-snug">
                     <EditableText
                       value={g.title ?? ""}

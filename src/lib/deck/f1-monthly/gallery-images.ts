@@ -10,17 +10,21 @@ import type { MonthlyContent } from "./deck-builder";
 const MAX_IMAGE_BYTES = 4_000_000; // matches the preview editor's upload cap
 const FETCH_TIMEOUT_MS = 10_000;
 
+// Only formats every PowerPoint build renders. WebP/SVG/HEIC embed fine in
+// the zip but show as broken cells on older Office — worse in a live meeting
+// than the image being absent from the deck (it still shows in the preview).
+const EMBEDDABLE = new Set(["image/png", "image/jpeg", "image/gif"]);
+
 const EXT_MIME: Record<string, string> = {
   png: "image/png",
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
   gif: "image/gif",
-  webp: "image/webp",
 };
 
 function mimeFor(url: string, contentType: string | null): string | null {
   const ct = (contentType || "").split(";")[0].trim().toLowerCase();
-  if (ct.startsWith("image/")) return ct;
+  if (ct.startsWith("image/")) return EMBEDDABLE.has(ct) ? ct : null;
   // Some CDNs serve images as octet-stream — fall back to the extension.
   const m = url.match(/\.([a-z0-9]{2,5})(?:\?|#|$)/i);
   return m ? EXT_MIME[m[1].toLowerCase()] ?? null : null;

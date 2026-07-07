@@ -89,40 +89,72 @@ function rowsFrom(body: unknown): Json[] {
 
 /**
  * Conversations whose start falls in [fromIso, toIso] (YYYY-MM-DD, inclusive),
- * newest first. Returns each meeting's summary + structured content for the
- * deck prompt. Best-effort: throws only on HTTP/auth failure (callers catch).
+ * newest first. Follows nextCursor pagination so busy windows and curated-pick
+ * resolution don't silently drop meetings past the first page. Returns each
+ * meeting's summary + structured content for the deck prompt. Best-effort:
+ * throws only on HTTP/auth failure of the FIRST page (callers catch); a
+ * failure mid-pagination returns what was collected so far.
  */
 export async function fieldyMeetingsInWindow(
   fromIso: string,
   toIso: string,
   limit = 50,
 ): Promise<FieldyMeetingNote[]> {
-  const url = new URL(FIELDY_BASE + "/conversations");
-  url.searchParams.set("startTime", `${fromIso}T00:00:00.000Z`);
-  url.searchParams.set("endTime", `${toIso}T23:59:59.999Z`);
-  url.searchParams.set("pageSize", String(limit));
+  const MAX_PAGES = 10;
+  const notes: FieldyMeetingNote[] = [];
+  const seenIds = new Set<string>();
+  const seenCursors = new Set<string>();
+  let cursor: string | null = null;
 
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${apiKey()}`, Accept: "application/json" },
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`Fieldy API error (${res.status}): ${detail || res.statusText}`);
+  for (let page = 0; page < MAX_PAGES && notes.length < limit; page++) {
+    const url = new URL(FIELDY_BASE + "/conversations");
+    url.searchParams.set("startTime", `${fromIso}T00:00:00.000Z`);
+    url.searchParams.set("endTime", `${toIso}T23:59:59.999Z`);
+    url.searchParams.set("pageSize", String(Math.min(limit, 100)));
+    if (cursor) url.searchParams.set("cursor", cursor);
+
+    let body: unknown;
+    try {
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${apiKey()}`, Accept: "application/json" },
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error(`Fieldy API error (${res.status}): ${detail || res.statusText}`);
+      }
+      body = await res.json();
+    } catch (e) {
+      if (page === 0) throw e; // first page failing = real outage, surface it
+      break; // later page failing: keep what we have
+    }
+
+    const rows = rowsFrom(body);
+    let added = 0;
+    for (const row of rows) {
+      const note: FieldyMeetingNote = {
+        id: str(pick(row, "id", "conversationId", "uuid", "_id")),
+        title: str(pick(row, "title", "name", "summaryTitle")) || "Untitled meeting",
+        startTime: str(pick(row, "startTime", "startedAt", "createdAt", "timestamp", "date")),
+        summary: str(pick(row, "summary", "shortSummary", "overview")),
+        content: str(pick(row, "content", "memory", "notes")),
+        keywords: strList(pick(row, "keywords", "topics", "tags")),
+        quotes: quoteList(pick(row, "quotes")),
+      };
+      if (!note.id || seenIds.has(note.id)) continue;
+      seenIds.add(note.id);
+      notes.push(note);
+      added++;
+    }
+
+    const next = str(pick((body ?? {}) as Json, "nextCursor", "cursor", "next"));
+    // Stop on: no cursor, a repeated cursor (param name mismatch would loop
+    // the same page forever), or a page that added nothing new.
+    if (!next || seenCursors.has(next) || added === 0) break;
+    seenCursors.add(next);
+    cursor = next;
   }
 
-  const notes = rowsFrom(await res.json())
-    .map((row): FieldyMeetingNote => ({
-      id: str(pick(row, "id", "conversationId", "uuid", "_id")),
-      title: str(pick(row, "title", "name", "summaryTitle")) || "Untitled meeting",
-      startTime: str(pick(row, "startTime", "startedAt", "createdAt", "timestamp", "date")),
-      summary: str(pick(row, "summary", "shortSummary", "overview")),
-      content: str(pick(row, "content", "memory", "notes")),
-      keywords: strList(pick(row, "keywords", "topics", "tags")),
-      quotes: quoteList(pick(row, "quotes")),
-    }))
-    .filter((m) => m.id);
-
   notes.sort((a, b) => (a.startTime < b.startTime ? 1 : a.startTime > b.startTime ? -1 : 0));
-  return notes;
+  return notes.slice(0, limit);
 }

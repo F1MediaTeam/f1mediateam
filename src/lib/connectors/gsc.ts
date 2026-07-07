@@ -121,7 +121,7 @@ async function resolveSite(clientId: string): Promise<{ access_token: string; si
 
 async function runBreakdown(
   ctx: { access_token: string; siteUrl: string },
-  dimension: "page" | "query",
+  dimension: "page" | "query" | "device" | "country",
   from: string,
   to: string,
   limit: number,
@@ -166,4 +166,17 @@ export async function fetchClientGscQueries(clientId: string, from: string, to: 
   const ctx = await resolveSite(clientId);
   if (!ctx) return [];
   return runBreakdown(ctx, "query", from, to, limit);
+}
+
+/** Device (desktop/mobile/tablet) or country split over [from, to]. */
+export async function fetchClientGscBreakdown(
+  clientId: string,
+  dimension: "device" | "country",
+  from: string,
+  to: string,
+  limit = 8,
+): Promise<GscBreakdownRow[]> {
+  const ctx = await resolveSite(clientId);
+  if (!ctx) return [];
+  return runBreakdown(ctx, dimension, from, to, limit);
 }

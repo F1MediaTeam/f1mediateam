@@ -158,11 +158,63 @@ export default function DeckChat({ content, onChange, className }: Props) {
     }
   }
 
+  // Embedded slide images (content.images[].data, workGallery[].data) are
+  // multi-hundred-KB data: URIs — pointless for a text edit and enough to
+  // blow the request payload cap or the model's output budget. Swap them for
+  // small placeholders on the way out, restore them from the pre-send copy
+  // on the way back (matched by position).
+  function stripEmbeds(c: MonthlyContent): MonthlyContent {
+    const clone = { ...c };
+    if (Array.isArray(clone.images)) {
+      clone.images = clone.images.map((img, i) =>
+        img && typeof img.data === "string" && img.data.startsWith("data:")
+          ? { ...img, data: `[image-data-omitted:${i}]` }
+          : img,
+      );
+    }
+    if (Array.isArray(clone.workGallery)) {
+      clone.workGallery = clone.workGallery.map((g) => {
+        if (g && typeof g.data === "string" && g.data.startsWith("data:")) {
+          const { data: _omit, ...rest } = g;
+          return rest;
+        }
+        return g;
+      });
+    }
+    return clone;
+  }
+  function restoreEmbeds(revised: MonthlyContent, original: MonthlyContent): MonthlyContent {
+    const out = { ...revised };
+    if (Array.isArray(out.images) && Array.isArray(original.images)) {
+      out.images = out.images.map((img, i) => {
+        const orig = original.images?.[i];
+        if (img && typeof img.data === "string" && img.data.startsWith("[image-data-omitted") && orig?.data) {
+          return { ...img, data: orig.data };
+        }
+        return img;
+      });
+    }
+    if (Array.isArray(out.workGallery) && Array.isArray(original.workGallery)) {
+      out.workGallery = out.workGallery.map((g) => {
+        if (!g || g.data) return g;
+        const orig = original.workGallery?.find((o) => o && o.image && o.image === g.image);
+        return orig?.data ? { ...g, data: orig.data } : g;
+      });
+    }
+    return out;
+  }
+
   async function send(instruction: string) {
     const trimmed = instruction.trim();
     if ((!trimmed && attachments.length === 0) || busy || pendingReads > 0) return;
     const sentAttachments = attachments;
     const images = sentAttachments.map(({ media_type, data }) => ({ media_type, data }));
+    // Short conversation memory so "make it shorter" after "rewrite the
+    // intro" reads as a follow-up, not a fresh command.
+    const history = messages
+      .filter((m) => !m.isError)
+      .slice(-6)
+      .map((m) => ({ role: m.role, text: m.text.slice(0, 600) }));
     setInput("");
     setAttachments([]);
     setMessages((m) => [
@@ -174,11 +226,11 @@ export default function DeckChat({ content, onChange, className }: Props) {
       const res = await fetch("/api/monthly-report/revise", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ content, instruction: trimmed, images }),
+        body: JSON.stringify({ content: stripEmbeds(content), instruction: trimmed, images, history }),
       });
       if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
       const json = (await res.json()) as { note: string; content: MonthlyContent };
-      onChange(json.content);
+      onChange(restoreEmbeds(json.content, content));
       setMessages((m) => [...m, { role: "assistant", text: json.note }]);
     } catch (err) {
       // Give the images back so a retry doesn't mean re-attaching everything.

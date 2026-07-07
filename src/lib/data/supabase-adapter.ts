@@ -12,6 +12,7 @@ import type {
   ContentCard,
   ContentCardEvent,
   ContentStage,
+  DeckReport,
   EmailPref,
   FileRecord,
   LoginAudit,
@@ -390,6 +391,85 @@ export async function getMeeting(id: UUID): Promise<Meeting | null> {
   return (data as Meeting) ?? null;
 }
 
+// ---------- deck reports (Deck Studio history) ----------
+// Service-role reads/writes: callers (admin API routes) authorize first, and
+// the table's RLS is deny-by-default. All functions tolerate the table not
+// existing yet (pre-migration) by returning empty/null.
+
+export async function saveDeckReport(input: {
+  client_id: UUID;
+  report_type: string;
+  period_from: string | null;
+  period_to: string | null;
+  meeting_date: string | null;
+  content: Record<string, unknown>;
+  pptx_path: string | null;
+}): Promise<DeckReport | null> {
+  try {
+    const supabase = await createServiceClient();
+    const { data } = await supabase.from("deck_reports").insert(input).select().single();
+    return (data as DeckReport) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Recent decks for a client — metadata only (content is fetched per-deck). */
+export async function listDeckReports(clientId: UUID, limit = 12): Promise<Array<Omit<DeckReport, "content">>> {
+  try {
+    const supabase = await createServiceClient();
+    const { data } = await supabase
+      .from("deck_reports")
+      .select("id, client_id, report_type, period_from, period_to, meeting_date, pptx_path, created_at")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    return (data as Array<Omit<DeckReport, "content">>) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getDeckReport(id: UUID): Promise<DeckReport | null> {
+  try {
+    const supabase = await createServiceClient();
+    const { data } = await supabase.from("deck_reports").select("*").eq("id", id).maybeSingle();
+    return (data as DeckReport) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** The most recent deck for a client — what "since our last meeting" reviews. */
+export async function latestDeckReport(clientId: UUID): Promise<DeckReport | null> {
+  try {
+    const supabase = await createServiceClient();
+    const { data } = await supabase
+      .from("deck_reports")
+      .select("*")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return (data as DeckReport) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** 7-day signed download URL for a files-table row (client-attachments bucket). */
+export async function getFileSignedUrl(storagePath: string): Promise<string | null> {
+  try {
+    const supabase = await createServiceClient();
+    const { data } = await supabase.storage
+      .from("client-attachments")
+      .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+    return data?.signedUrl ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function createMeeting(input: {
   client_id: UUID;
   title: string;
@@ -435,6 +515,12 @@ export async function deleteMeeting(id: UUID): Promise<boolean> {
 
 // ---------- metric snapshots ----------
 
+// PostgREST caps any single select at the project's max_rows (1000 by
+// default). Long-running clients accumulate multi-year daily series, and a
+// silent cap would truncate the NEWEST rows off an ascending series — the
+// deck's current-period sums would quietly go stale. Page explicitly.
+const SNAPSHOT_PAGE = 1000;
+
 export async function listSnapshots(filter: {
   clientId: UUID;
   metric?: string;
@@ -442,16 +528,23 @@ export async function listSnapshots(filter: {
   to?: string;
 }): Promise<MetricSnapshot[]> {
   const supabase = await createClient();
-  let q = supabase
-    .from("metric_snapshots")
-    .select("*")
-    .eq("client_id", filter.clientId)
-    .order("captured_at", { ascending: true });
-  if (filter.metric) q = q.eq("metric", filter.metric);
-  if (filter.from) q = q.gte("captured_at", filter.from);
-  if (filter.to) q = q.lte("captured_at", filter.to);
-  const { data } = await q;
-  return (data as MetricSnapshot[]) ?? [];
+  const out: MetricSnapshot[] = [];
+  for (let start = 0; ; start += SNAPSHOT_PAGE) {
+    let q = supabase
+      .from("metric_snapshots")
+      .select("*")
+      .eq("client_id", filter.clientId)
+      .order("captured_at", { ascending: true })
+      .range(start, start + SNAPSHOT_PAGE - 1);
+    if (filter.metric) q = q.eq("metric", filter.metric);
+    if (filter.from) q = q.gte("captured_at", filter.from);
+    if (filter.to) q = q.lte("captured_at", filter.to);
+    const { data } = await q;
+    const rows = (data as MetricSnapshot[]) ?? [];
+    out.push(...rows);
+    if (rows.length < SNAPSHOT_PAGE) break;
+  }
+  return out;
 }
 
 // Batched variant: one round trip for several metrics on the same client,

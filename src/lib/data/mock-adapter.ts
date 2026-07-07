@@ -16,6 +16,7 @@ import type {
   ContentCard,
   ContentCardEvent,
   ContentStage,
+  DeckReport,
   EmailPref,
   FileRecord,
   LoginAudit,
@@ -274,6 +275,38 @@ export function listMeetings(): Meeting[] {
 
 export function getMeeting(id: UUID): Meeting | null {
   return getState().meetings.find((m) => m.id === id) ?? null;
+}
+
+// ---------------- deck reports (Deck Studio history) ----------------
+// Mock mode has no persistence for generated decks — return empty so the UI
+// simply shows no history.
+
+export function saveDeckReport(_input: {
+  client_id: UUID;
+  report_type: string;
+  period_from: string | null;
+  period_to: string | null;
+  meeting_date: string | null;
+  content: Record<string, unknown>;
+  pptx_path: string | null;
+}): DeckReport | null {
+  return null;
+}
+
+export function listDeckReports(_clientId: UUID, _limit?: number): Array<Omit<DeckReport, "content">> {
+  return [];
+}
+
+export function getDeckReport(_id: UUID): DeckReport | null {
+  return null;
+}
+
+export function latestDeckReport(_clientId: UUID): DeckReport | null {
+  return null;
+}
+
+export function getFileSignedUrl(_storagePath: string): string | null {
+  return null;
 }
 
 export function createMeeting(input: {

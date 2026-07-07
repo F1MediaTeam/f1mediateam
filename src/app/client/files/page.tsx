@@ -12,6 +12,19 @@ export default async function ClientFiles() {
   const files = await data.listFiles(client.id);
   const widgetOn = client.config.widgets.files;
 
+  // Signed download URLs (7 days) minted server-side per render — requireClient
+  // has already scoped the rows to this client. Cap the signing work; older
+  // rows keep the plain label rather than slowing the whole page.
+  const signed = new Map<string, string>();
+  if (widgetOn) {
+    await Promise.all(
+      files.slice(0, 60).map(async (f) => {
+        const url = await data.getFileSignedUrl(f.storage_path);
+        if (url) signed.set(f.id, url);
+      }),
+    );
+  }
+
   return (
     <ClientShell session={session} client={client} active="/client/files">
       <div className="mb-8">
@@ -49,10 +62,18 @@ export default async function ClientFiles() {
                     </div>
                   </div>
                 </div>
-                <span className="text-xs text-[var(--color-text-subtle)]">
-                  {/* In Supabase mode this becomes a signed URL */}
-                  Download
-                </span>
+                {signed.has(f.id) ? (
+                  <a
+                    href={signed.get(f.id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 rounded-lg border border-[var(--color-border-strong)] px-3 py-1.5 text-xs font-medium text-[var(--color-accent)] hover:bg-[var(--color-bg-hover)] transition"
+                  >
+                    Download
+                  </a>
+                ) : (
+                  <span className="text-xs text-[var(--color-text-subtle)]">Unavailable</span>
+                )}
               </div>
             ))}
           </CardBody>

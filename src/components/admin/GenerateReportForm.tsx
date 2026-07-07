@@ -46,6 +46,10 @@ const MEETING_TYPES = [
   { value: "monthly", label: "Monthly", range: "28d" },
   { value: "quarterly", label: "Quarterly", range: "90d" },
   { value: "yearly", label: "Yearly", range: "12m" },
+  // Window anchors to the previous meeting on record for this client —
+  // exactly the span since the client was last seen (falls back to 28d
+  // server-side when no meeting exists yet).
+  { value: "sincelast", label: "Since last meeting", range: "since_last" },
   { value: "custom", label: "Custom", range: "custom" },
 ] as const;
 
@@ -195,11 +199,79 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
   const [style, setStyle] = useState<DeckStyle>({});
   // Synthesized (then admin-edited) deck content. Set by "Preview & edit";
   // when present, Generate renders exactly this instead of re-synthesizing.
-  const [content, setContent] = useState<MonthlyContent | null>(null);
+  const [content, setContentRaw] = useState<MonthlyContent | null>(null);
+  const [savedDraftAvailable, setSavedDraftAvailable] = useState(false);
+  const [deckHistory, setDeckHistory] = useState<
+    { clientId: string; decks: Array<{ id: string; report_type: string; period_from: string | null; period_to: string | null; created_at: string }> } | null
+  >(null);
   const abortRef = useRef<AbortController | null>(null);
   const abortReasonRef = useRef<"cancel" | "timeout" | null>(null);
+  // Undo stack: every content replacement (chat edit, inline edit, editor,
+  // import) pushes the previous state. Capped so memory stays bounded.
+  const undoRef = useRef<MonthlyContent[]>([]);
+  const [undoDepth, setUndoDepth] = useState(0);
+
+  const setContent = (next: MonthlyContent | null, opts?: { skipUndo?: boolean }) => {
+    if (content && next && !opts?.skipUndo) {
+      undoRef.current = [...undoRef.current.slice(-19), content];
+      setUndoDepth(undoRef.current.length);
+    }
+    if (!next) {
+      undoRef.current = [];
+      setUndoDepth(0);
+    }
+    setContentRaw(next);
+  };
+
+  const undo = () => {
+    const prev = undoRef.current.pop();
+    if (prev) {
+      setUndoDepth(undoRef.current.length);
+      setContentRaw(prev);
+    }
+  };
 
   const range = MEETING_TYPES.find((t) => t.value === meetingType)?.range ?? "28d";
+  const draftKey = `deckDraft:${clientId}`;
+
+  // Crash-proofing: the drafted deck is the most expensive artifact in this
+  // flow, and it used to live only in React state. Autosave to localStorage
+  // per client; offer restore after a refresh / accidental client switch.
+  useEffect(() => {
+    if (!content) return;
+    try {
+      localStorage.setItem(draftKey, JSON.stringify({ savedAt: new Date().toISOString(), content }));
+    } catch {
+      // quota — a huge deck (embedded images) just won't autosave
+    }
+  }, [content, draftKey]);
+  useEffect(() => {
+    try {
+      setSavedDraftAvailable(!content && Boolean(localStorage.getItem(draftKey)));
+    } catch {
+      setSavedDraftAvailable(false);
+    }
+  }, [clientId, content, draftKey]);
+
+  function restoreSavedDraft() {
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { content?: MonthlyContent };
+      if (parsed.content) {
+        setContent(normalizeMonthlyContent(parsed.content), { skipUndo: true });
+        setOk("Saved draft restored — this is where you left off.");
+      }
+    } catch {
+      setError("The saved draft couldn't be read.");
+    }
+  }
+  function discardSavedDraft() {
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {}
+    setSavedDraftAvailable(false);
+  }
 
   // Elapsed clock while a request is in flight.
   useEffect(() => {
@@ -209,12 +281,13 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
     return () => clearInterval(id);
   }, [busy]);
 
-  // Data-readiness rail for the selected client. Stored with the client id it
-  // was fetched for, so switching clients hides stale sources.
+  // Data-readiness rail for the selected client AND window — the chips answer
+  // "will this deck have data", so they re-check when the meeting type moves.
   useEffect(() => {
     let stale = false;
     if (!clientId) return;
-    fetch(`/api/report-readiness/${clientId}`)
+    const params = new URLSearchParams({ range });
+    fetch(`/api/report-readiness/${clientId}?${params.toString()}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json: { sources?: SourceStatus[] } | null) => {
         if (!stale && json?.sources) setReadiness({ clientId, sources: json.sources });
@@ -223,8 +296,38 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
     return () => {
       stale = true;
     };
-  }, [clientId]);
+  }, [clientId, range]);
   const sources = readiness?.clientId === clientId ? readiness.sources : null;
+
+  // Past decks for the selected client (deck_reports history).
+  useEffect(() => {
+    let stale = false;
+    if (!clientId) return;
+    fetch(`/api/deck-history/${clientId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: { decks?: Array<{ id: string; report_type: string; period_from: string | null; period_to: string | null; created_at: string }> } | null) => {
+        if (!stale && json?.decks) setDeckHistory({ clientId, decks: json.decks });
+      })
+      .catch(() => {});
+    return () => {
+      stale = true;
+    };
+  }, [clientId]);
+  const pastDecks = deckHistory?.clientId === clientId ? deckHistory.decks : null;
+
+  async function reopenDeck(deckId: string) {
+    setError(null);
+    try {
+      const res = await fetch(`/api/deck-history/${clientId}?deck=${encodeURIComponent(deckId)}`);
+      if (!res.ok) throw new Error(await res.text());
+      const json = (await res.json()) as { deck?: { content?: MonthlyContent } };
+      if (!json.deck?.content) throw new Error("That deck has no saved content.");
+      setContent(normalizeMonthlyContent(json.deck.content), { skipUndo: true });
+      setOk("Past deck reopened — edit below, or Download to re-render it. No API credits used.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't reopen that deck.");
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -273,7 +376,12 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
         );
       }
       if (isPromptExport) {
-        const json = (await res.json()) as { system: string; user: string; filenameHint?: string };
+        const json = (await res.json()) as { system: string; user: string; warnings?: string[]; filenameHint?: string };
+        // Degraded inputs (unresolvable Fieldy picks, dropped reports) must be
+        // visible BEFORE the deck gets drafted from this export.
+        if (json.warnings?.length) {
+          setError("Heads up — this export is missing something:\n• " + json.warnings.join("\n• "));
+        }
         const text = `${json.system}\n\n${"=".repeat(60)}\n\n${json.user}`;
         const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
         const a = document.createElement("a");
@@ -334,6 +442,22 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
         parsed = parsed.content as MonthlyContent & { content?: MonthlyContent };
       }
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+      // Guard against cross-client mix-ups: Download stores the deck under
+      // the SELECTED client (branding, filename, portal file list) — pasting
+      // Client A's JSON with Client B selected makes a hybrid deck.
+      const selectedName = clients.find((c) => c.id === clientId)?.company_name ?? "";
+      const importedName = typeof parsed.client === "string" ? parsed.client.trim() : "";
+      if (
+        importedName &&
+        selectedName &&
+        importedName.toLowerCase() !== selectedName.toLowerCase() &&
+        !window.confirm(
+          `This JSON says it's a deck for "${importedName}", but "${selectedName}" is selected. ` +
+            `Downloading would store it under ${selectedName} with ${selectedName}'s branding. Load it anyway?`,
+        )
+      ) {
+        return;
+      }
       // Models improvise field names in a couple of sections — normalize the
       // common drifts so a pasted draft renders exactly like an API draft.
       setContent(normalizeMonthlyContent(parsed));
@@ -513,6 +637,45 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
           </p>
         </div>
 
+        {savedDraftAvailable ? (
+          <div className="relative mt-4 flex flex-wrap items-center gap-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2.5">
+            <span className="text-xs text-amber-200">
+              You have an unsaved draft for this client from a previous session.
+            </span>
+            <button type="button" onClick={restoreSavedDraft} className={ghostBtn}>
+              Restore draft
+            </button>
+            <button type="button" onClick={discardSavedDraft} className={ghostBtn}>
+              Dismiss
+            </button>
+          </div>
+        ) : null}
+
+        {pastDecks && pastDecks.length > 0 ? (
+          <div className="relative mt-4 border-t border-[var(--color-border)] pt-4">
+            <span className="text-[11px] uppercase tracking-widest text-[var(--color-text-muted)]">
+              Past decks
+            </span>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {pastDecks.slice(0, 8).map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  disabled={busy !== "idle"}
+                  onClick={() => void reopenDeck(d.id)}
+                  title="Reopen this deck in the editor — no API credits used"
+                  className={ghostBtn}
+                >
+                  {d.report_type} · {d.period_from ?? "?"} → {d.period_to ?? "?"}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[10px] text-[var(--color-text-muted)]">
+              Every generated deck is saved — reopen one to tweak and re-download without a fresh draft.
+            </p>
+          </div>
+        ) : null}
+
         {/* ---------- No-credits workflow: draft in the Claude app ---------- */}
         <div className="relative mt-4 flex flex-wrap items-center gap-2.5 border-t border-[var(--color-border)] pt-4">
           <span className="text-[11px] uppercase tracking-widest text-[var(--color-text-muted)]">
@@ -582,11 +745,21 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
             <Pill tone="ok">Click any text to edit</Pill>
             <button
               type="button"
+              onClick={undo}
+              disabled={undoDepth === 0}
+              title="Undo the last edit (inline, chat, or editor)"
+              className="ml-auto rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)] transition disabled:opacity-40 disabled:pointer-events-none"
+            >
+              ↩ Undo{undoDepth ? ` (${undoDepth})` : ""}
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setContent(null);
                 setStyle({});
+                discardSavedDraft();
               }}
-              className="ml-auto text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] underline"
+              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] underline"
             >
               Discard draft
             </button>

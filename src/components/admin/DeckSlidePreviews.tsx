@@ -586,6 +586,7 @@ const STOCK_TITLES: Record<string, string> = {
   organicTraffic: "Organic Traffic",
   crossChannelAi: "Cross-Channel & AI Visibility",
   contentInsights: "Content & Insights",
+  workGallery: "Posted Work",
   photoBacklink: "Photo & Backlink Optimization",
   postingSocial: "Pages & Posting / Social",
   rankingDetail: "Webpage Ranking Detail",
@@ -705,6 +706,75 @@ function buildSlides(c: MonthlyContent, edit?: EditFn, removeItem?: RemoveFn, lo
         </div>
       ),
     });
+  }
+
+  // Posted-work gallery — image cells pulled off the content board. Chunked
+  // by 6 to mirror the .pptx pagination; the src prefers the inlined data:
+  // URI (post-render) and falls back to the source URL (pre-render preview).
+  {
+    const galleryEntries = (c.workGallery ?? [])
+      .map((g, i) => ({ g, i }))
+      .filter(({ g }) => g && (g.data || g.image));
+    for (let start = 0; start < galleryEntries.length; start += 6) {
+      const batch = galleryEntries.slice(start, start + 6);
+      const pageLabel = galleryEntries.length > 6 ? ` (${start / 6 + 1})` : "";
+      slides.push({
+        label: titleOf("workGallery") + pageLabel,
+        body: (
+          <div>
+            <Heading sectionKey="workGallery" />
+            <div
+              className={cn(
+                "grid gap-4",
+                batch.length === 1 ? "grid-cols-1 max-w-md" : batch.length === 2 ? "grid-cols-2" : "grid-cols-2 lg:grid-cols-3",
+              )}
+            >
+              {batch.map(({ g, i }) => (
+                <div
+                  key={i}
+                  className="group/row relative rounded-xl border border-[var(--color-border)] bg-white/[0.03] p-3 space-y-1.5"
+                >
+                  {removeItem ? (
+                    <div className="absolute top-1.5 right-1.5 z-10">
+                      <RemoveBtn onClick={() => removeItem(["workGallery"], i)} title="Remove image" />
+                    </div>
+                  ) : null}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={g.data || g.image}
+                    alt={g.title ?? ""}
+                    className="w-full h-40 rounded-lg object-contain bg-white/5"
+                  />
+                  <div className="text-sm font-medium leading-snug">
+                    <EditableText
+                      value={g.title ?? ""}
+                      onCommit={edit ? (v) => edit(["workGallery", i, "title"], v) : undefined}
+                    />
+                    {g.date ? (
+                      <span className="ml-2 text-xs font-normal text-[var(--color-text-muted)] tabular-nums">
+                        <EditableText
+                          value={g.date}
+                          onCommit={edit ? (v) => edit(["workGallery", i, "date"], v) : undefined}
+                        />
+                      </span>
+                    ) : null}
+                  </div>
+                  {g.caption ? (
+                    <div className="text-xs text-[var(--color-text-muted)] leading-snug">
+                      <EditableText
+                        value={g.caption}
+                        onCommit={edit ? (v) => edit(["workGallery", i, "caption"], v) : undefined}
+                        multiline
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        ),
+      });
+    }
   }
 
   if (c.postingSocial) {

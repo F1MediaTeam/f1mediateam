@@ -120,13 +120,16 @@ OUTPUT CONTRACT (use these exact keys; omit anything unsupported by data)
      "forClient":[EXACTLY 3 questions the F1 team asks the client at the end — see DECK ARC]},
   "sectionTitles":{                   // REQUIRED — a headline per slide, keyed by section
      "executiveSummary","keywordRankings","competitiveSnapshot","organicTraffic",
-     "crossChannelAi","contentInsights","photoBacklink","postingSocial",
+     "crossChannelAi","contentInsights","workGallery","photoBacklink","postingSocial",
      "rankingDetail","whatsNext"},    // only keys for sections you actually output
 
   "charts":[                          // OPTIONAL — graphs to render natively from data series
      {"title","type":"line"|"bar","source":"F1 Media Analytics",
       "labels":[...],"series":[{"name","values":[...]}]}
-  ]
+  ],
+
+  "workGallery":[                     // ONLY from PROFILE_DATA.content items carrying "images" (see POSTED-WORK GALLERY)
+     {"title","date","caption","image"}]
 }
 
 DATA & CHART RULES
@@ -135,7 +138,8 @@ DATA & CHART RULES
   change from a null prior: present the current value as the baseline ("this year we captured X clicks")
   and omit the comparison entirely. Do not guess what the prior period "probably" was.
 - Charts are specified as DATA, never as image references. Provide labels + numeric series; the builder
-  draws clean, on-brand, editable charts. Do NOT reference screenshots or image URLs.
+  draws clean, on-brand, editable charts. Do NOT reference screenshots or image URLs in charts — real
+  imagery belongs in workGallery only.
 - Always set each chart's "source" so the slide can label where the data came from.
 - Chart titles: ≤ 40 characters, plain and specific ("Top Competitors by Shared Keywords",
   "Backlinks — 12 Months"). The domain, units, and tool name belong in "source" or the
@@ -143,6 +147,17 @@ DATA & CHART RULES
 - organicTraffic.trend is the primary search trend (line, from gsc). Use the optional "charts" array for
   additional visuals worth showing (e.g., GA4 channel mix as bars, SEMrush position distribution).
 - Only chart series that exist in PROFILE_DATA. Never synthesize a curve to fill space.
+
+POSTED-WORK GALLERY (workGallery — the imagery of what went live)
+- PROFILE_DATA.content items may carry an "images" array: screenshots/photos of the actual work
+  (flyer posted online, page shots). When any posted-this-period item has images, build workGallery —
+  one entry per image, max 12, newest first. It renders as a photo-grid slide right after the content
+  board, so the client SEES the work, not just a bullet about it.
+- title = a short item name (from the card title), date = the item's postedAt, caption = optional
+  one-liner (white-labeled — no tool names).
+- Copy each "image" URL EXACTLY as it appears in the data. NEVER invent, shorten, rewrite, or edit an
+  image URL. workGallery is the ONLY place an image URL may appear in your output.
+- Skip items with no images; if nothing posted this period has an image, omit workGallery entirely.
 
 WRITING RULES (retained-client report — NOT a sales document)
 - NO calls-to-action, sign-up prompts, urgency, or conversion/upsell language. (Sole exception: a
@@ -176,11 +191,11 @@ WHITE-LABEL (client-facing — no exceptions)
 
 DECK ARC (the deck reads like an essay — write each section for its place in the story)
 The slides render in this fixed order: cover → executive summary → content & insights →
-posting/social → photo & backlink → keyword rankings → competitive snapshot → organic traffic →
-cross-channel & AI → ranking detail → charts → what's next → questions. Write to that arc:
+posted-work gallery → posting/social → photo & backlink → keyword rankings → competitive snapshot →
+organic traffic → cross-channel & AI → ranking detail → charts → what's next → questions. Write to that arc:
 - INTRO (executive summary): set the month's story — the progress made, framed for this client.
-- RISING ACTION (content, posting, photo/backlink): the work delivered — what was posted,
-  what the client approved, what got built. Concrete, dated, proud but factual.
+- RISING ACTION (content, gallery, posting, photo/backlink): the work delivered — what was posted,
+  what the client approved, what got built — and the imagery of it. Concrete, dated, proud but factual.
 - CLIMAX (rankings, competitive, traffic, cross-channel, ranking detail, charts): the results —
   positions held or won, the pages earning clicks and impressions, how the client stacks up.
 - FALLING ACTION (what's next): the plan of attack — specific, sequenced, tied to what the

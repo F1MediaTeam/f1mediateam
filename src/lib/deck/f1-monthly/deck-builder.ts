@@ -67,6 +67,18 @@ export interface MonthlyContent {
     pagesOptimized?: string[];
     linking?: string;
   };
+  // Posted-work photo gallery — images pulled off the client's posted
+  // content cards (flyer screenshots, page shots). `image` is the source URL
+  // synthesis copies verbatim from PROFILE_DATA.content[].images; `data` is
+  // the fetched base64 the route inlines just before render. Items without
+  // an inlined data URI are skipped at render time.
+  workGallery?: Array<{
+    title?: string;
+    date?: string;
+    caption?: string;
+    image?: string;
+    data?: string;
+  }>;
   photoBacklink?: {
     refreshes?: string[];
     backlinksBuilt?: string;
@@ -286,6 +298,44 @@ export async function generateDeck(brand: BrandConfig, content: MonthlyContent):
     s.addText(bullets(rightItems.map(stripDomain), { fontSize: 13 }), { x: rx + 0.25, y: 2.75, w: colW - 0.5, h: 2.5, margin: 0, valign: "top" });
     if (ci.linking) s.addText(ci.linking, { x: M, y: 5.7, w: PW - 2 * M, h: 0.7, margin: 0, fontFace: BODY, fontSize: 14, italic: true, color: C.muted });
     footer(s);
+  }
+
+  // ===== SLIDE 3B — Posted Work gallery =====
+  // The actual imagery of what went live this period, laid out in a card
+  // grid right after the content board. Only items the route managed to
+  // inline (data: URI) render — a dead URL drops its cell, never the deck.
+  {
+    const gallery = (content?.workGallery || [])
+      .filter((g) => g && typeof g.data === "string" && g.data.startsWith("data:image/"))
+      .slice(0, 12);
+    const PER_SLIDE = 6;
+    for (let start = 0; start < gallery.length; start += PER_SLIDE) {
+      const batch = gallery.slice(start, start + PER_SLIDE);
+      const s = pres.addSlide();
+      s.background = { color: C.lightBg };
+      sectionTitle(s, st("workGallery", "Posted Work"), start === 0 ? "3B" : "3C");
+      const cols = batch.length <= 2 ? Math.max(batch.length, 1) : 3;
+      const rows = Math.ceil(batch.length / cols);
+      const gap = 0.3, top = 1.85, bottom = 0.65;
+      const cw = (PW - 2 * M - gap * (cols - 1)) / cols;
+      const ch = (PH - top - bottom - gap * (rows - 1)) / rows;
+      batch.forEach((g, i) => {
+        const x = M + (i % cols) * (cw + gap);
+        const y = top + Math.floor(i / cols) * (ch + gap);
+        card(s, x, y, cw, ch, C.white);
+        const capLines: Any[] = [];
+        const headline = [g.title, g.date].filter(Boolean).join("  ·  ");
+        if (headline) capLines.push({ text: headline, options: { bold: true, color: C.ink, fontSize: 11, breakLine: Boolean(g.caption) } });
+        if (g.caption) capLines.push({ text: g.caption, options: { color: C.muted, fontSize: 10 } });
+        const capH = capLines.length === 0 ? 0.1 : capLines.length > 1 ? 0.75 : 0.45;
+        const imgH = ch - capH - 0.3;
+        s.addImage({ data: g.data!, x: x + 0.15, y: y + 0.15, w: cw - 0.3, h: imgH, sizing: { type: "contain", w: cw - 0.3, h: imgH } });
+        if (capLines.length) {
+          s.addText(capLines, { x: x + 0.15, y: y + ch - capH - 0.08, w: cw - 0.3, h: capH, margin: 0, align: "center", valign: "middle", fontFace: BODY });
+        }
+      });
+      footer(s);
+    }
   }
 
   // ===== SLIDE 4 — Pages & Posting / Social =====

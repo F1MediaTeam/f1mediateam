@@ -21,6 +21,7 @@ import { fieldyMeetingsInWindow, fieldyConfigured } from "@/lib/connectors/field
 import { fetchClientGscPages, fetchClientGscQueries } from "@/lib/connectors/gsc";
 import { todayIso } from "@/lib/utils";
 import { generateDeck, type BrandConfig, type MonthlyContent } from "@/lib/deck/f1-monthly/deck-builder";
+import { inlineWorkGalleryImages } from "@/lib/deck/f1-monthly/gallery-images";
 import { normalizeMonthlyContent } from "@/lib/deck/f1-monthly/normalize-content";
 import { SYNTHESIS_SYSTEM_PROMPT } from "@/lib/deck/f1-monthly/synthesis-prompt";
 import brandConfigs from "@/lib/deck/f1-monthly/brand-configs.json";
@@ -322,6 +323,10 @@ export async function POST(request: NextRequest) {
   async function renderAndRespond(rawContent: MonthlyContent): Promise<Response> {
     const content = normalizeMonthlyContent(rawContent);
     applyDefaults(content);
+    // Fetch the posted-work gallery images (URLs picked off the content
+    // board) into data: URIs the builder can embed. Dead links just drop
+    // their cell — never the render.
+    await inlineWorkGalleryImages(content);
     const buf = await generateDeck(brand, content);
 
     try {
@@ -448,6 +453,19 @@ export async function POST(request: NextRequest) {
   const cardEvents = await data
     .listContentEventsByCards(contentCards.map((c) => c.id))
     .catch(() => new Map<string, never[]>());
+  // Mirror ContentDetailModal's thumbnail extraction: any image link in the
+  // card body (bare URL, markdown ![](), [ATTACH:https://…]) plus an image-ish
+  // file_url. These feed the posted-work gallery — whatever shows a thumbnail
+  // on the content board can land on a slide. SVG/HEIC are excluded: PowerPoint
+  // can't render them reliably.
+  const extractCardImages = (body: string | null, fileUrl: string | null): string[] => {
+    const urls: string[] = [];
+    const re = /(?:\!\[[^\]]*\]\(|\[ATTACH:|^|\s)(https?:\/\/[^\s\)]+\.(?:png|jpe?g|gif|webp))/gi;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(body ?? "")) !== null) urls.push(m[1]);
+    if (fileUrl && /^https?:\/\/\S+\.(?:png|jpe?g|gif|webp)(?:\?|#|$)/i.test(fileUrl)) urls.push(fileUrl);
+    return Array.from(new Set(urls)).slice(0, 3);
+  };
   const enrichCard = (c: (typeof contentCards)[number]) => {
     const evs = cardEvents.get(c.id) ?? [];
     const postedEv = [...evs].reverse().find((e) => e.to_stage === "posted");
@@ -461,6 +479,9 @@ export async function POST(request: NextRequest) {
       approvedAt: approveEv?.created_at?.slice(0, 10) ?? null,
       // "client" = the customer approved it themselves; "admin" = F1 moved it.
       approvedBy: approveEv?.actor_role ?? null,
+      // Image URLs on the card — the posted-work gallery copies these into
+      // workGallery entries verbatim.
+      images: extractCardImages(c.body, c.file_url),
     };
   };
   const contentBoard = {

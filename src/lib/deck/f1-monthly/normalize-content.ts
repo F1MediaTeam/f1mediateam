@@ -162,6 +162,38 @@ export function normalizeMonthlyContent(raw: unknown): MonthlyContent {
     if (pb.refreshes != null) pb.refreshes = strArr(pb.refreshes);
     c.photoBacklink = pb;
   }
+
+  // ----- workGallery: only real image refs survive -----
+  // Models may drift field names (url/src instead of image) or emit strings.
+  // Keep an item only when it carries an http(s) image URL or an already-
+  // inlined data: URI; dedupe by that ref and cap at the builder's limit.
+  if (c.workGallery != null) {
+    const seen = new Set<string>();
+    const arr = Array.isArray(c.workGallery) ? c.workGallery : [];
+    c.workGallery = arr
+      .map((g) => {
+        if (typeof g === "string") return { image: g };
+        if (!isObj(g)) return null;
+        const image = toStr(g.image ?? g.url ?? g.src).trim();
+        const data = typeof g.data === "string" && g.data.startsWith("data:image/") ? g.data : undefined;
+        return {
+          title: toStr(g.title) || undefined,
+          date: toStr(g.date ?? g.postedAt) || undefined,
+          caption: toStr(g.caption) || undefined,
+          image: image || undefined,
+          ...(data ? { data } : {}),
+        };
+      })
+      .filter((g): g is NonNullable<typeof g> => {
+        if (!g) return false;
+        const ref = (g as { data?: string }).data ?? g.image ?? "";
+        if (!ref || seen.has(ref)) return false;
+        if (!(g as { data?: string }).data && !/^https?:\/\//i.test(g.image ?? "")) return false;
+        seen.add(ref);
+        return true;
+      })
+      .slice(0, 12);
+  }
   if (isObj(c.postingSocial)) {
     const ps = { ...c.postingSocial };
     if (ps.channels != null) ps.channels = strArr(ps.channels);
@@ -231,7 +263,9 @@ const TOOL_NAMES: Array<[RegExp, string]> = [
 ];
 function whitelabel(v: unknown): unknown {
   if (typeof v === "string") {
-    if (/^https?:\/\//i.test(v)) return v;
+    // URLs and inlined images pass through untouched — a data: URI is huge
+    // and a URL containing a tool name is an address, not client-facing copy.
+    if (/^(https?:\/\/|data:)/i.test(v)) return v;
     let s = v;
     for (const [re, sub] of TOOL_NAMES) s = s.replace(re, sub);
     // Collapse artifacts like "F1 Media Analytics's F1 Media Analytics".

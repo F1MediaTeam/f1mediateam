@@ -558,25 +558,44 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
           <div>
             <label className={labelCls}>Meeting</label>
             <div className="inline-flex h-14 items-center rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] p-1.5">
-              {MEETING_TYPES.map((t) => (
-                <button
-                  key={t.value}
-                  type="button"
-                  disabled={busy !== "idle"}
-                  onClick={() => {
-                    if (t.value !== meetingType) setContent(null);
-                    setMeetingType(t.value);
-                  }}
-                  className={cn(
-                    "h-full rounded-xl px-4 text-sm font-semibold transition whitespace-nowrap",
-                    meetingType === t.value
-                      ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] shadow-lg shadow-[var(--color-accent)]/25"
-                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]",
-                  )}
-                >
-                  {t.label}
-                </button>
-              ))}
+              {MEETING_TYPES.map((t) => {
+                // Each tab wears the exact dates it stands for, computed the
+                // same way the deck resolves them — no guessing what
+                // "Monthly" means.
+                const days =
+                  t.range === "7d" ? 7 : t.range === "28d" ? 28 : t.range === "90d" ? 90 : t.range === "12m" ? 365 : 0;
+                const hint =
+                  days > 0
+                    ? `${fmtShortDate(new Date(Date.now() - (days - 1) * 86_400_000).toISOString().slice(0, 10))} – ${fmtShortDate(defaultCustom.to)}`
+                    : t.range === "since_last"
+                      ? "last mtg → today"
+                      : customRange.from && customRange.to
+                        ? `${fmtShortDate(customRange.from)} – ${fmtShortDate(customRange.to)}`
+                        : "pick dates";
+                const active = meetingType === t.value;
+                return (
+                  <button
+                    key={t.value}
+                    type="button"
+                    disabled={busy !== "idle"}
+                    onClick={() => {
+                      if (t.value !== meetingType) setContent(null);
+                      setMeetingType(t.value);
+                    }}
+                    className={cn(
+                      "flex h-full flex-col items-center justify-center rounded-xl px-4 transition whitespace-nowrap leading-tight",
+                      active
+                        ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] shadow-lg shadow-[var(--color-accent)]/25"
+                        : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]",
+                    )}
+                  >
+                    <span className="text-sm font-semibold">{t.label}</span>
+                    <span className={cn("text-[10px] tabular-nums", active ? "opacity-90" : "opacity-60")}>
+                      {hint}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

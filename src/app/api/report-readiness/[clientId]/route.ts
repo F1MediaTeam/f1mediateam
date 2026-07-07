@@ -21,6 +21,14 @@ interface SourceStatus {
   detail: string;
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// "2026-07-05" → "Jul 5" — chip details are one line; ISO dates truncate.
+function shortDate(iso: string | null): string {
+  const m = (iso ?? "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${MONTHS[+m[2] - 1]} ${+m[3]}` : iso ?? "";
+}
+
 function latestOf(series: Array<{ captured_at: string }>): string | null {
   return series.length ? series[series.length - 1].captured_at : null;
 }
@@ -83,11 +91,11 @@ export async function GET(
       const matching = notes.filter((n) => meetingMatchesClient(n, client.company_name)).length;
       fieldyOk = matching > 0;
       fieldyDetail = matching
-        ? `${matching} conversation${matching === 1 ? "" : "s"} mention this client in the window`
-        : "connected — but no conversations mention this client in the window";
+        ? `${matching} client conversation${matching === 1 ? "" : "s"} in window`
+        : "no client conversations in window";
     } catch {
       fieldyOk = true; // key works in general; a transient fetch error shouldn't scare the operator
-      fieldyDetail = "connected — couldn't pre-check this window (will retry at generate time)";
+      fieldyDetail = "connected — checks at generate time";
     }
   }
 
@@ -100,9 +108,9 @@ export async function GET(
       label: "Search Console",
       ok: clicksInWin > 0,
       detail: clicksInWin
-        ? `${clicksInWin} days in ${winLabel} · latest ${latestOf(clicks)}`
+        ? `${clicksInWin} days · latest ${shortDate(latestOf(clicks))}`
         : clicks.length
-          ? `no data in ${winLabel} (latest ${latestOf(clicks)})`
+          ? `none in ${winLabel} · latest ${shortDate(latestOf(clicks))}`
           : "no synced data",
     },
     {
@@ -110,9 +118,9 @@ export async function GET(
       label: "Google Analytics",
       ok: sessionsInWin > 0,
       detail: sessionsInWin
-        ? `${sessionsInWin} days in ${winLabel} · latest ${latestOf(sessions)}`
+        ? `${sessionsInWin} days · latest ${shortDate(latestOf(sessions))}`
         : sessions.length
-          ? `no data in ${winLabel} (latest ${latestOf(sessions)})`
+          ? `none in ${winLabel} · latest ${shortDate(latestOf(sessions))}`
           : "no synced data",
     },
     {
@@ -120,9 +128,9 @@ export async function GET(
       label: "Bing",
       ok: bingInWin > 0,
       detail: bingInWin
-        ? `${bingInWin} days in ${winLabel}`
+        ? `${bingInWin} days · latest ${shortDate(latestOf(bingClicks))}`
         : bingClicks.length
-          ? `no data in ${winLabel} (latest ${latestOf(bingClicks)})`
+          ? `none in ${winLabel} · latest ${shortDate(latestOf(bingClicks))}`
           : "no synced data",
     },
     {

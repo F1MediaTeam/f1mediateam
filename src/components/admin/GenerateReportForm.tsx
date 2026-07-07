@@ -555,7 +555,14 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
         {range === "custom" ? (
           <div className="relative mt-6">
             <label className={labelCls}>Custom range</label>
-            <DateRangePicker fromName="from" toName="to" />
+            {/* Default to the last 28 days — an empty picker invites future
+                windows (no data → an empty deck). */}
+            <DateRangePicker
+              fromName="from"
+              toName="to"
+              defaultFrom={new Date(Date.now() - 27 * 86_400_000).toISOString().slice(0, 10)}
+              defaultTo={new Date().toISOString().slice(0, 10)}
+            />
           </div>
         ) : null}
 

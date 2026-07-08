@@ -687,36 +687,66 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
           </p>
         </div>
 
-        {/* ---------- Actions — the end of the configure-then-act flow ---------- */}
+        {/* ---------- Actions — the Claude app workflow is the main path:
+             Export the data + prompt, draft in the Claude app, Import the
+             JSON back, Download the .pptx. API drafting is tucked away. ---------- */}
         <div className="relative mt-4 flex flex-wrap items-center gap-3 border-t border-[var(--color-border)] pt-4">
           <p className="text-xs text-[var(--color-text-muted)]">
-            Draft first to preview &amp; edit every slide — Generate goes straight to the .pptx.
+            {content
+              ? "Download renders exactly the deck below as a .pptx."
+              : "Export pulls this client + window's data for the Claude app — paste its JSON back with Import."}
           </p>
           <div className="ml-auto flex gap-3">
+            {content ? (
+              <button
+                type="button"
+                onClick={copyDeckJson}
+                className={cn(
+                  btnBase,
+                  "h-10 px-5 text-sm border border-[var(--color-border-strong)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)]",
+                )}
+              >
+                Copy deck JSON
+              </button>
+            ) : null}
             <button
-              type="submit"
-              name="dryrun"
-              value="1"
+              type="button"
+              onClick={() => setImportOpen((o) => !o)}
               disabled={busy !== "idle"}
               className={cn(
                 btnBase,
-                "h-10 px-5 text-sm border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20",
+                "h-10 px-5 text-sm border border-[var(--color-border-strong)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)]",
               )}
             >
-              <Sparkles size={16} />
-              {content ? "Re-draft" : "Draft the deck"}
+              Import deck JSON
             </button>
-            <button
-              type="submit"
-              disabled={busy !== "idle"}
-              className={cn(
-                btnBase,
-                "h-10 px-6 text-sm bg-gradient-to-r from-[var(--color-accent)] to-emerald-400 text-[var(--color-on-accent)] shadow-[0_0_35px_-8px_var(--color-accent)] hover:brightness-110",
-              )}
-            >
-              <Download size={16} />
-              {content ? "Download .pptx" : "Generate & download"}
-            </button>
+            {content ? (
+              <button
+                type="submit"
+                disabled={busy !== "idle"}
+                className={cn(
+                  btnBase,
+                  "h-10 px-6 text-sm bg-gradient-to-r from-[var(--color-accent)] to-emerald-400 text-[var(--color-on-accent)] shadow-[0_0_35px_-8px_var(--color-accent)] hover:brightness-110",
+                )}
+              >
+                <Download size={16} />
+                Download .pptx
+              </button>
+            ) : (
+              <button
+                type="submit"
+                name="prompt_only"
+                value="1"
+                disabled={busy !== "idle"}
+                className={cn(
+                  btnBase,
+                  "h-10 px-6 text-sm bg-gradient-to-r from-[var(--color-accent)] to-emerald-400 text-[var(--color-on-accent)] shadow-[0_0_35px_-8px_var(--color-accent)] hover:brightness-110",
+                )}
+              >
+                <Download size={16} />
+                Export data + prompt
+              </button>
+            )}
           </div>
         </div>
 
@@ -759,28 +789,27 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
           </div>
         ) : null}
 
-        {/* ---------- No-credits workflow: draft in the Claude app ---------- */}
-        <div className="relative mt-4 flex flex-wrap items-center gap-2.5 border-t border-[var(--color-border)] pt-4">
-          <span className="text-[11px] uppercase tracking-widest text-[var(--color-text-muted)]">
-            Claude app workflow
-          </span>
-          <button type="submit" name="prompt_only" value="1" disabled={busy !== "idle"} className={ghostBtn}>
-            Export data + prompt
-          </button>
-          <button type="button" onClick={() => setImportOpen((o) => !o)} disabled={busy !== "idle"} className={ghostBtn}>
-            Import deck JSON
-          </button>
-          {content ? (
-            <button type="button" onClick={copyDeckJson} className={ghostBtn}>
-              Copy deck JSON
+        {/* ---------- API drafting — out of the everyday flow, kept for when
+             drafting in-app (with credits) is wanted. ---------- */}
+        <details className="relative mt-3 border-t border-[var(--color-border)] pt-3">
+          <summary className="cursor-pointer text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
+            Draft in-app instead (uses API credits)
+          </summary>
+          <div className="mt-3 flex flex-wrap items-center gap-2.5">
+            <button type="submit" name="dryrun" value="1" disabled={busy !== "idle"} className={ghostBtn}>
+              <Sparkles size={13} className="mr-1.5 inline" />
+              {content ? "Re-draft" : "Draft the deck"}
             </button>
-          ) : null}
-          <p className="basis-full text-[10px] leading-relaxed text-[var(--color-text-muted)]">
-            Draft on your Claude subscription instead of API credits: Export downloads the full data + prompt as a
-            .txt — drop it into the Claude desktop app, then paste the JSON it returns into Import. Editing and
-            downloading an imported deck uses zero API credits.
-          </p>
-        </div>
+            <button type="submit" disabled={busy !== "idle"} className={ghostBtn}>
+              {content ? "Download .pptx" : "Generate & download .pptx"}
+            </button>
+            <p className="basis-full text-[10px] leading-relaxed text-[var(--color-text-muted)]">
+              Draft synthesizes the deck here with the Anthropic API (1–3 minutes) so you can edit before
+              downloading; Generate goes straight to the .pptx. Both burn API credits — the Export/Import
+              flow above uses your Claude subscription instead.
+            </p>
+          </div>
+        </details>
         {importOpen ? (
           <div className="relative mt-3 space-y-2">
             <textarea

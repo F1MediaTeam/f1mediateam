@@ -202,7 +202,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
   const [ok, setOk] = useState<string | null>(null);
   const [clientId, setClientId] = useState(defaultClientId);
   const [meetingType, setMeetingType] = useState<string>("monthly");
-  const [readiness, setReadiness] = useState<{ clientId: string; sources: SourceStatus[] } | null>(null);
+  const [readiness, setReadiness] = useState<{ clientId: string; windowKey: string; sources: SourceStatus[] } | null>(null);
   const [style, setStyle] = useState<DeckStyle>({});
   // Synthesized (then admin-edited) deck content. Set by "Preview & edit";
   // when present, Generate renders exactly this instead of re-synthesizing.
@@ -307,8 +307,14 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
   }, [busy]);
 
   // Data-readiness rail for the selected client AND window — the chips answer
-  // "will this deck have data", so they re-check when the meeting type or the
-  // picked custom dates move.
+  // "will this deck (or export) have data", so they re-check when the meeting
+  // type or the picked custom dates move. windowKey identifies exactly which
+  // window a readiness payload was fetched for, so chips from a previous
+  // window are never presented as current.
+  const windowKey =
+    range === "custom" && customRange.from && customRange.to
+      ? `${clientId}|${range}|${customRange.from}|${customRange.to}`
+      : `${clientId}|${range}`;
   useEffect(() => {
     let stale = false;
     if (!clientId) return;
@@ -317,17 +323,20 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
       params.set("from", customRange.from);
       params.set("to", customRange.to);
     }
-    fetch(`/api/report-readiness/${clientId}?${params.toString()}`)
+    fetch(`/api/report-readiness/${clientId}?${params.toString()}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((json: { sources?: SourceStatus[] } | null) => {
-        if (!stale && json?.sources) setReadiness({ clientId, sources: json.sources });
+        if (!stale && json?.sources) setReadiness({ clientId, windowKey, sources: json.sources });
       })
       .catch(() => {});
     return () => {
       stale = true;
     };
-  }, [clientId, range, customRange]);
+  }, [clientId, range, customRange, windowKey]);
   const sources = readiness?.clientId === clientId ? readiness.sources : null;
+  // True while the chips on screen were fetched for a different window than
+  // the one currently selected — rendered dimmed until the re-check lands.
+  const sourcesRefreshing = Boolean(sources) && readiness?.windowKey !== windowKey;
 
   // Past decks for the selected client (deck_reports history).
   useEffect(() => {
@@ -526,15 +535,15 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
         : null}
 
       {/* ---------- BUILDER ---------- */}
-      <section className="animate-studio-rise relative overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-6 sm:p-8 shadow-2xl shadow-black/30">
+      <section className="animate-studio-rise relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-5 sm:p-6 shadow-2xl shadow-black/30">
         <div className="pointer-events-none absolute -top-32 -right-24 h-72 w-72 rounded-full bg-[var(--color-accent)]/15 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-40 -left-24 h-72 w-72 rounded-full bg-emerald-400/[0.07] blur-3xl" />
 
         {/* flex-wrap + a hard min width on the client column: the meeting
             tab row grew a sixth option, and without these the client select
             (flex-1 min-w-0) collapses to zero width on narrower screens. */}
-        <div className="relative flex flex-col gap-6 xl:flex-row xl:flex-wrap xl:items-end">
-          <div className="flex-1 min-w-[260px] xl:max-w-md">
+        <div className="relative flex flex-col gap-4 xl:flex-row xl:flex-wrap xl:items-end">
+          <div className="flex-1 min-w-[240px] xl:max-w-sm">
             <label className={labelCls}>Client</label>
             <select
               name="client_id"
@@ -547,7 +556,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
                 setContent(null);
                 setStyle({});
               }}
-              className="h-14 w-full rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-4 text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
+              className="h-11 w-full rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-3.5 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
             >
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>{c.company_name}</option>
@@ -557,21 +566,8 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
 
           <div>
             <label className={labelCls}>Meeting</label>
-            <div className="inline-flex h-14 items-center rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] p-1.5">
+            <div className="inline-flex h-11 items-center rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] p-1">
               {MEETING_TYPES.map((t) => {
-                // Each tab wears the exact dates it stands for, computed the
-                // same way the deck resolves them — no guessing what
-                // "Monthly" means.
-                const days =
-                  t.range === "7d" ? 7 : t.range === "28d" ? 28 : t.range === "90d" ? 90 : t.range === "12m" ? 365 : 0;
-                const hint =
-                  days > 0
-                    ? `${fmtShortDate(new Date(Date.now() - (days - 1) * 86_400_000).toISOString().slice(0, 10))} – ${fmtShortDate(defaultCustom.to)}`
-                    : t.range === "since_last"
-                      ? "last mtg → today"
-                      : customRange.from && customRange.to
-                        ? `${fmtShortDate(customRange.from)} – ${fmtShortDate(customRange.to)}`
-                        : "pick dates";
                 const active = meetingType === t.value;
                 return (
                   <button
@@ -583,16 +579,13 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
                       setMeetingType(t.value);
                     }}
                     className={cn(
-                      "flex h-full flex-col items-center justify-center rounded-xl px-4 transition whitespace-nowrap leading-tight",
+                      "flex h-full items-center justify-center rounded-lg px-3.5 transition whitespace-nowrap",
                       active
                         ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] shadow-lg shadow-[var(--color-accent)]/25"
                         : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]",
                     )}
                   >
                     <span className="text-sm font-semibold">{t.label}</span>
-                    <span className={cn("text-[10px] tabular-nums", active ? "opacity-90" : "opacity-60")}>
-                      {hint}
-                    </span>
                   </button>
                 );
               })}
@@ -602,7 +595,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
         </div>
 
         {range === "custom" ? (
-          <div className="relative mt-6">
+          <div className="relative mt-4">
             <label className={labelCls}>Custom range</label>
             {/* Default to the last 28 days — an empty picker invites future
                 windows (no data → an empty deck). */}
@@ -616,19 +609,19 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
           </div>
         ) : null}
 
-        <div className="relative mt-6">
+        <div className="relative mt-4">
           <label className={labelCls}>Focus points for this meeting (optional — Claude weights these highly)</label>
           <textarea
             name="selected_notes"
-            rows={2}
+            rows={1}
             disabled={busy !== "idle"}
-            placeholder="e.g. Spotlight the new service-area pages · client asked about AI visibility last call · keep it under 15 minutes"
-            className="w-full rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
+            placeholder="e.g. Spotlight the new service-area pages · client asked about AI visibility last call"
+            className="w-full rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
           />
         </div>
 
         {sources ? (
-          <div className="relative mt-6">
+          <div className="relative mt-4">
             <label className={labelCls}>
               Claude builds from
               <span className="ml-2 normal-case tracking-normal font-semibold text-[var(--color-accent)]">
@@ -636,8 +629,18 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
                   ? "· window: since the last meeting"
                   : `· window: ${fmtShortDate(windowFrom)} → ${fmtShortDate(windowTo)}`}
               </span>
+              {sourcesRefreshing ? (
+                <span className="ml-2 normal-case tracking-normal text-[var(--color-text-muted)]">
+                  checking this window…
+                </span>
+              ) : null}
             </label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+            <div
+              className={cn(
+                "grid grid-cols-2 md:grid-cols-4 gap-2 transition-opacity",
+                sourcesRefreshing && "opacity-40",
+              )}
+            >
               {sources.map((s) => {
                 const Icon = SOURCE_ICONS[s.key] ?? FileText;
                 return (
@@ -645,7 +648,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
                     key={s.key}
                     title={s.detail}
                     className={cn(
-                      "rounded-xl border px-3 py-2.5 transition",
+                      "rounded-lg border px-2.5 py-2 transition",
                       s.ok
                         ? "border-[var(--color-accent)]/25 bg-[var(--color-accent)]/[0.06]"
                         : "border-[var(--color-border)] opacity-60",
@@ -671,7 +674,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
           </div>
         ) : null}
 
-        <div className="relative mt-6 flex items-center gap-3 border-t border-[var(--color-border)] pt-4">
+        <div className="relative mt-4 flex items-center gap-3 border-t border-[var(--color-border)] pt-3.5">
           <FieldyPanelButton
             clientName={clients.find((c) => c.id === clientId)?.company_name}
             windowFrom={windowFrom}
@@ -685,7 +688,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
         </div>
 
         {/* ---------- Actions — the end of the configure-then-act flow ---------- */}
-        <div className="relative mt-5 flex flex-wrap items-center gap-3 border-t border-[var(--color-border)] pt-5">
+        <div className="relative mt-4 flex flex-wrap items-center gap-3 border-t border-[var(--color-border)] pt-4">
           <p className="text-xs text-[var(--color-text-muted)]">
             Draft first to preview &amp; edit every slide — Generate goes straight to the .pptx.
           </p>
@@ -697,7 +700,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
               disabled={busy !== "idle"}
               className={cn(
                 btnBase,
-                "h-12 px-6 text-sm border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20",
+                "h-10 px-5 text-sm border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20",
               )}
             >
               <Sparkles size={16} />
@@ -708,7 +711,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
               disabled={busy !== "idle"}
               className={cn(
                 btnBase,
-                "h-12 px-7 text-sm bg-gradient-to-r from-[var(--color-accent)] to-emerald-400 text-[var(--color-on-accent)] shadow-[0_0_35px_-8px_var(--color-accent)] hover:brightness-110",
+                "h-10 px-6 text-sm bg-gradient-to-r from-[var(--color-accent)] to-emerald-400 text-[var(--color-on-accent)] shadow-[0_0_35px_-8px_var(--color-accent)] hover:brightness-110",
               )}
             >
               <Download size={16} />

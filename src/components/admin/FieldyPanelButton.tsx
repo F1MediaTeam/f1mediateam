@@ -10,6 +10,7 @@
 // through /api/fieldy/conversations which holds the key server-side.
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui";
 
 interface Conversation {
@@ -194,7 +195,10 @@ export default function FieldyPanelButton({ clientName, windowFrom, windowTo, re
         Fieldy{chosenCount > 0 ? ` · ${chosenCount} selected` : ""}
       </Button>
 
-      {open ? (
+      {/* Portaled to <body>: the builder card's entrance animation makes it a
+          transform containing block, which would trap and clip this fixed
+          overlay inside the card. */}
+      {open ? createPortal(
         <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 pt-6 sm:pt-4 overflow-y-auto">
           <div className="fixed inset-0 bg-black/65 backdrop-blur-sm" onClick={() => setOpen(false)} aria-hidden />
           <div
@@ -354,7 +358,8 @@ export default function FieldyPanelButton({ clientName, windowFrom, windowTo, re
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </span>
   );

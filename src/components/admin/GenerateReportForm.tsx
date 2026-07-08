@@ -513,9 +513,13 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
         : null}
 
       {/* ---------- BUILDER ---------- */}
-      <section className="animate-studio-rise relative overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-5 sm:p-6 shadow-2xl shadow-black/30">
-        <div className="pointer-events-none absolute -top-32 -right-24 h-72 w-72 rounded-full bg-[var(--color-accent)]/15 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-40 -left-24 h-72 w-72 rounded-full bg-emerald-400/[0.07] blur-3xl" />
+      {/* overflow-hidden must live on an inner glow layer, NOT the card —
+          the date-range picker's popover has to escape the card's bounds. */}
+      <section className="animate-studio-rise relative rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-5 sm:p-6 shadow-2xl shadow-black/30">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+          <div className="absolute -top-32 -right-24 h-72 w-72 rounded-full bg-[var(--color-accent)]/15 blur-3xl" />
+          <div className="absolute -bottom-40 -left-24 h-72 w-72 rounded-full bg-emerald-400/[0.07] blur-3xl" />
+        </div>
 
         {/* flex-wrap + a hard min width on the client column: the meeting
             tab row grew a sixth option, and without these the client select
@@ -556,7 +560,6 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
           </div>
 
           <div>
-            <label className={labelCls}>Fieldy</label>
             <FieldyPanelButton
               clientName={clients.find((c) => c.id === clientId)?.company_name}
               windowFrom={windowFrom}

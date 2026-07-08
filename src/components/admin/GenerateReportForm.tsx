@@ -183,8 +183,6 @@ function ProgressPanel({
 
 export default function GenerateReportForm({ clients, defaultClientId, logos }: Props) {
   const [busy, setBusy] = useState<"idle" | "generate" | "preview" | "export">("idle");
-  const [importOpen, setImportOpen] = useState(false);
-  const [importText, setImportText] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -449,46 +447,6 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
     }
   }
 
-  // Paste-back from the Claude app: accepts the bare content object or the
-  // revise route's {note, content} wrapper, with or without a ```json fence.
-  function handleImport() {
-    const raw = importText.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-    try {
-      let parsed = JSON.parse(raw) as MonthlyContent & { content?: MonthlyContent };
-      if (parsed && typeof parsed === "object" && parsed.content && typeof parsed.content === "object") {
-        parsed = parsed.content as MonthlyContent & { content?: MonthlyContent };
-      }
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
-      // Guard against cross-client mix-ups: Download stores the deck under
-      // the SELECTED client (branding, filename, portal file list) — pasting
-      // Client A's JSON with Client B selected makes a hybrid deck.
-      const selectedName = clients.find((c) => c.id === clientId)?.company_name ?? "";
-      const importedName = typeof parsed.client === "string" ? parsed.client.trim() : "";
-      if (
-        importedName &&
-        selectedName &&
-        importedName.toLowerCase() !== selectedName.toLowerCase() &&
-        !window.confirm(
-          `This JSON says it's a deck for "${importedName}", but "${selectedName}" is selected. ` +
-            `Downloading would store it under ${selectedName} with ${selectedName}'s branding. Load it anyway?`,
-        )
-      ) {
-        return;
-      }
-      // Models improvise field names in a couple of sections — normalize the
-      // common drifts so a pasted draft renders exactly like an API draft.
-      setContent(normalizeMonthlyContent(parsed));
-      setImportOpen(false);
-      setImportText("");
-      setError(null);
-      setOk("Draft imported — edit below. Download renders exactly this deck; no API credits used.");
-    } catch {
-      setError(
-        "That doesn't parse as deck JSON. Paste exactly what Claude returned — starting with { and ending with } (a ```json fence is fine).",
-      );
-    }
-  }
-
   async function copyDeckJson() {
     if (!content) return;
     await navigator.clipboard.writeText(JSON.stringify(content, null, 2));
@@ -625,11 +583,6 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
              Export the data + prompt, draft in the Claude app, Import the
              JSON back, Download the .pptx. API drafting is tucked away. ---------- */}
         <div className="relative mt-4 flex flex-wrap items-center gap-3 border-t border-[var(--color-border)] pt-4">
-          <p className="text-xs text-[var(--color-text-muted)]">
-            {content
-              ? "Download renders exactly the deck below as a .pptx."
-              : "Export pulls this client + window's data for the Claude app — paste its JSON back with Import."}
-          </p>
           <div className="ml-auto flex gap-3">
             {content ? (
               <button
@@ -643,17 +596,6 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
                 Copy deck JSON
               </button>
             ) : null}
-            <button
-              type="button"
-              onClick={() => setImportOpen((o) => !o)}
-              disabled={busy !== "idle"}
-              className={cn(
-                btnBase,
-                "h-10 px-5 text-sm border border-[var(--color-border-strong)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)]",
-              )}
-            >
-              Import deck JSON
-            </button>
             {content ? (
               <button
                 type="submit"
@@ -723,20 +665,6 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
           </div>
         ) : null}
 
-        {importOpen ? (
-          <div className="relative mt-3 space-y-2">
-            <textarea
-              value={importText}
-              onChange={(e) => setImportText(e.target.value)}
-              rows={6}
-              placeholder={'Paste the JSON Claude returned — { ... } or a ```json block'}
-              className="w-full rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-4 py-3 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
-            />
-            <button type="button" onClick={handleImport} disabled={!importText.trim()} className={ghostBtn}>
-              Load draft
-            </button>
-          </div>
-        ) : null}
       </section>
 
       {busy !== "idle" ? (

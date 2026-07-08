@@ -11,6 +11,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Mic } from "lucide-react";
 import { Button } from "@/components/ui";
 
 interface Conversation {
@@ -183,17 +184,18 @@ export default function FieldyPanelButton({ clientName, windowFrom, windowTo, re
 
   return (
     <span ref={rootRef} className="contents">
-      <Button
+      {/* Trigger styled to twin the DateRangePicker's calendar button. */}
+      <button
         type="button"
-        variant="secondary"
-        className="px-6"
         onClick={() => {
           setOpen(true);
           if (!list) void loadConversations();
         }}
+        className="inline-flex h-12 items-center gap-2.5 rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-4 text-sm font-medium transition hover:bg-[var(--color-bg-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
       >
+        <Mic size={16} className="text-[var(--color-accent)]" />
         Fieldy{chosenCount > 0 ? ` · ${chosenCount} selected` : ""}
-      </Button>
+      </button>
 
       {/* Portaled to <body>: the builder card's entrance animation makes it a
           transform containing block, which would trap and clip this fixed

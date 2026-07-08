@@ -41,18 +41,6 @@ interface Props {
   logos?: Record<string, string | null>;
 }
 
-const MEETING_TYPES = [
-  { value: "weekly", label: "Weekly", range: "7d" },
-  { value: "monthly", label: "Monthly", range: "28d" },
-  { value: "quarterly", label: "Quarterly", range: "90d" },
-  { value: "yearly", label: "Yearly", range: "12m" },
-  // Window anchors to the previous meeting on record for this client —
-  // exactly the span since the client was last seen (falls back to 28d
-  // server-side when no meeting exists yet).
-  { value: "sincelast", label: "Since last meeting", range: "since_last" },
-  { value: "custom", label: "Custom", range: "custom" },
-] as const;
-
 const FONTS = [
   "Century Schoolbook",
   "Calibri",
@@ -201,7 +189,6 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [clientId, setClientId] = useState(defaultClientId);
-  const [meetingType, setMeetingType] = useState<string>("monthly");
   const [readiness, setReadiness] = useState<{ clientId: string; windowKey: string; sources: SourceStatus[] } | null>(null);
   const [style, setStyle] = useState<DeckStyle>({});
   // Synthesized (then admin-edited) deck content. Set by "Preview & edit";
@@ -238,10 +225,9 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
     }
   };
 
-  const range = MEETING_TYPES.find((t) => t.value === meetingType)?.range ?? "28d";
   const draftKey = `deckDraft:${clientId}`;
 
-  // The custom range lives in React state too (the picker's hidden inputs
+  // The picked range lives in React state too (the picker's hidden inputs
   // are invisible to effects) so the readiness chips and Fieldy scoping can
   // track the exact dates the deck will pull. Defaults: trailing 28 days.
   const [defaultCustom] = useState(() => ({
@@ -250,14 +236,9 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
   }));
   const [customRange, setCustomRange] = useState<{ from: string | null; to: string | null }>(defaultCustom);
   // The window the deck will actually pull, expressed as ISO dates for the
-  // pre-flight surfaces. since_last resolves server-side (needs the meetings
-  // table); client-side it previews as 90 days.
-  const windowDays = range === "7d" ? 7 : range === "28d" ? 28 : range === "90d" ? 90 : range === "12m" ? 365 : 90;
-  const windowFrom =
-    range === "custom" && customRange.from
-      ? customRange.from
-      : new Date(Date.now() - (windowDays - 1) * 86_400_000).toISOString().slice(0, 10);
-  const windowTo = range === "custom" && customRange.to ? customRange.to : defaultCustom.to;
+  // pre-flight surfaces.
+  const windowFrom = customRange.from ?? defaultCustom.from;
+  const windowTo = customRange.to ?? defaultCustom.to;
 
   // Crash-proofing: the drafted deck is the most expensive artifact in this
   // flow, and it used to live only in React state. Autosave to localStorage
@@ -311,15 +292,12 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
   // type or the picked custom dates move. windowKey identifies exactly which
   // window a readiness payload was fetched for, so chips from a previous
   // window are never presented as current.
-  const windowKey =
-    range === "custom" && customRange.from && customRange.to
-      ? `${clientId}|${range}|${customRange.from}|${customRange.to}`
-      : `${clientId}|${range}`;
+  const windowKey = `${clientId}|${windowFrom}|${windowTo}`;
   useEffect(() => {
     let stale = false;
     if (!clientId) return;
-    const params = new URLSearchParams({ range });
-    if (range === "custom" && customRange.from && customRange.to) {
+    const params = new URLSearchParams({ range: "custom" });
+    if (customRange.from && customRange.to) {
       params.set("from", customRange.from);
       params.set("to", customRange.to);
     }
@@ -332,7 +310,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
     return () => {
       stale = true;
     };
-  }, [clientId, range, customRange, windowKey]);
+  }, [clientId, customRange, windowKey]);
   const sources = readiness?.clientId === clientId ? readiness.sources : null;
   // True while the chips on screen were fetched for a different window than
   // the one currently selected — rendered dimmed until the re-check lands.
@@ -377,8 +355,8 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
     const isPreview = submitter?.getAttribute("name") === "dryrun";
     const isPromptExport = submitter?.getAttribute("name") === "prompt_only";
     const fd = new FormData(form);
-    if (range === "custom" && (!fd.get("from") || !fd.get("to"))) {
-      setError("Pick a start and end date for the custom range.");
+    if (!fd.get("from") || !fd.get("to")) {
+      setError("Pick a start and end date for the time frame.");
       return;
     }
     if (isPromptExport) fd.set("prompt_only", "1");
@@ -524,8 +502,8 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <input type="hidden" name="range" value={range} />
-      <input type="hidden" name="report_type" value={meetingType} />
+      <input type="hidden" name="range" value="custom" />
+      <input type="hidden" name="report_type" value="custom" />
       {/* Style overrides only ride along while the deck they were chosen for
           is on screen — never silently into a fresh draft. */}
       {content
@@ -565,39 +543,8 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
           </div>
 
           <div>
-            <label className={labelCls}>Meeting</label>
-            <div className="inline-flex h-11 items-center rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] p-1">
-              {MEETING_TYPES.map((t) => {
-                const active = meetingType === t.value;
-                return (
-                  <button
-                    key={t.value}
-                    type="button"
-                    disabled={busy !== "idle"}
-                    onClick={() => {
-                      if (t.value !== meetingType) setContent(null);
-                      setMeetingType(t.value);
-                    }}
-                    className={cn(
-                      "flex h-full items-center justify-center rounded-lg px-3.5 transition whitespace-nowrap",
-                      active
-                        ? "bg-[var(--color-accent)] text-[var(--color-on-accent)] shadow-lg shadow-[var(--color-accent)]/25"
-                        : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]",
-                    )}
-                  >
-                    <span className="text-sm font-semibold">{t.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-        </div>
-
-        {range === "custom" ? (
-          <div className="relative mt-4">
-            <label className={labelCls}>Custom range</label>
-            {/* Default to the last 28 days — an empty picker invites future
+            <label className={labelCls}>Time frame</label>
+            {/* Defaults to the last 28 days — an empty picker invites future
                 windows (no data → an empty deck). */}
             <DateRangePicker
               fromName="from"
@@ -607,17 +554,16 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
               onChange={(from, to) => setCustomRange({ from, to })}
             />
           </div>
-        ) : null}
 
-        <div className="relative mt-4">
-          <label className={labelCls}>Focus points for this meeting (optional — Claude weights these highly)</label>
-          <textarea
-            name="selected_notes"
-            rows={1}
-            disabled={busy !== "idle"}
-            placeholder="e.g. Spotlight the new service-area pages · client asked about AI visibility last call"
-            className="w-full rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-bg)] px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
-          />
+          <div>
+            <label className={labelCls}>Fieldy</label>
+            <FieldyPanelButton
+              clientName={clients.find((c) => c.id === clientId)?.company_name}
+              windowFrom={windowFrom}
+              windowTo={windowTo}
+              resetKey={clientId}
+            />
+          </div>
         </div>
 
         {sources ? (
@@ -625,9 +571,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
             <label className={labelCls}>
               Claude builds from
               <span className="ml-2 normal-case tracking-normal font-semibold text-[var(--color-accent)]">
-                {meetingType === "sincelast"
-                  ? "· window: since the last meeting"
-                  : `· window: ${fmtShortDate(windowFrom)} → ${fmtShortDate(windowTo)}`}
+                {`· window: ${fmtShortDate(windowFrom)} → ${fmtShortDate(windowTo)}`}
               </span>
               {sourcesRefreshing ? (
                 <span className="ml-2 normal-case tracking-normal text-[var(--color-text-muted)]">
@@ -673,19 +617,6 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
             </div>
           </div>
         ) : null}
-
-        <div className="relative mt-4 flex items-center gap-3 border-t border-[var(--color-border)] pt-3.5">
-          <FieldyPanelButton
-            clientName={clients.find((c) => c.id === clientId)?.company_name}
-            windowFrom={windowFrom}
-            windowTo={windowTo}
-            resetKey={clientId}
-          />
-          <p className="ml-auto text-xs text-[var(--color-text-muted)]">
-            Fieldy opens scoped to this client &amp; window — untick the filter to browse everything.
-            Tier, brand, and context come from the profile automatically.
-          </p>
-        </div>
 
         {/* ---------- Actions — the Claude app workflow is the main path:
              Export the data + prompt, draft in the Claude app, Import the
@@ -789,27 +720,6 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
           </div>
         ) : null}
 
-        {/* ---------- API drafting — out of the everyday flow, kept for when
-             drafting in-app (with credits) is wanted. ---------- */}
-        <details className="relative mt-3 border-t border-[var(--color-border)] pt-3">
-          <summary className="cursor-pointer text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
-            Draft in-app instead (uses API credits)
-          </summary>
-          <div className="mt-3 flex flex-wrap items-center gap-2.5">
-            <button type="submit" name="dryrun" value="1" disabled={busy !== "idle"} className={ghostBtn}>
-              <Sparkles size={13} className="mr-1.5 inline" />
-              {content ? "Re-draft" : "Draft the deck"}
-            </button>
-            <button type="submit" disabled={busy !== "idle"} className={ghostBtn}>
-              {content ? "Download .pptx" : "Generate & download .pptx"}
-            </button>
-            <p className="basis-full text-[10px] leading-relaxed text-[var(--color-text-muted)]">
-              Draft synthesizes the deck here with the Anthropic API (1–3 minutes) so you can edit before
-              downloading; Generate goes straight to the .pptx. Both burn API credits — the Export/Import
-              flow above uses your Claude subscription instead.
-            </p>
-          </div>
-        </details>
         {importOpen ? (
           <div className="relative mt-3 space-y-2">
             <textarea

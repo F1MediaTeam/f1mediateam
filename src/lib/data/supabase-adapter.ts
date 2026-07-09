@@ -770,6 +770,18 @@ export async function createContent(input: {
     })
     .select()
     .single();
+  // Birth event — without it, cards sitting in "proposed" have an empty
+  // activity log until their first stage move.
+  if (data) {
+    await supabase.from("content_card_events").insert({
+      card_id: (data as ContentCard).id,
+      from_stage: null,
+      to_stage: "proposed",
+      actor_user_id: input.created_by ?? null,
+      actor_role: "admin",
+      note: null,
+    });
+  }
   return (data as ContentCard) ?? null;
 }
 
@@ -798,6 +810,16 @@ export async function createClientContent(input: {
     })
     .select()
     .single();
+  if (data) {
+    await supabase.from("content_card_events").insert({
+      card_id: (data as ContentCard).id,
+      from_stage: null,
+      to_stage: "proposed",
+      actor_user_id: input.created_by ?? null,
+      actor_role: "client",
+      note: null,
+    });
+  }
   return (data as ContentCard) ?? null;
 }
 

@@ -53,6 +53,17 @@ function fmt(iso: string) {
   }
 }
 
+// Human wording for a stage move — "Approved by client" beats
+// "client · proposed → pending".
+function eventLabel(e: EventRow): string {
+  const who = e.actor_role === "client" ? "client" : "F1 Media Team";
+  if (!e.from_stage && e.to_stage === "proposed") return `Proposed by ${who}`;
+  if (e.from_stage === "proposed" && e.to_stage === "pending") return `Approved by ${who}`;
+  if (e.from_stage === "pending" && e.to_stage === "posted") return `Marked posted by ${who}`;
+  if (e.from_stage) return `Moved back to ${e.to_stage} by ${who}`;
+  return `${e.to_stage} · ${who}`;
+}
+
 // Pull anything that looks like an image link out of the body so we can show
 // thumbnails. Markers we recognise: bare image URLs, markdown ![alt](url),
 // [ATTACH:image/...] markers from the calendar-attachments scheme.
@@ -211,7 +222,7 @@ export default function ContentDetailModal(props: ContentDetailModalProps) {
                           }
                         >
                           <div className="text-[10px] font-mono text-[var(--color-text-muted)]">
-                            {fmt(e.created_at)} · {e.actor_role}{e.from_stage ? ` · ${e.from_stage} → ${e.to_stage}` : ` · ${e.to_stage}`}
+                            {fmt(e.created_at)} · {eventLabel(e)}
                           </div>
                           {noteText ? (
                             <div className={"mt-1 text-sm whitespace-pre-wrap break-words " + (isChangeRequest ? "text-amber-200" : "text-[var(--color-text-muted)]")}>

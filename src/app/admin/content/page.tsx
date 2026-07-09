@@ -34,7 +34,7 @@ function companyColor(clientId: string): string {
 // card's left bar and the filter chip dot. Buckets Of Ink = their print-shop
 // CMYK strip (cyan/magenta/yellow/white); Precision Graphics = light blue.
 const BOI_STRIP =
-  "linear-gradient(180deg,#3ba7dc 0%,#3ba7dc 25%,#e23d8b 25%,#e23d8b 50%,#efc53f 50%,#efc53f 75%,#ffffff 75%,#ffffff 100%)";
+  "linear-gradient(180deg,#3ba7dc 0%,#3ba7dc 25%,#e23d8b 25%,#e23d8b 50%,#efc53f 50%,#efc53f 75%,#000000 75%,#000000 100%)";
 function companyAccent(clientId: string, name: string): string {
   if (/buckets\s*of\s*ink/i.test(name)) return BOI_STRIP;
   if (/precision\s*graphics/i.test(name)) return "#6ec3f2";

@@ -201,17 +201,16 @@ export default function FieldyPanelButton({ clientName, windowFrom, windowTo, re
           transform containing block, which would trap and clip this fixed
           overlay inside the card.
 
-          The backdrop is a static sibling of the scroll container, never a
-          fixed child inside it — browser backdrop-filter layers ghost when
-          the panel resizes/re-centers. No blur at all: it smears the builder
-          card's glowing Export button into a bright green blob the dim can't
-          hide, so the backdrop dims harder instead. `isolate` keeps the
-          panel compositing in its own layer. */}
+          ONE fixed layer only, scrim painted straight on the scroll
+          container: no blur (it smears the builder card's glowing Export
+          button into a green blob) and no second full-screen sibling for
+          Safari to composite separately — stacked fixed layers are what
+          left stale ghost copies behind. `isolate` keeps the panel
+          compositing in its own layer. */}
       {open ? createPortal(
         <>
-          <div className="fixed inset-0 z-50 bg-black/90" aria-hidden />
           <div
-            className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 pt-6 sm:pt-4 overflow-y-auto"
+            className="fixed inset-0 z-50 bg-black/90 flex items-start sm:items-center justify-center p-4 pt-6 sm:pt-4 overflow-y-auto"
             onClick={(e) => {
               if (e.target === e.currentTarget) setOpen(false);
             }}

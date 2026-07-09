@@ -151,7 +151,11 @@ export function Button({
     <button
       {...rest}
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium tracking-wide transition",
+        // transition-colors, deliberately NOT `transition`: animating opacity
+        // (disabled:opacity-60) or filter (hover:brightness) makes Safari
+        // composite the button on its own layer, which leaves stale offset
+        // copies behind inside fixed overlays (Fieldy panel ghost-button bug).
+        "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium tracking-wide transition-colors",
         sizes[size],
         variants[variant],
         className,

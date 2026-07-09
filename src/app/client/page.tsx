@@ -20,7 +20,7 @@ import CalendarAddModal from "@/components/client/CalendarAddModal";
 import Time from "@/components/shared/Time";
 import { approveContentAction, requestChangesAction } from "./actions";
 import { parseEventNotes } from "@/lib/calendar-event-url";
-import type { ContentCard } from "@/lib/types";
+import type { ContentCard, ContentCardEvent } from "@/lib/types";
 
 export default async function ClientHome() {
   const session = await requireClient();
@@ -33,6 +33,10 @@ export default async function ClientHome() {
     data.listSemrushReports(client.id),
   ]);
   const semrushChart = buildSemrushChartData(semrushReports);
+
+  // Stage history per content card — the detail popup shows the same
+  // proposed → pending → posted activity log the admin side gets.
+  const contentEventsByCard = await data.listContentEventsByCards(content.map((c) => c.id));
 
   // Count attachments per event so the calendar grid can show a 📎 N badge.
   const attachments = await data.listAttachmentsForEvents(events.map((e) => e.id));
@@ -91,6 +95,7 @@ export default async function ClientHome() {
             cards={byStage.proposed}
             companyName={client.company_name}
             seeAllHref="/client/content"
+            eventsByCard={contentEventsByCard}
           />
           <StatusColumn
             tone="accent"
@@ -98,6 +103,7 @@ export default async function ClientHome() {
             cards={byStage.pending}
             companyName={client.company_name}
             seeAllHref="/client/content"
+            eventsByCard={contentEventsByCard}
           />
           <StatusColumn
             tone="ok"
@@ -105,6 +111,7 @@ export default async function ClientHome() {
             cards={byStage.posted}
             companyName={client.company_name}
             seeAllHref="/client/content"
+            eventsByCard={contentEventsByCard}
           />
         </div>
       ) : null}
@@ -306,12 +313,14 @@ function StatusColumn({
   cards,
   companyName,
   seeAllHref,
+  eventsByCard,
 }: {
   tone: "warn" | "accent" | "ok";
   label: string;
   cards: ContentCard[];
   companyName: string;
   seeAllHref: string;
+  eventsByCard: Map<string, ContentCardEvent[]>;
 }) {
   const visible = cards.slice(0, 3);
   return (
@@ -330,7 +339,14 @@ function StatusColumn({
                 triggerClassName="block w-full text-left"
                 card={{ id: card.id, title: card.title, body: card.body, link: card.link, stage: card.stage, created_at: card.created_at, updated_at: card.updated_at }}
                 companyName={companyName}
-                events={[]}
+                events={(eventsByCard.get(card.id) ?? []).map((e) => ({
+                  id: e.id,
+                  created_at: e.created_at,
+                  from_stage: e.from_stage,
+                  to_stage: e.to_stage,
+                  actor_role: e.actor_role,
+                  note: e.note,
+                }))}
                 triggerLabel={
                   <>
                     <div className="text-sm font-medium leading-snug break-words">{card.title}</div>

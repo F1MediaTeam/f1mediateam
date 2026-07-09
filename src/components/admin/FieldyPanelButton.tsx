@@ -199,14 +199,27 @@ export default function FieldyPanelButton({ clientName, windowFrom, windowTo, re
 
       {/* Portaled to <body>: the builder card's entrance animation makes it a
           transform containing block, which would trap and clip this fixed
-          overlay inside the card. */}
+          overlay inside the card.
+
+          The blurred backdrop must be a static sibling of the scroll
+          container, never a fixed child inside it — Chrome's backdrop-filter
+          layer holds a stale snapshot when the panel resizes/re-centers,
+          smearing a ghost copy of bright content (the teal commit button)
+          back onto the screen. `isolate` keeps the panel compositing in its
+          own layer for the same reason. */}
       {open ? createPortal(
-        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 pt-6 sm:pt-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/65 backdrop-blur-sm" onClick={() => setOpen(false)} aria-hidden />
+        <>
+          <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm" aria-hidden />
+          <div
+            className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 pt-6 sm:pt-4 overflow-y-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setOpen(false);
+            }}
+          >
           <div
             role="dialog"
             aria-modal="true"
-            className="relative w-full max-w-4xl rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg-card)] p-6 shadow-2xl my-auto"
+            className="relative isolate w-full max-w-4xl rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg-card)] p-6 shadow-2xl my-auto"
           >
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -360,7 +373,8 @@ export default function FieldyPanelButton({ clientName, windowFrom, windowTo, re
               </Button>
             </div>
           </div>
-        </div>,
+          </div>
+        </>,
         document.body,
       ) : null}
     </span>

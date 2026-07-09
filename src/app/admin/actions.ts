@@ -13,6 +13,7 @@ import {
   clearImpersonation,
   readImpersonation,
 } from "@/lib/auth/impersonate";
+import { notifyClient } from "@/lib/email";
 
 // --- tasks ---
 
@@ -316,6 +317,17 @@ export async function sendAdminMessageAction(
       body,
       attachments,
     });
+    await notifyClient(client_id, {
+      subject: "New message from F1 Media Team",
+      heading: "You have a new message",
+      body: body
+        ? body.length > 160
+          ? body.slice(0, 157) + "…"
+          : body
+        : "Your F1 Media Team sent you an attachment.",
+      ctaLabel: "Open your portal",
+      ctaPath: "/client",
+    });
     revalidatePath(`/admin/messages`);
     revalidatePath(`/admin/messages/${client_id}`);
     revalidatePath(`/admin/clients/${client_id}`);
@@ -380,6 +392,13 @@ export async function createContentAction(formData: FormData) {
   await data.createContent({ client_id, title, body, link, created_by: session.user_id });
   const { persistAttachments } = await import("@/lib/attachments");
   await persistAttachments({ formData, client_id, uploaded_by: session.user_id, category: "content-card" });
+  await notifyClient(client_id, {
+    subject: "New content is ready for your review",
+    heading: "Content awaiting your approval",
+    body: `"${title}" was just added to your content board. Take a look and approve it or request changes.`,
+    ctaLabel: "Review content",
+    ctaPath: "/client/content",
+  });
   revalidatePath("/admin/content");
   revalidatePath(`/admin/clients/${client_id}`);
 }

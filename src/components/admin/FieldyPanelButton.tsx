@@ -209,7 +209,7 @@ export default function FieldyPanelButton({ clientName, windowFrom, windowTo, re
           panel compositing in its own layer. */}
       {open ? createPortal(
         <>
-          <div className="fixed inset-0 z-50 bg-black/80" aria-hidden />
+          <div className="fixed inset-0 z-50 bg-black/90" aria-hidden />
           <div
             className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 pt-6 sm:pt-4 overflow-y-auto"
             onClick={(e) => {

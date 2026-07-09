@@ -1,7 +1,8 @@
-// Admin inbox — one rich row per client thread: avatar initials, last-message
-// preview, relative timestamp, unread badge. Threads are keyed by the client
-// company (client_id), so any customer-side user on the same account posts
-// into the same conversation. Unread first, then most recently active.
+// Admin inbox — styled like the iPhone Messages list: flat rows with inset
+// hairlines, unread dot on the far left, big circular avatar, bold name with
+// a right-aligned timestamp + chevron, two-line preview. Threads are keyed
+// by the client company (client_id), so any customer-side user on the same
+// account posts into the same conversation. Unread first, then most recent.
 
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/session";
@@ -15,16 +16,17 @@ function initials(name: string): string {
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
-function timeAgo(iso: string): string {
-  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return "just now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d ago`;
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+/* iMessage-style stamp: time today, "Yesterday", weekday inside a week,
+   short date beyond that. */
+function timeLabel(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.floor((startOfToday.getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 86_400_000);
+  if (days <= 0) return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  if (days === 1) return "Yesterday";
+  if (days < 7) return d.toLocaleDateString("en-US", { weekday: "long" });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 export default async function AdminMessagesInbox() {
@@ -47,28 +49,18 @@ export default async function AdminMessagesInbox() {
   });
 
   const totalUnread = Array.from(unreadByClient.values()).reduce((a, n) => a + n, 0);
-  const activeThreads = sorted.filter((c) => latestByClient.has(c.id)).length;
 
   return (
     <AdminShell session={session} active="/admin/messages">
-      <div className="px-6 sm:px-8 py-8 max-w-5xl">
-        <div className="mb-8">
+      <div className="px-6 sm:px-8 py-8 max-w-3xl">
+        <div className="mb-4">
           <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">Inbox</div>
-          <h1 className="text-3xl font-semibold tracking-tight mt-1">Client messages</h1>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[var(--color-text-muted)]">
-            {totalUnread > 0 ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/15 border border-red-500/40 text-red-300 px-2.5 py-0.5 text-xs font-semibold">
-                {totalUnread} unread
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] px-2.5 py-0.5 text-xs">
-                All caught up
-              </span>
-            )}
-            <span>
-              {sorted.length} client{sorted.length === 1 ? "" : "s"} · {activeThreads} active thread{activeThreads === 1 ? "" : "s"}
-            </span>
-          </div>
+          <h1 className="text-3xl font-semibold tracking-tight mt-1">Messages</h1>
+          {totalUnread > 0 ? (
+            <div className="mt-1.5 text-sm text-[var(--color-text-muted)]">
+              {totalUnread} unread message{totalUnread === 1 ? "" : "s"}
+            </div>
+          ) : null}
         </div>
 
         {sorted.length === 0 ? (
@@ -76,7 +68,7 @@ export default async function AdminMessagesInbox() {
             No clients yet — threads appear here as soon as a client account exists.
           </div>
         ) : (
-          <ul className="space-y-3">
+          <ul>
             {sorted.map((c) => {
               const unread = unreadByClient.get(c.id) ?? 0;
               const last = latestByClient.get(c.id);
@@ -85,56 +77,41 @@ export default async function AdminMessagesInbox() {
                 <li key={c.id}>
                   <Link
                     href={`/admin/messages/${c.id}`}
-                    className={[
-                      "group relative flex items-center gap-4 rounded-2xl border px-5 py-4 transition-colors",
-                      hasUnread
-                        ? "border-[var(--color-accent)]/45 bg-[var(--color-accent)]/[0.07] hover:bg-[var(--color-accent)]/[0.12]"
-                        : "border-[var(--color-border)] bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-hover)]",
-                    ].join(" ")}
+                    className="group flex items-center gap-3 rounded-xl px-2 transition-colors hover:bg-[var(--color-bg-hover)] active:bg-[var(--color-bg-hover)]"
                   >
+                    {/* Unread dot column — fixed width so read rows stay aligned */}
+                    <span className="w-2.5 shrink-0" aria-hidden>
+                      {hasUnread ? (
+                        <span className="block h-2.5 w-2.5 rounded-full bg-[var(--color-accent)]" />
+                      ) : null}
+                    </span>
+
                     {/* Avatar */}
-                    <span
-                      className={[
-                        "grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-bold tracking-wide",
-                        hasUnread
-                          ? "bg-[var(--color-accent)] text-[var(--color-on-accent)]"
-                          : "border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] text-[var(--color-accent)]",
-                      ].join(" ")}
-                    >
+                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-b from-[#4a5568] to-[#2b3442] text-[15px] font-semibold text-white/90">
                       {initials(c.company_name)}
                     </span>
 
-                    {/* Name + preview */}
-                    <span className="min-w-0 flex-1">
+                    {/* Text block — carries the inset hairline like iMessage */}
+                    <span className="min-w-0 flex-1 border-b border-[var(--color-border)] py-3 group-hover:border-transparent">
                       <span className="flex items-center gap-2">
-                        <span className={["truncate text-[15px]", hasUnread ? "font-semibold" : "font-medium"].join(" ")}>
+                        <span className={"min-w-0 flex-1 truncate text-[15px] " + (hasUnread ? "font-bold" : "font-semibold")}>
                           {c.company_name}
                         </span>
-                        {hasUnread ? (
-                          <span className="shrink-0 rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-white">
-                            {unread > 99 ? "99+" : unread} new
-                          </span>
-                        ) : null}
+                        <span className="shrink-0 text-[13px] tabular-nums text-[var(--color-text-muted)]">
+                          {last ? timeLabel(last.created_at) : ""}
+                        </span>
+                        <svg
+                          aria-hidden
+                          className="h-3 w-3 shrink-0 text-[var(--color-text-subtle)]"
+                          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                        >
+                          <path d="m9 6 6 6-6 6" />
+                        </svg>
                       </span>
-                      <span
-                        className={[
-                          "mt-0.5 block truncate text-sm",
-                          hasUnread ? "text-[var(--color-text)]" : "text-[var(--color-text-muted)]",
-                        ].join(" ")}
-                      >
+                      <span className="mt-0.5 block pr-7 text-sm leading-snug text-[var(--color-text-muted)] line-clamp-2">
                         {last
                           ? `${last.from_role === "admin" ? "You: " : ""}${last.body || "Sent an attachment"}`
                           : "No messages yet — start the conversation."}
-                      </span>
-                    </span>
-
-                    {/* Time + affordance */}
-                    <span className="flex shrink-0 flex-col items-end gap-1">
-                      <span className="text-xs tabular-nums text-[var(--color-text-muted)]">
-                        {last ? timeAgo(last.created_at) : "—"}
-                      </span>
-                      <span className="text-xs font-medium text-[var(--color-accent)] opacity-70 transition-opacity group-hover:opacity-100">
-                        Open →
                       </span>
                     </span>
                   </Link>

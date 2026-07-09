@@ -1,8 +1,9 @@
 import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
-import { Card, Pill } from "@/components/ui";
+import { Pill } from "@/components/ui";
 import Time from "@/components/shared/Time";
+import DropdownCard from "@/components/shared/DropdownCard";
 import { formatLocation } from "@/lib/utils";
 
 interface ActivityRow {
@@ -14,45 +15,6 @@ interface ActivityRow {
   region: string | null;
   country: string | null;
   active?: boolean; // for view-as that hasn't ended yet
-}
-
-/* Collapsible card section: native <details> so it works without client JS.
-   Collapsed by default — the header row carries the event count, expanding
-   reveals the full table. */
-function DropdownCard({
-  title,
-  subtitle,
-  children,
-  className,
-}: {
-  title: string;
-  subtitle: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <Card className={className}>
-      <details className="group">
-        <summary className="flex cursor-pointer select-none items-center justify-between gap-4 px-4 py-5 sm:px-6 list-none [&::-webkit-details-marker]:hidden rounded-2xl transition-colors hover:bg-[var(--color-bg-hover)]">
-          <span className="min-w-0">
-            <span className="block text-base font-semibold tracking-tight">{title}</span>
-            <span className="mt-0.5 block text-xs text-[var(--color-text-muted)]">{subtitle}</span>
-          </span>
-          <span
-            aria-hidden
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[var(--color-border-strong)] text-[var(--color-text-muted)] transition-transform group-open:rotate-180"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m6 9 6 6 6-6" />
-            </svg>
-          </span>
-        </summary>
-        <div className="px-4 pb-6 sm:px-6 border-t border-[var(--color-border)] pt-4">
-          {children}
-        </div>
-      </details>
-    </Card>
-  );
 }
 
 export default async function AdminAudit() {
@@ -106,7 +68,7 @@ export default async function AdminAudit() {
         </div>
 
         <DropdownCard
-          className="mb-8"
+          className="mb-3"
           title="My activity"
           subtitle={`${myActivity.length} events — admin sign-ins + view-as customer sessions`}
         >

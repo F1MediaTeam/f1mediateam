@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
@@ -55,19 +56,45 @@ export default async function AdminContent({
               Content
             </h1>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <form className="flex items-center gap-2">
-              <span className="text-xs text-[var(--color-text-muted)]">Client:</span>
-              <select
-                name="client"
-                defaultValue={clientFilter ?? ""}
-                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Client filter — one chip per client, links so filtering is
+                instant (no Filter button). Dot color matches the card's
+                per-company border color. */}
+            <nav className="flex items-center gap-1 flex-wrap rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-1">
+              <Link
+                href="/admin/content"
+                className={
+                  "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors " +
+                  (!clientFilter
+                    ? "bg-[var(--color-accent)]/15 text-[var(--color-accent)] border border-[var(--color-accent)]/40"
+                    : "border border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)]")
+                }
               >
-                <option value="">All</option>
-                {clients.map((c) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
-              </select>
-              <Button size="sm" variant="secondary" type="submit">Filter</Button>
-            </form>
+                All
+              </Link>
+              {clients.map((c) => {
+                const active = clientFilter === c.id;
+                return (
+                  <Link
+                    key={c.id}
+                    href={`/admin/content?client=${c.id}`}
+                    className={
+                      "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors " +
+                      (active
+                        ? "bg-[var(--color-accent)]/15 text-[var(--color-accent)] border border-[var(--color-accent)]/40"
+                        : "border border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)]")
+                    }
+                  >
+                    <span
+                      aria-hidden
+                      className="h-2 w-2 rounded-full shrink-0"
+                      style={{ background: companyColor(c.id) }}
+                    />
+                    {c.company_name}
+                  </Link>
+                );
+              })}
+            </nav>
             <AdminContentAddModal action={createContentAction} clients={clients} />
           </div>
         </div>

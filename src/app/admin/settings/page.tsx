@@ -4,6 +4,7 @@ import { Card, CardBody, CardHeader, Button } from "@/components/ui";
 import { signOutAction } from "@/app/login/actions";
 import { data } from "@/lib/data";
 import Time from "@/components/shared/Time";
+import DropdownCard from "@/components/shared/DropdownCard";
 import { formatLocation } from "@/lib/utils";
 
 export default async function AdminSettings() {
@@ -113,21 +114,24 @@ export default async function AdminSettings() {
           </CardBody>
         </Card>
 
-        <Card className="mb-6">
-          <CardHeader title="Recent sign-ins" subtitle="Latest 12 sign-ins to this admin account" />
-          <CardBody className="space-y-1.5">
-            {audit.length === 0 ? (
-              <div className="text-xs text-[var(--color-text-muted)]">No history yet.</div>
-            ) : (
-              audit.map((a) => (
+        <DropdownCard
+          className="mb-6"
+          title="Recent sign-ins"
+          subtitle={`Latest ${audit.length} sign-ins to this admin account`}
+        >
+          {audit.length === 0 ? (
+            <div className="text-xs text-[var(--color-text-muted)]">No history yet.</div>
+          ) : (
+            <div className="space-y-1.5">
+              {audit.map((a) => (
                 <div key={a.id} className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2 text-xs">
                   <span className="font-mono"><Time iso={a.logged_in_at} /></span>
                   <span className="text-[var(--color-text-muted)]">{formatLocation(a)}</span>
                 </div>
-              ))
-            )}
-          </CardBody>
-        </Card>
+              ))}
+            </div>
+          )}
+        </DropdownCard>
 
         <Card>
           <CardHeader title="Session" subtitle="Sign out of the admin console" />

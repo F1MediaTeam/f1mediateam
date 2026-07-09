@@ -5,6 +5,7 @@ import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import MultiMetricCard from "@/components/shared/MultiMetricCard";
+import DropdownCard from "@/components/shared/DropdownCard";
 import SeoMetricsRow from "@/components/shared/SeoMetricsRow";
 import SemrushGauges from "@/components/shared/SemrushGauges";
 import OrganicKeywordsPanel from "@/components/shared/OrganicKeywordsPanel";
@@ -111,22 +112,22 @@ export default async function ClientProfile({
         ) : null}
 
         {customerUser ? (
-          <Card className="mb-8">
-            <CardHeader
-              title="Customer account"
-              subtitle="Edit the business name, login email, and password the customer uses to access their portal."
-              right={<ReopenOnboardingButton clientId={client.id} clientName={client.company_name} />}
+          <DropdownCard
+            className="mb-8"
+            title="Customer account"
+            subtitle="Edit the business name, login email, and password the customer uses to access their portal."
+          >
+            <div className="mb-4 flex justify-end">
+              <ReopenOnboardingButton clientId={client.id} clientName={client.company_name} />
+            </div>
+            <EditClientUserForm
+              clientId={client.id}
+              userId={customerUser.id}
+              initialCompanyName={client.company_name}
+              initialEmail={customerUser.email}
+              initialTier={(client.tier === "1" || client.tier === "2" || client.tier === "3") ? client.tier : ""}
             />
-            <CardBody>
-              <EditClientUserForm
-                clientId={client.id}
-                userId={customerUser.id}
-                initialCompanyName={client.company_name}
-                initialEmail={customerUser.email}
-                initialTier={(client.tier === "1" || client.tier === "2" || client.tier === "3") ? client.tier : ""}
-              />
-            </CardBody>
-          </Card>
+          </DropdownCard>
         ) : null}
 
         {customerUser ? (

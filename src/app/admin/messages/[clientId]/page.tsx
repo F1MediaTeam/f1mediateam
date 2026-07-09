@@ -40,13 +40,9 @@ export default async function AdminMessageThread({
         <Link href="/admin/messages" className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
           ← All threads
         </Link>
-        <div className="mt-2 mb-6">
-          <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">Thread</div>
-          <h1 className="text-3xl font-semibold tracking-tight mt-1">{client.company_name}</h1>
-        </div>
 
-        <Card>
-          <CardHeader title="Conversation" subtitle={`${messages.length} message${messages.length === 1 ? "" : "s"}`} />
+        <Card className="mt-3">
+          <CardHeader title={client.company_name} />
           <CardBody className="p-0">
             <div className="max-h-[60vh] overflow-y-auto px-4 py-3 space-y-3 bg-[var(--color-bg-elev)]">
               {messages.length === 0 ? (

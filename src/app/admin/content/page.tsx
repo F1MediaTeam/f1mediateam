@@ -29,6 +29,18 @@ function companyColor(clientId: string): string {
   return `hsl(${h} 65% 58%)`;
 }
 
+// Brand-color overrides by company name (user-supplied palettes); anyone not
+// listed falls back to the hashed hue. Returns a CSS background used for the
+// card's left bar and the filter chip dot. Buckets Of Ink = their print-shop
+// CMYK strip (cyan/magenta/yellow/white); Precision Graphics = light blue.
+const BOI_STRIP =
+  "linear-gradient(180deg,#3ba7dc 0%,#3ba7dc 25%,#e23d8b 25%,#e23d8b 50%,#efc53f 50%,#efc53f 75%,#ffffff 75%,#ffffff 100%)";
+function companyAccent(clientId: string, name: string): string {
+  if (/buckets\s*of\s*ink/i.test(name)) return BOI_STRIP;
+  if (/precision\s*graphics/i.test(name)) return "#6ec3f2";
+  return companyColor(clientId);
+}
+
 export default async function AdminContent({
   searchParams,
 }: {
@@ -88,7 +100,7 @@ export default async function AdminContent({
                     <span
                       aria-hidden
                       className="h-2 w-2 rounded-full shrink-0"
-                      style={{ background: companyColor(c.id) }}
+                      style={{ background: companyAccent(c.id, c.company_name) }}
                     />
                     {c.company_name}
                   </Link>
@@ -156,13 +168,18 @@ export default async function AdminContent({
                       return (
                         <div
                           key={card.id}
-                          style={{ borderLeftColor: companyColor(card.client_id) }}
                           className={
-                            // border-l-4 + inline borderLeftColor = per-company color bar.
-                            "relative rounded-lg border border-l-4 bg-[var(--color-bg-elev)] p-3 min-w-0 overflow-hidden " +
+                            "relative rounded-lg border bg-[var(--color-bg-elev)] p-3 pl-4 min-w-0 overflow-hidden " +
                             (changeRequest ? "border-amber-500/50" : "border-[var(--color-border)]")
                           }
                         >
+                          {/* Per-company color bar — a strip span (not border-color)
+                              so brand palettes can be gradients. */}
+                          <span
+                            aria-hidden
+                            className="absolute inset-y-0 left-0 w-1"
+                            style={{ background: companyAccent(card.client_id, clientNameOf(card.client_id)) }}
+                          />
                           {/* 3-dot menu absolutely positioned in top-right */}
                           <div className="absolute top-2 right-2">
                             <ContentCardControls

@@ -769,6 +769,10 @@ export function listUnreadCountsByClient(): Map<UUID, number> {
   return new Map();
 }
 
+export function listLatestMessagesByClient(): Map<UUID, ReturnType<typeof listMessages>[number]> {
+  return new Map();
+}
+
 // ---------------- connectors ----------------
 
 export function listConnectors(clientId: UUID) {

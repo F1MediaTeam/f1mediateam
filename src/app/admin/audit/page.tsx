@@ -1,7 +1,7 @@
 import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
-import { Card, CardBody, CardHeader, Pill } from "@/components/ui";
+import { Card, Pill } from "@/components/ui";
 import Time from "@/components/shared/Time";
 import { formatLocation } from "@/lib/utils";
 
@@ -14,6 +14,45 @@ interface ActivityRow {
   region: string | null;
   country: string | null;
   active?: boolean; // for view-as that hasn't ended yet
+}
+
+/* Collapsible card section: native <details> so it works without client JS.
+   Collapsed by default — the header row carries the event count, expanding
+   reveals the full table. */
+function DropdownCard({
+  title,
+  subtitle,
+  children,
+  className,
+}: {
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <Card className={className}>
+      <details className="group">
+        <summary className="flex cursor-pointer select-none items-center justify-between gap-4 px-4 py-5 sm:px-6 list-none [&::-webkit-details-marker]:hidden rounded-2xl transition-colors hover:bg-[var(--color-bg-hover)]">
+          <span className="min-w-0">
+            <span className="block text-base font-semibold tracking-tight">{title}</span>
+            <span className="mt-0.5 block text-xs text-[var(--color-text-muted)]">{subtitle}</span>
+          </span>
+          <span
+            aria-hidden
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[var(--color-border-strong)] text-[var(--color-text-muted)] transition-transform group-open:rotate-180"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </span>
+        </summary>
+        <div className="px-4 pb-6 sm:px-6 border-t border-[var(--color-border)] pt-4">
+          {children}
+        </div>
+      </details>
+    </Card>
+  );
 }
 
 export default async function AdminAudit() {
@@ -62,91 +101,86 @@ export default async function AdminAudit() {
           <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">Audit</div>
           <h1 className="text-3xl font-semibold tracking-tight mt-1">Activity log</h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-1">
-            Your own admin sign-ins and view-as sessions are at the top. Client portal sign-ins are listed below.
+            Click a section to expand its full history — your own admin sign-ins and view-as sessions, then client portal sign-ins.
           </p>
         </div>
 
-        <Card className="mb-8">
-          <CardHeader
-            title="My activity"
-            subtitle={`${myActivity.length} events — admin sign-ins + view-as customer sessions`}
-          />
-          <CardBody>
-            {myActivity.length === 0 ? (
-              <div className="text-xs text-[var(--color-text-muted)] py-4 text-center">
-                Nothing recorded yet.
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-[11px] uppercase tracking-wider text-[var(--color-text-muted)]">
-                    <th className="py-2 pr-4">Time</th>
-                    <th className="py-2 pr-4">Type</th>
-                    <th className="py-2 pr-4">Side</th>
-                    <th className="py-2 pr-4">Location</th>
+        <DropdownCard
+          className="mb-8"
+          title="My activity"
+          subtitle={`${myActivity.length} events — admin sign-ins + view-as customer sessions`}
+        >
+          {myActivity.length === 0 ? (
+            <div className="text-xs text-[var(--color-text-muted)] py-4 text-center">
+              Nothing recorded yet.
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-wider text-[var(--color-text-muted)]">
+                  <th className="py-2 pr-4">Time</th>
+                  <th className="py-2 pr-4">Type</th>
+                  <th className="py-2 pr-4">Side</th>
+                  <th className="py-2 pr-4">Location</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--color-border)]">
+                {myActivity.map((r) => (
+                  <tr key={r.id}>
+                    <td className="py-2.5 pr-4 font-mono text-xs">
+                      <Time iso={r.ts} />
+                    </td>
+                    <td className="py-2.5 pr-4">
+                      {r.kind === "admin_login" ? (
+                        <Pill>Sign-in</Pill>
+                      ) : (
+                        <Pill tone="accent">
+                          View-as{r.active ? " · active" : ""}
+                        </Pill>
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-4">
+                      {r.kind === "admin_login"
+                        ? "Admin dashboard"
+                        : clientName(r.client_id)}
+                    </td>
+                    <td className="py-2.5 pr-4">{formatLocation(r)}</td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--color-border)]">
-                  {myActivity.map((r) => (
-                    <tr key={r.id}>
-                      <td className="py-2.5 pr-4 font-mono text-xs">
-                        <Time iso={r.ts} />
-                      </td>
-                      <td className="py-2.5 pr-4">
-                        {r.kind === "admin_login" ? (
-                          <Pill>Sign-in</Pill>
-                        ) : (
-                          <Pill tone="accent">
-                            View-as{r.active ? " · active" : ""}
-                          </Pill>
-                        )}
-                      </td>
-                      <td className="py-2.5 pr-4">
-                        {r.kind === "admin_login"
-                          ? "Admin dashboard"
-                          : clientName(r.client_id)}
-                      </td>
-                      <td className="py-2.5 pr-4">{formatLocation(r)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </CardBody>
-        </Card>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </DropdownCard>
 
-        <Card>
-          <CardHeader
-            title="Client sign-ins"
-            subtitle={`${clientLogins.length} events — every successful customer sign-in`}
-          />
-          <CardBody>
-            {clientLogins.length === 0 ? (
-              <div className="text-xs text-[var(--color-text-muted)] py-4 text-center">
-                No client sign-ins yet.
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-[11px] uppercase tracking-wider text-[var(--color-text-muted)]">
-                    <th className="py-2 pr-4">Time</th>
-                    <th className="py-2 pr-4">Client</th>
-                    <th className="py-2 pr-4">Location</th>
+        <DropdownCard
+          title="Client sign-ins"
+          subtitle={`${clientLogins.length} events — every successful customer sign-in`}
+        >
+          {clientLogins.length === 0 ? (
+            <div className="text-xs text-[var(--color-text-muted)] py-4 text-center">
+              No client sign-ins yet.
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-wider text-[var(--color-text-muted)]">
+                  <th className="py-2 pr-4">Time</th>
+                  <th className="py-2 pr-4">Client</th>
+                  <th className="py-2 pr-4">Location</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--color-border)]">
+                {clientLogins.map((r) => (
+                  <tr key={r.id}>
+                    <td className="py-2.5 pr-4 font-mono text-xs"><Time iso={r.logged_in_at} /></td>
+                    <td className="py-2.5 pr-4">{clientName(r.client_id)}</td>
+                    <td className="py-2.5 pr-4">{formatLocation(r)}</td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--color-border)]">
-                  {clientLogins.map((r) => (
-                    <tr key={r.id}>
-                      <td className="py-2.5 pr-4 font-mono text-xs"><Time iso={r.logged_in_at} /></td>
-                      <td className="py-2.5 pr-4">{clientName(r.client_id)}</td>
-                      <td className="py-2.5 pr-4">{formatLocation(r)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </CardBody>
-        </Card>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </DropdownCard>
       </div>
     </AdminShell>
   );

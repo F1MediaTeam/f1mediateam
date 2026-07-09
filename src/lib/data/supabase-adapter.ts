@@ -1172,6 +1172,24 @@ export async function listUnreadCountsByClient(): Promise<Map<UUID, number>> {
   return out;
 }
 
+/** Newest message per client — powers the inbox preview rows. One query,
+ *  newest-first, keep the first row seen per client. 500 covers the preview
+ *  window: a thread would need 500+ messages since ALL other threads' last
+ *  message to fall out, and the row just degrades to no preview text. */
+export const listLatestMessagesByClient = cache(async (): Promise<Map<UUID, ClientMessage>> => {
+  const supabase = await createServiceClient();
+  const { data } = await supabase
+    .from("client_messages")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(500);
+  const out = new Map<UUID, ClientMessage>();
+  for (const m of (data as ClientMessage[]) ?? []) {
+    if (!out.has(m.client_id)) out.set(m.client_id, m);
+  }
+  return out;
+});
+
 // ---------- connectors ----------
 
 export const listConnectors = cache(async (clientId: UUID): Promise<ConnectorToken[]> => {

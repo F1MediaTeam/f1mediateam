@@ -104,12 +104,14 @@ export default function ContentDetailModal(props: ContentDetailModalProps) {
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 pt-6 sm:pt-4 overflow-y-auto">
-          <div
-            className="fixed inset-0 bg-black/70 backdrop-blur-md"
-            onClick={() => setOpen(false)}
-            aria-hidden
-          />
+        // Single fixed layer, scrim on the scroll container, no backdrop-blur —
+        // same Safari ghost-compositing hardening as the Fieldy panel.
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-start sm:items-center justify-center p-4 pt-6 sm:pt-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setOpen(false);
+          }}
+        >
           <div
             role="dialog"
             aria-modal="true"
@@ -180,11 +182,21 @@ export default function ContentDetailModal(props: ContentDetailModalProps) {
               ) : null}
 
               {props.events.length > 0 ? (
-                <div>
-                  <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
-                    Activity
-                  </div>
-                  <ul className="space-y-2">
+                <details className="group rounded-lg border border-[var(--color-border)]">
+                  <summary className="flex cursor-pointer select-none items-center justify-between gap-3 px-3 py-2.5 list-none [&::-webkit-details-marker]:hidden rounded-lg transition-colors hover:bg-[var(--color-bg-hover)]">
+                    <span className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                      Activity · {props.events.length} event{props.events.length === 1 ? "" : "s"}
+                    </span>
+                    <span
+                      aria-hidden
+                      className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-[var(--color-border)] text-[var(--color-text-muted)] transition-transform group-open:rotate-180"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </span>
+                  </summary>
+                  <ul className="space-y-2 px-3 pb-3 pt-1">
                     {props.events.map((e) => {
                       const isChangeRequest = (e.note ?? "").startsWith("CHANGES REQUESTED");
                       const noteText = isChangeRequest ? (e.note ?? "").replace(/^CHANGES REQUESTED:\s*/, "") : e.note;
@@ -210,7 +222,7 @@ export default function ContentDetailModal(props: ContentDetailModalProps) {
                       );
                     })}
                   </ul>
-                </div>
+                </details>
               ) : null}
 
               <div className="text-[10px] text-[var(--color-text-subtle)] font-mono">

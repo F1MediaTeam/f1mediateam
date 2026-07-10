@@ -13,7 +13,12 @@ import {
   clearImpersonation,
   readImpersonation,
 } from "@/lib/auth/impersonate";
-import { notifyClient } from "@/lib/email";
+import { notifyClient, userDisplayName } from "@/lib/email";
+
+// Admin's name for email attribution; team name when no full_name is set.
+async function adminSenderName(userId: string): Promise<string> {
+  return (await userDisplayName(userId)) ?? "F1 Media Team";
+}
 
 // --- tasks ---
 
@@ -90,7 +95,7 @@ export async function createCalendarAction(formData: FormData) {
     await notifyClient(client_id, {
       subject: type === "deadline" ? "New deadline on your calendar" : "New meeting on your calendar",
       heading: type === "deadline" ? "New deadline" : "New meeting scheduled",
-      body: `"${title}" — ${when} (PT). Details and any attachments are in your portal.`,
+      body: `"${title}" — ${when} (PT). Added by ${await adminSenderName(session.user_id)}. Details and any attachments are in your portal.`,
       ctaLabel: "View calendar",
       ctaPath: "/client",
     });
@@ -337,14 +342,15 @@ export async function sendAdminMessageAction(
       body,
       attachments,
     });
+    const sender = await adminSenderName(session.user_id);
     await notifyClient(client_id, {
-      subject: "New message from F1 Media Team",
-      heading: "You have a new message",
+      subject: `New message from ${sender}`,
+      heading: `${sender} sent you a message`,
       body: body
         ? body.length > 160
           ? body.slice(0, 157) + "…"
           : body
-        : "Your F1 Media Team sent you an attachment.",
+        : `${sender} sent you an attachment.`,
       ctaLabel: "Open your portal",
       ctaPath: "/client",
     });
@@ -422,7 +428,7 @@ export async function createContentAction(formData: FormData) {
   await notifyClient(client_id, {
     subject: "New content is ready for your review",
     heading: "Content awaiting your approval",
-    body: `"${title}" was just added to your content board. Take a look and approve it or request changes.`,
+    body: `"${title}" was just added to your content board by ${await adminSenderName(session.user_id)}. Take a look and approve it or request changes.`,
     ctaLabel: "Review content",
     ctaPath: "/client/content",
   });
@@ -475,7 +481,7 @@ export async function advanceContentAction(formData: FormData) {
     await notifyClient(result.card.client_id, {
       subject: "Your content is live",
       heading: "Content posted 🎉",
-      body: `"${result.card.title}" has been posted. See it on your content board.`,
+      body: `"${result.card.title}" was posted by ${await adminSenderName(session.user_id)}. See it on your content board.`,
       ctaLabel: "View content",
       ctaPath: "/client/content",
     });

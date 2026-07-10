@@ -109,6 +109,22 @@ export async function clientCompanyName(clientId: string): Promise<string> {
   }
 }
 
+/** The acting user's display name (profiles.full_name), or null if unset —
+ *  callers pick their own fallback ("F1 Media Team" etc.). */
+export async function userDisplayName(userId: string): Promise<string | null> {
+  try {
+    const supabase = await createServiceClient();
+    const { data: row } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", userId)
+      .maybeSingle();
+    return row?.full_name ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Notify every admin account. Used for client-initiated changes (approvals,
  *  change requests, messages, submissions) so the team can act fast. Honors
  *  each admin's email_prefs opt-out. Never throws. */

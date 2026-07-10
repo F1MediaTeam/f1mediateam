@@ -773,6 +773,10 @@ export function listLatestMessagesByClient(): Map<UUID, ReturnType<typeof listMe
   return new Map();
 }
 
+export function listContentImagesByCards(_cardIds: UUID[]): Map<UUID, string[]> {
+  return new Map();
+}
+
 // ---------------- connectors ----------------
 
 export function listConnectors(clientId: UUID) {

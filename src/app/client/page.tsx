@@ -34,9 +34,12 @@ export default async function ClientHome() {
   ]);
   const semrushChart = buildSemrushChartData(semrushReports);
 
-  // Stage history per content card — the detail popup shows the same
-  // proposed → pending → posted activity log the admin side gets.
-  const contentEventsByCard = await data.listContentEventsByCards(content.map((c) => c.id));
+  // Stage history + attached images per content card — the detail popup
+  // shows the same activity log and inline images the admin side gets.
+  const [contentEventsByCard, contentImagesByCard] = await Promise.all([
+    data.listContentEventsByCards(content.map((c) => c.id)),
+    data.listContentImagesByCards(content.map((c) => c.id)),
+  ]);
 
   // Count attachments per event so the calendar grid can show a 📎 N badge.
   const attachments = await data.listAttachmentsForEvents(events.map((e) => e.id));
@@ -96,6 +99,7 @@ export default async function ClientHome() {
             companyName={client.company_name}
             seeAllHref="/client/content"
             eventsByCard={contentEventsByCard}
+            imagesByCard={contentImagesByCard}
           />
           <StatusColumn
             tone="accent"
@@ -104,6 +108,7 @@ export default async function ClientHome() {
             companyName={client.company_name}
             seeAllHref="/client/content"
             eventsByCard={contentEventsByCard}
+            imagesByCard={contentImagesByCard}
           />
           <StatusColumn
             tone="ok"
@@ -112,6 +117,7 @@ export default async function ClientHome() {
             companyName={client.company_name}
             seeAllHref="/client/content"
             eventsByCard={contentEventsByCard}
+            imagesByCard={contentImagesByCard}
           />
         </div>
       ) : null}
@@ -314,6 +320,7 @@ function StatusColumn({
   companyName,
   seeAllHref,
   eventsByCard,
+  imagesByCard,
 }: {
   tone: "warn" | "accent" | "ok";
   label: string;
@@ -321,6 +328,7 @@ function StatusColumn({
   companyName: string;
   seeAllHref: string;
   eventsByCard: Map<string, ContentCardEvent[]>;
+  imagesByCard: Map<string, string[]>;
 }) {
   const visible = cards.slice(0, 3);
   return (
@@ -347,6 +355,7 @@ function StatusColumn({
                   actor_role: e.actor_role,
                   note: e.note,
                 }))}
+                attachmentImages={imagesByCard.get(card.id) ?? []}
                 triggerLabel={
                   <>
                     <div className="text-sm font-medium leading-snug break-words">{card.title}</div>

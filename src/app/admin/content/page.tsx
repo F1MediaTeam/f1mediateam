@@ -53,7 +53,10 @@ export default async function AdminContent({
     data.listContent({ clientId: clientFilter }),
   ]);
   // Batched: one query for all cards instead of N parallel queries
-  const eventsByCard = await data.listContentEventsByCards(cards.map((c) => c.id));
+  const [eventsByCard, imagesByCard] = await Promise.all([
+    data.listContentEventsByCards(cards.map((c) => c.id)),
+    data.listContentImagesByCards(cards.map((c) => c.id)),
+  ]);
   const clientNameOf = (id: string) => clients.find((c) => c.id === id)?.company_name ?? "—";
 
   return (
@@ -196,6 +199,7 @@ export default async function AdminContent({
                             card={{ id: card.id, title: card.title, body: card.body, link: card.link, stage: card.stage, created_at: card.created_at, updated_at: card.updated_at }}
                             companyName={clientNameOf(card.client_id)}
                             events={events.map((e) => ({ id: e.id, created_at: e.created_at, from_stage: e.from_stage, to_stage: e.to_stage, actor_role: e.actor_role, note: e.note }))}
+                            attachmentImages={imagesByCard.get(card.id) ?? []}
                             triggerLabel={
                               <>
                                 <div className="text-sm font-medium leading-snug break-words">{card.title}</div>

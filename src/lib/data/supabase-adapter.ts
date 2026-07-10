@@ -748,6 +748,32 @@ export async function listContentEventsByCards(cardIds: UUID[]): Promise<Map<UUI
   return out;
 }
 
+/** Signed image URLs per content card. Card attachments land in the generic
+ *  `files` table with category `content-card:<cardId>`; image mimes get a
+ *  7-day signed URL so detail popups can render them inline. */
+export async function listContentImagesByCards(cardIds: UUID[]): Promise<Map<UUID, string[]>> {
+  const out = new Map<UUID, string[]>();
+  if (cardIds.length === 0) return out;
+  const supabase = await createServiceClient();
+  const { data } = await supabase
+    .from("files")
+    .select("storage_path, mime_type, category")
+    .in("category", cardIds.map((id) => `content-card:${id}`))
+    .order("created_at", { ascending: true });
+  for (const f of (data ?? []) as Array<{ storage_path: string; mime_type: string | null; category: string }>) {
+    if (!f.mime_type?.startsWith("image/")) continue;
+    const { data: signed } = await supabase.storage
+      .from("client-attachments")
+      .createSignedUrl(f.storage_path, 60 * 60 * 24 * 7);
+    if (!signed?.signedUrl) continue;
+    const cardId = f.category.slice("content-card:".length);
+    const arr = out.get(cardId) ?? [];
+    arr.push(signed.signedUrl);
+    out.set(cardId, arr);
+  }
+  return out;
+}
+
 export async function createContent(input: {
   client_id: UUID;
   title: string;

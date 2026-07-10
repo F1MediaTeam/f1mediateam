@@ -389,9 +389,16 @@ export async function createContentAction(formData: FormData) {
   const body = String(formData.get("body") ?? "").trim() || null;
   const link = String(formData.get("link") ?? "").trim() || null;
   if (!client_id || !title) return;
-  await data.createContent({ client_id, title, body, link, created_by: session.user_id });
+  const card = await data.createContent({ client_id, title, body, link, created_by: session.user_id });
   const { persistAttachments } = await import("@/lib/attachments");
-  await persistAttachments({ formData, client_id, uploaded_by: session.user_id, category: "content-card" });
+  // category carries the card id so the detail popup can find and render
+  // this card's images (files table has no card_id column).
+  await persistAttachments({
+    formData,
+    client_id,
+    uploaded_by: session.user_id,
+    category: card ? `content-card:${card.id}` : "content-card",
+  });
   await notifyClient(client_id, {
     subject: "New content is ready for your review",
     heading: "Content awaiting your approval",
@@ -427,7 +434,7 @@ export async function updateContentAction(formData: FormData) {
       formData,
       client_id: updated.client_id,
       uploaded_by: session.user_id,
-      category: "content-edit",
+      category: `content-card:${id}`,
     });
     revalidatePath(`/admin/clients/${updated.client_id}`);
   }

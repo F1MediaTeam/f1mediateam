@@ -463,7 +463,7 @@ export default async function ClientProfile({
               files.map((f) => (
                 <div key={f.id} className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2 text-sm">
                   <div className="flex items-center gap-3 min-w-0">
-                    <Pill>{f.category ?? "other"}</Pill>
+                    <Pill>{(f.category ?? "other").split(":")[0]}</Pill>
                     <span className="truncate">{f.filename}</span>
                   </div>
                   <span className="text-xs text-[var(--color-text-muted)] font-mono">

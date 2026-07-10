@@ -35,6 +35,9 @@ export interface ContentDetailModalProps {
   };
   companyName: string;
   events: EventRow[];
+  /** Signed URLs of images attached to this card — rendered inline, full
+   *  width, right under the link. */
+  attachmentImages?: string[];
 }
 
 const STAGE_LABEL: Record<string, { label: string; tone: string }> = {
@@ -189,6 +192,20 @@ export default function ContentDetailModal(props: ContentDetailModalProps) {
                   >
                     {props.card.link} ↗
                   </a>
+                </div>
+              ) : null}
+
+              {props.attachmentImages && props.attachmentImages.length > 0 ? (
+                <div className="space-y-3">
+                  {props.attachmentImages.map((url) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={url}
+                      src={url}
+                      alt=""
+                      className="w-full rounded-xl border border-[var(--color-border)]"
+                    />
+                  ))}
                 </div>
               ) : null}
 

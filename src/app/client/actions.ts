@@ -134,7 +134,7 @@ export async function addClientContentAction(formData: FormData) {
   if (!title) return;
   const link = String(formData.get("link") ?? "").trim() || null;
   const body = String(formData.get("body") ?? "").trim() || null;
-  await data.createClientContent({
+  const card = await data.createClientContent({
     client_id: session.client_id,
     title,
     body,
@@ -142,13 +142,14 @@ export async function addClientContentAction(formData: FormData) {
     created_by: session.user_id,
   });
   // Persist any dropped files alongside the content card. Best-effort: if any
-  // single file fails to upload, the card itself is still created.
+  // single file fails to upload, the card itself is still created. category
+  // carries the card id so detail popups can render the images inline.
   const { persistAttachments } = await import("@/lib/attachments");
   await persistAttachments({
     formData,
     client_id: session.client_id,
     uploaded_by: session.user_id,
-    category: "content-submission",
+    category: card ? `content-card:${card.id}` : "content-submission",
   });
   revalidatePath("/client/content");
   revalidatePath("/admin/content");

@@ -54,7 +54,7 @@ export default async function ClientFiles() {
                 className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-4 py-3"
               >
                 <div className="min-w-0 flex items-center gap-3">
-                  <Pill>{f.category ?? "other"}</Pill>
+                  <Pill>{(f.category ?? "other").split(":")[0]}</Pill>
                   <div className="min-w-0">
                     <div className="text-sm font-medium truncate">{f.filename}</div>
                     <div className="text-[11px] text-[var(--color-text-muted)] font-mono mt-0.5">

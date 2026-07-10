@@ -11,6 +11,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import LinkPreview from "@/components/shared/LinkPreview";
 
 interface EventRow {
   id: string;
@@ -184,14 +185,7 @@ export default function ContentDetailModal(props: ContentDetailModalProps) {
                   <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
                     Link
                   </div>
-                  <a
-                    href={props.card.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm text-[var(--color-accent)] hover:underline break-all"
-                  >
-                    {props.card.link} ↗
-                  </a>
+                  <LinkPreview url={props.card.link} />
                 </div>
               ) : null}
 

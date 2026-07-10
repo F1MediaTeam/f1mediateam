@@ -35,36 +35,33 @@ function escapeHtml(s: string): string {
     .replaceAll('"', "&quot;");
 }
 
-// Light, card-on-gray layout — reads as native in Gmail/Outlook (which are
-// white) instead of a full-bleed dark slab. Tables + inline styles only, for
-// email-client compatibility. Logo is the 8.6 KB /email-logo.png cut.
+// "Minimal letter" layout (the design the user picked from three variants):
+// pure white, small logo, thin red rule, no card chrome — reads like a short
+// personal note rather than an automated notification. Tables + inline styles
+// only, for email-client compatibility. Logo is the 8.6 KB /email-logo.png cut.
 function renderHtml(n: NotificationEmail): string {
   const url = siteUrl() + n.ctaPath;
   const logo = siteUrl() + "/email-logo.png";
   return `<!doctype html>
 <html>
-  <body style="margin:0;padding:0;background:#f2f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f4f6;">
-      <tr><td align="center" style="padding:40px 16px;">
-        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
-          <tr><td align="center" style="padding:0 0 24px;">
-            <img src="${logo}" alt="F1 Media Team" height="44" style="height:44px;width:auto;display:block;" />
+  <body style="margin:0;padding:0;background:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr><td align="center" style="padding:52px 16px;">
+        <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width:520px;width:100%;">
+          <tr><td style="padding:0 0 18px;">
+            <img src="${logo}" alt="F1 Media Team" height="30" style="height:30px;width:auto;display:block;" />
           </td></tr>
-          <tr><td style="background:#ffffff;border:1px solid #e4e8ec;border-radius:12px;overflow:hidden;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-              <tr><td style="height:4px;background:#e10600;font-size:0;line-height:0;">&nbsp;</td></tr>
-              <tr><td style="padding:32px;">
-                <h1 style="margin:0 0 12px;font-size:21px;line-height:1.35;color:#14181d;">${escapeHtml(n.heading)}</h1>
-                <p style="margin:0 0 28px;font-size:15px;line-height:1.65;color:#4a5560;white-space:pre-wrap;">${escapeHtml(n.body)}</p>
-                <a href="${url}"
-                   style="display:inline-block;background:#e10600;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 26px;border-radius:8px;">
-                  ${escapeHtml(n.ctaLabel)}
-                </a>
-              </td></tr>
-            </table>
+          <tr><td style="height:2px;background:#e10600;font-size:0;line-height:0;">&nbsp;</td></tr>
+          <tr><td style="padding:34px 0 0;">
+            <h1 style="margin:0 0 14px;font-size:23px;line-height:1.3;color:#14181d;">${escapeHtml(n.heading)}</h1>
+            <p style="margin:0 0 30px;font-size:15px;line-height:1.75;color:#3d4750;white-space:pre-wrap;">${escapeHtml(n.body)}</p>
+            <a href="${url}"
+               style="display:inline-block;background:#e10600;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:12px 28px;border-radius:999px;">
+              ${escapeHtml(n.ctaLabel)}
+            </a>
           </td></tr>
-          <tr><td align="center" style="padding:24px 24px 0;">
-            <p style="margin:0;font-size:12px;line-height:1.6;color:#8a94a0;">
+          <tr><td style="padding:44px 0 0;">
+            <p style="margin:0;font-size:12px;line-height:1.6;color:#9aa3ad;">
               You're receiving this because you have an F1 Media Team client portal account.<br/>
               Turn off email notifications any time in your portal's Settings.
             </p>

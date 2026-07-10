@@ -20,12 +20,14 @@ export default function LinkPreview({ url }: { url: string }) {
   const [data, setData] = useState<Unfurl | null>(null);
   const [failed, setFailed] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   useEffect(() => {
     let alive = true;
     setData(null);
     setFailed(false);
     setImgFailed(false);
+    setImgLoaded(false);
     fetch(`/api/link-preview?url=${encodeURIComponent(url)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d: Unfurl) => alive && setData(d))
@@ -35,9 +37,11 @@ export default function LinkPreview({ url }: { url: string }) {
     };
   }, [url]);
 
-  // Screenshot fallback when the page has no OG image.
+  // Screenshot fallback when the page has no OG image. wait/15 blocks the
+  // request until the capture is ready instead of serving thum.io's gray
+  // spinner placeholder (a white frame that clashes with the dark theme).
   const imageSrc =
-    data?.image ?? `https://image.thum.io/get/width/1200/crop/800/${url}`;
+    data?.image ?? `https://image.thum.io/get/wait/15/width/1200/crop/800/${url}`;
 
   return (
     <div className="space-y-2">
@@ -58,13 +62,28 @@ export default function LinkPreview({ url }: { url: string }) {
           className="block w-full rounded-xl overflow-hidden border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 transition"
         >
           {!imgFailed ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={imageSrc}
-              alt=""
-              className="w-full h-64 object-cover object-top bg-[var(--color-bg-hover)]"
-              onError={() => setImgFailed(true)}
-            />
+            <div className="relative h-64 bg-[var(--color-bg-hover)]">
+              {!imgLoaded ? (
+                // Theme-matched skeleton while the capture/OG image loads —
+                // shimmer only, never a raw white frame.
+                <div className="absolute inset-0 animate-pulse bg-gradient-to-b from-[var(--color-bg-hover)] to-[var(--color-bg-elev)] grid place-items-center">
+                  <span className="text-xs tracking-widest uppercase text-[var(--color-text-subtle)]">
+                    Loading preview…
+                  </span>
+                </div>
+              ) : null}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imageSrc}
+                alt=""
+                className={
+                  "w-full h-64 object-cover object-top transition-opacity duration-300 " +
+                  (imgLoaded ? "opacity-100" : "opacity-0")
+                }
+                onLoad={() => setImgLoaded(true)}
+                onError={() => setImgFailed(true)}
+              />
+            </div>
           ) : null}
           <div className="px-4 py-3 bg-[var(--color-bg-hover)]">
             <div className="text-sm font-semibold text-[var(--color-text)] truncate">

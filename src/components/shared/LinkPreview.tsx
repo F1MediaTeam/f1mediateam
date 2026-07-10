@@ -25,6 +25,19 @@ interface Unfurl {
   provider: string | null;
 }
 
+// Synchronous social-platform check on the raw URL so the card renders in
+// its final shape (portrait vs. wide) on the very first frame — waiting for
+// the unfurl response to decide caused a visible wide→portrait layout jump.
+const SOCIAL_HOSTS = ["tiktok.com", "instagram.com", "facebook.com", "fb.watch", "youtube.com", "youtu.be"];
+function guessSocial(url: string): boolean {
+  try {
+    const h = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+    return SOCIAL_HOSTS.some((d) => h === d || h.endsWith("." + d));
+  } catch {
+    return false;
+  }
+}
+
 function PlayOverlay() {
   return (
     <div className="absolute inset-0 grid place-items-center">
@@ -68,13 +81,20 @@ export default function LinkPreview({ url }: { url: string }) {
     };
   }, [url]);
 
-  const isSocial = data != null && data.kind !== "page" && data.provider != null;
+  // Before data arrives, fall back to the URL-based guess so the layout
+  // never jumps between shapes.
+  const isSocial = data
+    ? data.kind !== "page" && data.provider != null
+    : guessSocial(url);
 
   // Screenshot fallback when the page has no OG image, proxied through our
   // /shot route which holds the response until the capture is actually ready
   // (thum.io otherwise serves an animated spinner placeholder mid-render).
-  const imageSrc =
-    data?.image ?? `/api/link-preview/shot?url=${encodeURIComponent(url)}`;
+  // Held until the unfurl answers so we don't screenshot a page whose OG
+  // image is about to arrive.
+  const imageSrc = data
+    ? (data.image ?? `/api/link-preview/shot?url=${encodeURIComponent(url)}`)
+    : null;
 
   const urlRow = (
     <a
@@ -102,30 +122,41 @@ export default function LinkPreview({ url }: { url: string }) {
           {!imgFailed ? (
             <div className="relative aspect-[9/14] bg-[var(--color-bg-hover)]">
               {!imgLoaded ? <Skeleton /> : null}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={imageSrc}
-                alt=""
-                className={
-                  "absolute inset-0 h-full w-full object-cover transition-opacity duration-300 " +
-                  (imgLoaded ? "opacity-100" : "opacity-0")
-                }
-                onLoad={() => setImgLoaded(true)}
-                onError={() => setImgFailed(true)}
-              />
-              {imgLoaded && data.kind === "video" ? <PlayOverlay /> : null}
+              {imageSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={imageSrc}
+                  alt=""
+                  className={
+                    "absolute inset-0 h-full w-full object-cover transition-opacity duration-300 " +
+                    (imgLoaded ? "opacity-100" : "opacity-0")
+                  }
+                  onLoad={() => setImgLoaded(true)}
+                  onError={() => setImgFailed(true)}
+                />
+              ) : null}
+              {imgLoaded && data?.kind === "video" ? <PlayOverlay /> : null}
             </div>
           ) : null}
           <div className="px-4 py-3 bg-[var(--color-bg-hover)] space-y-1.5">
-            {data.description ? (
-              <div className="text-sm leading-snug text-[var(--color-text)] line-clamp-2">
-                {data.description}
-              </div>
-            ) : null}
-            <div className="text-sm font-semibold text-[var(--color-text)] truncate">
-              {data.title ?? data.provider}
-            </div>
-            <div className="text-xs text-[var(--color-text-muted)] truncate">{data.domain}</div>
+            {data ? (
+              <>
+                {data.description ? (
+                  <div className="text-sm leading-snug text-[var(--color-text)] line-clamp-2">
+                    {data.description}
+                  </div>
+                ) : null}
+                <div className="text-sm font-semibold text-[var(--color-text)] truncate">
+                  {data.title ?? data.provider}
+                </div>
+                <div className="text-xs text-[var(--color-text-muted)] truncate">{data.domain}</div>
+              </>
+            ) : (
+              <>
+                <div className="h-3.5 w-3/4 rounded animate-pulse bg-[var(--color-bg-elev)]" />
+                <div className="h-3 w-1/3 rounded animate-pulse bg-[var(--color-bg-elev)]" />
+              </>
+            )}
           </div>
         </a>
       </div>
@@ -144,29 +175,40 @@ export default function LinkPreview({ url }: { url: string }) {
         {!imgFailed ? (
           <div className="relative h-64 bg-[var(--color-bg-hover)]">
             {!imgLoaded ? <Skeleton /> : null}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={imageSrc}
-              alt=""
-              className={
-                "w-full h-64 object-cover object-top transition-opacity duration-300 " +
-                (imgLoaded ? "opacity-100" : "opacity-0")
-              }
-              onLoad={() => setImgLoaded(true)}
-              onError={() => setImgFailed(true)}
-            />
+            {imageSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={imageSrc}
+                alt=""
+                className={
+                  "w-full h-64 object-cover object-top transition-opacity duration-300 " +
+                  (imgLoaded ? "opacity-100" : "opacity-0")
+                }
+                onLoad={() => setImgLoaded(true)}
+                onError={() => setImgFailed(true)}
+              />
+            ) : null}
           </div>
         ) : null}
         <div className="px-4 py-3 bg-[var(--color-bg-hover)]">
-          <div className="text-sm font-semibold text-[var(--color-text)] truncate">
-            {data?.siteName ?? data?.title ?? (data?.domain || "Loading preview…")}
-          </div>
-          <div className="text-xs text-[var(--color-text-muted)] truncate">{data?.domain ?? ""}</div>
-          {data?.description ? (
-            <div className="mt-1 text-xs text-[var(--color-text-muted)] line-clamp-2">
-              {data.description}
+          {data ? (
+            <>
+              <div className="text-sm font-semibold text-[var(--color-text)] truncate">
+                {data.siteName ?? data.title ?? data.domain}
+              </div>
+              <div className="text-xs text-[var(--color-text-muted)] truncate">{data.domain}</div>
+              {data.description ? (
+                <div className="mt-1 text-xs text-[var(--color-text-muted)] line-clamp-2">
+                  {data.description}
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="space-y-1.5">
+              <div className="h-3.5 w-2/3 rounded animate-pulse bg-[var(--color-bg-elev)]" />
+              <div className="h-3 w-1/4 rounded animate-pulse bg-[var(--color-bg-elev)]" />
             </div>
-          ) : null}
+          )}
         </div>
       </a>
     </div>

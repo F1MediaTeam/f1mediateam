@@ -37,7 +37,7 @@ export default function LinkPreview({ url }: { url: string }) {
 
   // Screenshot fallback when the page has no OG image.
   const imageSrc =
-    data?.image ?? `https://image.thum.io/get/width/640/crop/720/${url}`;
+    data?.image ?? `https://image.thum.io/get/width/1200/crop/800/${url}`;
 
   return (
     <div className="space-y-2">
@@ -55,14 +55,14 @@ export default function LinkPreview({ url }: { url: string }) {
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="block max-w-sm rounded-xl overflow-hidden border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 transition"
+          className="block w-full rounded-xl overflow-hidden border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 transition"
         >
           {!imgFailed ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={imageSrc}
               alt=""
-              className="w-full h-44 object-cover object-top bg-[var(--color-bg-hover)]"
+              className="w-full h-64 object-cover object-top bg-[var(--color-bg-hover)]"
               onError={() => setImgFailed(true)}
             />
           ) : null}

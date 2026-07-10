@@ -88,11 +88,18 @@ function extractImages(body: string | null): string[] {
 
 export default function ContentDetailModal(props: ContentDetailModalProps) {
   const [open, setOpen] = useState(false);
+  // Fullscreen zoomable view of one attached image; null = closed.
+  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [zoomed, setZoomed] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      // Escape peels one layer at a time: lightbox first, then the modal.
+      if (e.key === "Escape") {
+        if (lightbox) setLightbox(null);
+        else setOpen(false);
+      }
     };
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -101,7 +108,12 @@ export default function ContentDetailModal(props: ContentDetailModalProps) {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, lightbox]);
+
+  const openLightbox = (url: string) => {
+    setZoomed(false);
+    setLightbox(url);
+  };
 
   const stageMeta = STAGE_LABEL[props.card.stage] ?? { label: props.card.stage, tone: "border-[var(--color-border)] text-[var(--color-text-muted)]" };
   const images = extractImages(props.card.body);
@@ -171,10 +183,10 @@ export default function ContentDetailModal(props: ContentDetailModalProps) {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {images.map((url) => (
-                      <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 transition">
+                      <button key={url} type="button" onClick={() => openLightbox(url)} className="block rounded-lg overflow-hidden border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 transition cursor-zoom-in">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={url} alt="" className="w-full h-32 object-cover" />
-                      </a>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -190,16 +202,18 @@ export default function ContentDetailModal(props: ContentDetailModalProps) {
               ) : null}
 
               {props.attachmentImages && props.attachmentImages.length > 0 ? (
-                <div className="space-y-3">
-                  {props.attachmentImages.map((url) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      key={url}
-                      src={url}
-                      alt=""
-                      className="w-full rounded-xl border border-[var(--color-border)]"
-                    />
-                  ))}
+                <div>
+                  <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mb-2">
+                    Attachments
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {props.attachmentImages.map((url) => (
+                      <button key={url} type="button" onClick={() => openLightbox(url)} className="block rounded-lg overflow-hidden border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 transition cursor-zoom-in">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt="" className="w-full h-32 object-cover" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : null}
 
@@ -252,6 +266,41 @@ export default function ContentDetailModal(props: ContentDetailModalProps) {
               </div>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {lightbox ? (
+        // Image lightbox above the modal. Click the image to toggle zoom
+        // (zoomed = natural size, scroll to pan); click the backdrop or ×
+        // to close. Escape closes it via the modal's key handler.
+        <div
+          className={
+            "fixed inset-0 z-[60] bg-black/95 overflow-auto " +
+            (zoomed ? "" : "flex items-center justify-center p-6")
+          }
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLightbox(null);
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setLightbox(null)}
+            className="fixed top-4 right-4 z-[61] grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white text-xl hover:bg-white/20 transition"
+            aria-label="Close image"
+          >
+            ×
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightbox}
+            alt=""
+            onClick={() => setZoomed((z) => !z)}
+            className={
+              zoomed
+                ? "max-w-none w-auto cursor-zoom-out m-6"
+                : "max-h-[90vh] max-w-[92vw] object-contain cursor-zoom-in rounded-lg"
+            }
+          />
         </div>
       ) : null}
     </>

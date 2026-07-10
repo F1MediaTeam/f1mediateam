@@ -37,11 +37,11 @@ export default function LinkPreview({ url }: { url: string }) {
     };
   }, [url]);
 
-  // Screenshot fallback when the page has no OG image. wait/15 blocks the
-  // request until the capture is ready instead of serving thum.io's gray
-  // spinner placeholder (a white frame that clashes with the dark theme).
+  // Screenshot fallback when the page has no OG image, proxied through our
+  // /shot route which holds the response until the capture is actually ready
+  // (thum.io otherwise serves an animated spinner placeholder mid-render).
   const imageSrc =
-    data?.image ?? `https://image.thum.io/get/wait/15/width/1200/crop/800/${url}`;
+    data?.image ?? `/api/link-preview/shot?url=${encodeURIComponent(url)}`;
 
   return (
     <div className="space-y-2">

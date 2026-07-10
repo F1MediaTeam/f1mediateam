@@ -14,6 +14,7 @@ import {
   readImpersonation,
 } from "@/lib/auth/impersonate";
 import { notifyClient, userDisplayName } from "@/lib/email";
+import { queueEvent } from "@/lib/notify-queue";
 
 // Admin's name for email attribution; team name when no full_name is set.
 async function adminSenderName(userId: string): Promise<string> {
@@ -92,13 +93,22 @@ export async function createCalendarAction(formData: FormData) {
       dateStyle: "medium",
       timeStyle: "short",
     });
-    await notifyClient(client_id, {
-      subject: type === "deadline" ? "New deadline on your calendar" : "New meeting on your calendar",
-      heading: type === "deadline" ? "New deadline" : "New meeting scheduled",
-      body: `"${title}" — ${when} (PT). Added by ${await adminSenderName(session.user_id)}. Details and any attachments are in your portal.`,
-      ctaLabel: "View calendar",
-      ctaPath: "/client",
-    });
+    await queueEvent(
+      {
+        client_id,
+        audience: "client",
+        kind: type === "deadline" ? "calendar_deadline" : "calendar_meeting",
+        title,
+        detail: `${when} (PT), added by ${await adminSenderName(session.user_id)}`,
+      },
+      {
+        subject: type === "deadline" ? "New deadline on your calendar" : "New meeting on your calendar",
+        heading: type === "deadline" ? "New deadline" : "New meeting scheduled",
+        body: `"${title}" — ${when} (PT). Details and any attachments are in your portal.`,
+        ctaLabel: "View calendar",
+        ctaPath: "/client",
+      },
+    );
     revalidatePath(`/admin/clients/${client_id}`);
   }
   revalidatePath("/admin");
@@ -422,13 +432,22 @@ export async function createContentAction(formData: FormData) {
     uploaded_by: session.user_id,
     category: card ? `content-card:${card.id}` : "content-card",
   });
-  await notifyClient(client_id, {
-    subject: "New content is ready for your review",
-    heading: "Content awaiting your approval",
-    body: `"${title}" was just added to your content board by ${await adminSenderName(session.user_id)}. Take a look and approve it or request changes.`,
-    ctaLabel: "Review content",
-    ctaPath: "/client/content",
-  });
+  await queueEvent(
+    {
+      client_id,
+      audience: "client",
+      kind: "content_proposed",
+      title,
+      detail: `added by ${await adminSenderName(session.user_id)}`,
+    },
+    {
+      subject: "New content is ready for your review",
+      heading: "Content awaiting your approval",
+      body: `"${title}" was just added to your content board. Take a look and approve it or request changes.`,
+      ctaLabel: "Review content",
+      ctaPath: "/client/content",
+    },
+  );
   revalidatePath("/admin/content");
   revalidatePath(`/admin/clients/${client_id}`);
 }
@@ -474,14 +493,43 @@ export async function advanceContentAction(formData: FormData) {
     role: session.role,
     client_id: session.client_id,
   });
-  if (result && "card" in result && result.event.to_stage === "posted") {
-    await notifyClient(result.card.client_id, {
-      subject: "Your content is live",
-      heading: "Content posted 🎉",
-      body: `"${result.card.title}" was posted by ${await adminSenderName(session.user_id)}. See it on your content board.`,
-      ctaLabel: "View content",
-      ctaPath: "/client/content",
-    });
+  if (result && "card" in result && direction === "forward") {
+    const sender = await adminSenderName(session.user_id);
+    if (result.event.to_stage === "posted") {
+      await queueEvent(
+        {
+          client_id: result.card.client_id,
+          audience: "client",
+          kind: "content_posted",
+          title: result.card.title,
+          detail: `posted by ${sender}`,
+        },
+        {
+          subject: "Your content is live",
+          heading: "Content posted 🎉",
+          body: `"${result.card.title}" was posted by ${sender}. See it on your content board.`,
+          ctaLabel: "View content",
+          ctaPath: "/client/content",
+        },
+      );
+    } else if (result.event.to_stage === "pending") {
+      await queueEvent(
+        {
+          client_id: result.card.client_id,
+          audience: "client",
+          kind: "content_approved",
+          title: result.card.title,
+          detail: `approved by ${sender}, queued to post`,
+        },
+        {
+          subject: "Content approved",
+          heading: "Content approved ✓",
+          body: `"${result.card.title}" was approved by ${sender} and is queued to be posted.`,
+          ctaLabel: "View content",
+          ctaPath: "/client/content",
+        },
+      );
+    }
   }
   revalidatePath("/admin/content");
 }

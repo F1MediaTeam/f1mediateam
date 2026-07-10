@@ -4,11 +4,13 @@ import { data } from "@/lib/data";
 import { DISCLAIMER_VERSION } from "@/lib/types";
 import OnboardingGate from "@/components/client/OnboardingGate";
 import { signOutAction } from "@/app/login/actions";
+import { touchLastSeen } from "@/lib/last-seen";
 
 export default async function ClientLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session) redirect("/login");
   if (session.role !== "client") redirect("/admin");
+  touchLastSeen(session.user_id);
 
   // Signed in but not yet assigned to a company — show a pending message
   // rather than looping back to login.

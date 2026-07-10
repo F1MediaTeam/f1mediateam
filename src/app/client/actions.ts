@@ -9,6 +9,7 @@ import { requireClient } from "@/lib/auth/session";
 import { createClient as createSupabase, createServiceClient } from "@/lib/supabase/server";
 import { DISCLAIMER_VERSION } from "@/lib/types";
 import { notifyAdmins, clientCompanyName } from "@/lib/email";
+import { queueEvent } from "@/lib/notify-queue";
 
 // Trim long user text for an email body without splitting mid-word badly.
 function excerpt(s: string, max = 200): string {
@@ -84,13 +85,22 @@ export async function approveContentAction(formData: FormData) {
   });
   if (session.client_id && result && "card" in result) {
     const name = (await clientCompanyName(session.client_id)) || "A client";
-    await notifyAdmins({
-      subject: `${name} approved "${result.card.title}"`,
-      heading: "Content approved ✓",
-      body: `${name} approved "${result.card.title}". It's cleared to be posted.`,
-      ctaLabel: "Open content board",
-      ctaPath: "/admin/content",
-    });
+    await queueEvent(
+      {
+        client_id: session.client_id,
+        audience: "admin",
+        kind: "content_approved",
+        title: result.card.title,
+        detail: "cleared to post",
+      },
+      {
+        subject: `${name} approved "${result.card.title}"`,
+        heading: "Content approved ✓",
+        body: `${name} approved "${result.card.title}". It's cleared to be posted.`,
+        ctaLabel: "Open content board",
+        ctaPath: "/admin/content",
+      },
+    );
   }
   revalidatePath("/client/content");
 }
@@ -181,13 +191,21 @@ export async function addClientContentAction(formData: FormData) {
   });
   {
     const name = (await clientCompanyName(session.client_id)) || "A client";
-    await notifyAdmins({
-      subject: `${name} submitted new content`,
-      heading: "New content submission",
-      body: `${name} added "${title}" to their content board.`,
-      ctaLabel: "Open content board",
-      ctaPath: "/admin/content",
-    });
+    await queueEvent(
+      {
+        client_id: session.client_id,
+        audience: "admin",
+        kind: "content_submitted",
+        title,
+      },
+      {
+        subject: `${name} submitted new content`,
+        heading: "New content submission",
+        body: `${name} added "${title}" to their content board.`,
+        ctaLabel: "Open content board",
+        ctaPath: "/admin/content",
+      },
+    );
   }
   revalidatePath("/client/content");
   revalidatePath("/admin/content");
@@ -245,13 +263,22 @@ export async function createClientCalendarEventAction(formData: FormData) {
       dateStyle: "medium",
       timeStyle: "short",
     });
-    await notifyAdmins({
-      subject: `${name} added a ${type} to the calendar`,
-      heading: type === "deadline" ? "New deadline" : "New meeting",
-      body: `${name} scheduled "${title}" — ${when} (PT).`,
-      ctaLabel: "Open calendar",
-      ctaPath: "/admin/calendar",
-    });
+    await queueEvent(
+      {
+        client_id: session.client_id,
+        audience: "admin",
+        kind: type === "deadline" ? "calendar_deadline" : "calendar_meeting",
+        title,
+        detail: `${when} (PT)`,
+      },
+      {
+        subject: `${name} added a ${type} to the calendar`,
+        heading: type === "deadline" ? "New deadline" : "New meeting",
+        body: `${name} scheduled "${title}" — ${when} (PT).`,
+        ctaLabel: "Open calendar",
+        ctaPath: "/admin/calendar",
+      },
+    );
   }
 
   revalidatePath("/client");

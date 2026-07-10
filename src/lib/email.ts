@@ -81,6 +81,52 @@ export async function sendEmail(to: string, n: NotificationEmail): Promise<boole
   return true;
 }
 
+/** Company name for email copy. Empty string if the client can't be found —
+ *  callers should degrade gracefully ("A client" etc.), never block the send. */
+export async function clientCompanyName(clientId: string): Promise<string> {
+  try {
+    const supabase = await createServiceClient();
+    const { data: row } = await supabase
+      .from("clients")
+      .select("company_name")
+      .eq("id", clientId)
+      .maybeSingle();
+    return row?.company_name ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** Notify every admin account. Used for client-initiated changes (approvals,
+ *  change requests, messages, submissions) so the team can act fast. Honors
+ *  each admin's email_prefs opt-out. Never throws. */
+export async function notifyAdmins(n: NotificationEmail): Promise<void> {
+  try {
+    const supabase = await createServiceClient();
+    const { data: admins } = await supabase
+      .from("profiles")
+      .select("id,email")
+      .eq("role", "admin");
+    if (!admins?.length) return;
+
+    const { data: prefs } = await supabase
+      .from("email_prefs")
+      .select("user_id,opted_out")
+      .in("user_id", admins.map((a) => a.id));
+    const optedOut = new Set(
+      (prefs ?? []).filter((p) => p.opted_out).map((p) => p.user_id),
+    );
+
+    await Promise.all(
+      admins
+        .filter((a) => a.email && !optedOut.has(a.id))
+        .map((a) => sendEmail(a.email as string, n)),
+    );
+  } catch (err) {
+    console.error("[email] notifyAdmins failed:", err);
+  }
+}
+
 /** Notify the customer account attached to a client company. Resolves the
  *  recipient + opt-out via the service role (the caller's session often has
  *  no RLS access to another user's email_prefs), then sends. Never throws. */

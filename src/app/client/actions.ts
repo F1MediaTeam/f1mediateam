@@ -8,6 +8,12 @@ import { data, usingMock } from "@/lib/data";
 import { requireClient } from "@/lib/auth/session";
 import { createClient as createSupabase, createServiceClient } from "@/lib/supabase/server";
 import { DISCLAIMER_VERSION } from "@/lib/types";
+import { notifyAdmins, clientCompanyName } from "@/lib/email";
+
+// Trim long user text for an email body without splitting mid-word badly.
+function excerpt(s: string, max = 200): string {
+  return s.length > max ? s.slice(0, max - 3) + "…" : s;
+}
 
 const ATTACHMENT_BUCKET = "calendar-attachments";
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
@@ -71,11 +77,21 @@ export async function acceptDisclaimerAction() {
 export async function approveContentAction(formData: FormData) {
   const session = await requireClient();
   const id = String(formData.get("id") ?? "");
-  await data.moveContentStage(id, "forward", {
+  const result = await data.moveContentStage(id, "forward", {
     user_id: session.user_id,
     role: session.role,
     client_id: session.client_id,
   });
+  if (session.client_id && result && "card" in result) {
+    const name = (await clientCompanyName(session.client_id)) || "A client";
+    await notifyAdmins({
+      subject: `${name} approved "${result.card.title}"`,
+      heading: "Content approved ✓",
+      body: `${name} approved "${result.card.title}". It's cleared to be posted.`,
+      ctaLabel: "Open content board",
+      ctaPath: "/admin/content",
+    });
+  }
   revalidatePath("/client/content");
 }
 
@@ -118,11 +134,22 @@ export async function requestChangesAction(formData: FormData) {
     ? `${noteText}\n\n${uploadedPaths.map((p) => `[ATTACH:${p}]`).join("\n")}`
     : noteText;
 
-  await data.rejectContent(
+  const result = await data.rejectContent(
     id,
     { user_id: session.user_id, role: session.role, client_id: session.client_id },
     note,
   );
+  {
+    const name = (await clientCompanyName(session.client_id)) || "A client";
+    const title = result && "card" in result ? `"${result.card.title}"` : "a content card";
+    await notifyAdmins({
+      subject: `${name} requested changes`,
+      heading: "Changes requested",
+      body: `${name} requested changes on ${title}:\n\n${excerpt(noteText, 300)}`,
+      ctaLabel: "Review request",
+      ctaPath: "/admin/content",
+    });
+  }
   revalidatePath("/client/content");
   revalidatePath("/client");
 }
@@ -151,6 +178,16 @@ export async function addClientContentAction(formData: FormData) {
     uploaded_by: session.user_id,
     category: card ? `content-card:${card.id}` : "content-submission",
   });
+  {
+    const name = (await clientCompanyName(session.client_id)) || "A client";
+    await notifyAdmins({
+      subject: `${name} submitted new content`,
+      heading: "New content submission",
+      body: `${name} added "${title}" to their content board.`,
+      ctaLabel: "Open content board",
+      ctaPath: "/admin/content",
+    });
+  }
   revalidatePath("/client/content");
   revalidatePath("/admin/content");
   revalidatePath("/client/files");
@@ -201,6 +238,19 @@ export async function createClientCalendarEventAction(formData: FormData) {
         });
       }
     }
+    const name = (await clientCompanyName(session.client_id)) || "A client";
+    const when = new Date(starts_at).toLocaleString("en-US", {
+      timeZone: "America/Los_Angeles",
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+    await notifyAdmins({
+      subject: `${name} added a ${type} to the calendar`,
+      heading: type === "deadline" ? "New deadline" : "New meeting",
+      body: `${name} scheduled "${title}" — ${when} (PT).`,
+      ctaLabel: "Open calendar",
+      ctaPath: "/admin/calendar",
+    });
   }
 
   revalidatePath("/client");
@@ -337,6 +387,16 @@ export async function sendClientMessageAction(
       body,
       attachments,
     });
+    {
+      const name = (await clientCompanyName(session.client_id)) || "A client";
+      await notifyAdmins({
+        subject: `New message from ${name}`,
+        heading: `${name} sent you a message`,
+        body: body ? excerpt(body, 160) : `${name} sent an attachment.`,
+        ctaLabel: "Open messages",
+        ctaPath: `/admin/messages/${session.client_id}`,
+      });
+    }
     revalidatePath("/client");
     revalidatePath("/client/content");
     revalidatePath("/client/settings");
@@ -434,6 +494,17 @@ export async function submitOnboardingAction(formData: FormData) {
     }
   } catch (e) {
     console.error("onboarding brand-asset persist failed", e);
+  }
+
+  {
+    const name = (await clientCompanyName(session.client_id)) || "A client";
+    await notifyAdmins({
+      subject: `${name} completed onboarding`,
+      heading: "Onboarding submitted",
+      body: `${name} submitted their onboarding form. Their answers and brand assets are ready to review.`,
+      ctaLabel: "View client",
+      ctaPath: `/admin/clients/${session.client_id}`,
+    });
   }
 
   revalidatePath("/client");

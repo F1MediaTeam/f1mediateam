@@ -82,6 +82,18 @@ export async function createCalendarAction(formData: FormData) {
   if (client_id) {
     const { persistAttachments } = await import("@/lib/attachments");
     await persistAttachments({ formData, client_id, uploaded_by: session.user_id, category: "calendar" });
+    const when = new Date(starts_at).toLocaleString("en-US", {
+      timeZone: "America/Los_Angeles",
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+    await notifyClient(client_id, {
+      subject: type === "deadline" ? "New deadline on your calendar" : "New meeting on your calendar",
+      heading: type === "deadline" ? "New deadline" : "New meeting scheduled",
+      body: `"${title}" — ${when} (PT). Details and any attachments are in your portal.`,
+      ctaLabel: "View calendar",
+      ctaPath: "/client",
+    });
     revalidatePath(`/admin/clients/${client_id}`);
   }
   revalidatePath("/admin");
@@ -230,6 +242,14 @@ export async function reopenOnboardingAction(formData: FormData): Promise<void> 
   // fresh — the action upserts on client_id anyway, but a deleted row also
   // hides the "Download onboarding PDF" tile from settings until they submit.
   await admin.from("client_onboarding").delete().eq("client_id", client_id);
+
+  await notifyClient(client_id, {
+    subject: "Action needed: update your onboarding info",
+    heading: "Your onboarding was reopened",
+    body: "We need you to review and resubmit your onboarding form. It only takes a few minutes — your portal will walk you through it on your next visit.",
+    ctaLabel: "Open your portal",
+    ctaPath: "/client",
+  });
 
   revalidatePath(`/admin/clients/${client_id}`);
   revalidatePath("/client");
@@ -446,11 +466,20 @@ export async function advanceContentAction(formData: FormData) {
   const session = await requireAdmin();
   const id = String(formData.get("id") ?? "");
   const direction = formData.get("direction") === "back" ? "back" : "forward";
-  await data.moveContentStage(id, direction, {
+  const result = await data.moveContentStage(id, direction, {
     user_id: session.user_id,
     role: session.role,
     client_id: session.client_id,
   });
+  if (result && "card" in result && result.event.to_stage === "posted") {
+    await notifyClient(result.card.client_id, {
+      subject: "Your content is live",
+      heading: "Content posted 🎉",
+      body: `"${result.card.title}" has been posted. See it on your content board.`,
+      ctaLabel: "View content",
+      ctaPath: "/client/content",
+    });
+  }
   revalidatePath("/admin/content");
 }
 

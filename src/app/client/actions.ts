@@ -392,7 +392,8 @@ export async function sendClientMessageAction(
       const name = (await clientCompanyName(session.client_id)) || "A client";
       await notifyAdmins({
         subject: `New message from ${name}`,
-        heading: `${name} sent you a message`,
+        heading: `New message from ${name}`,
+        overline: true,
         body: body ? "" : `${name} sent an attachment.`,
         quote: body ? excerpt(body, 400) : undefined,
         ctaLabel: "Open messages",

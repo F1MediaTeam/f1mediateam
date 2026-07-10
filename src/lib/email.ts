@@ -20,8 +20,11 @@ export interface NotificationEmail {
   /** Intro copy. May be "" when a quote carries the whole message. */
   body: string;
   /** User-written text (a chat message, a change-request note) rendered as a
-   *  styled quote block between the body and the CTA. */
+   *  chat bubble between the body and the CTA. */
   quote?: string;
+  /** Render the heading as a bold red uppercase label (message emails)
+   *  instead of the dark h1. */
+  overline?: boolean;
   ctaLabel: string;
   /** Path within the portal, e.g. "/client" — joined onto the site URL. */
   ctaPath: string;
@@ -57,10 +60,12 @@ function renderHtml(n: NotificationEmail): string {
           </td></tr>
           <tr><td style="height:2px;background:#e10600;font-size:0;line-height:0;">&nbsp;</td></tr>
           <tr><td style="padding:34px 0 0;">
-            <h1 style="margin:0 0 14px;font-size:23px;line-height:1.3;color:#14181d;">${escapeHtml(n.heading)}</h1>
+            ${n.overline
+              ? `<p style="margin:0 0 20px;font-size:16px;font-weight:800;letter-spacing:0.14em;color:#e10600;">${escapeHtml(n.heading.toUpperCase())}</p>`
+              : `<h1 style="margin:0 0 14px;font-size:23px;line-height:1.3;color:#14181d;">${escapeHtml(n.heading)}</h1>`}
             ${n.body ? `<p style="margin:0 0 ${n.quote ? 18 : 30}px;font-size:15px;line-height:1.75;color:#3d4750;white-space:pre-wrap;">${escapeHtml(n.body)}</p>` : ""}
-            ${n.quote ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 30px;"><tr>
-              <td style="background:#f5f6f8;border-left:3px solid #e10600;border-radius:0 10px 10px 0;padding:16px 20px;font-size:15px;line-height:1.7;color:#14181d;white-space:pre-wrap;">${escapeHtml(n.quote)}</td>
+            ${n.quote ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 30px;"><tr>
+              <td style="background:#eef0f3;border-radius:18px;padding:13px 18px;font-size:15px;line-height:1.6;color:#14181d;white-space:pre-wrap;">${escapeHtml(n.quote)}</td>
             </tr></table>` : ""}
             <a href="${url}"
                style="display:inline-block;background:#e10600;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:12px 28px;border-radius:999px;">

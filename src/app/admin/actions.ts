@@ -344,7 +344,8 @@ export async function sendAdminMessageAction(
     });
     await notifyClient(client_id, {
       subject: "New message from F1 Media Team",
-      heading: "F1 Media Team sent you a message",
+      heading: "New message from F1 Media Team",
+      overline: true,
       body: body ? "" : "You received an attachment.",
       quote: body ? (body.length > 400 ? body.slice(0, 397) + "…" : body) : undefined,
       ctaLabel: "Open your portal",

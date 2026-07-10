@@ -60,7 +60,7 @@ export default async function AdminAudit() {
     <AdminShell session={session} active="/admin/audit">
       <div className="px-8 py-8 max-w-5xl">
         <div className="mb-8">
-          <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">Audit</div>
+          <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">Activity</div>
           <h1 className="text-3xl font-semibold tracking-tight mt-1">Activity log</h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-1">
             Click a section to expand its full history — your own admin sign-ins and view-as sessions, then client portal sign-ins.

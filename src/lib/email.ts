@@ -68,7 +68,7 @@ function renderHtml(n: NotificationEmail): string {
               <td style="background:#eef0f3;border-radius:18px;padding:13px 18px;font-size:15px;line-height:1.6;color:#14181d;white-space:pre-wrap;">${escapeHtml(n.quote)}</td>
             </tr></table>` : ""}
             <a href="${url}"
-               style="display:inline-block;background:#e10600;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:12px 28px;border-radius:999px;">
+               style="display:inline-block;background:#0b0f14;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:12px 28px;border-radius:999px;">
               ${escapeHtml(n.ctaLabel)}
             </a>
           </td></tr>

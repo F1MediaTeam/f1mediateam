@@ -45,11 +45,6 @@ export default async function AdminReports({
               write themselves
             </span>
           </h1>
-          <p className="mt-3 max-w-2xl text-sm text-[var(--color-text-muted)] leading-relaxed">
-            Pick a client, a time frame, and the Fieldy chats. Export pulls everything connected —
-            Search Console, Analytics, SEMrush, Bing, the onboarding profile, Fieldy meeting notes —
-            for the Claude app, then Import its JSON to edit and download the .pptx.
-          </p>
         </div>
 
         {!aiOk ? (

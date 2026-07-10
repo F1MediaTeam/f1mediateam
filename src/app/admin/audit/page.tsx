@@ -62,9 +62,6 @@ export default async function AdminAudit() {
         <div className="mb-8">
           <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">Activity</div>
           <h1 className="text-3xl font-semibold tracking-tight mt-1">Activity log</h1>
-          <p className="text-sm text-[var(--color-text-muted)] mt-1">
-            Click a section to expand its full history — your own admin sign-ins and view-as sessions, then client portal sign-ins.
-          </p>
         </div>
 
         <DropdownCard

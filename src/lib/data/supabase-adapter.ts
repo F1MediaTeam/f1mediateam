@@ -161,7 +161,10 @@ export const getClientUser = cache(async (clientId: UUID): Promise<Profile | nul
 // ---------- clients ----------
 
 export async function listClients(): Promise<Client[]> {
-  const supabase = await createClient();
+  // Service role: every caller is admin-gated, and the /api/cron/sync route
+  // runs with no session at all — the cookie client returned [] there under
+  // RLS, silently turning the daily connector sync into a no-op.
+  const supabase = await createServiceClient();
   const { data } = await supabase
     .from("clients")
     .select("*")
@@ -1264,7 +1267,8 @@ export async function touchConnectorSync(
   connectorId: UUID,
   status: string,
 ): Promise<ConnectorToken | null> {
-  const supabase = await createClient();
+  // Service role: also called from the sessionless cron sync (see listClients).
+  const supabase = await createServiceClient();
   const { data } = await supabase
     .from("connector_tokens")
     .update({ last_synced_at: new Date().toISOString(), last_sync_status: status })

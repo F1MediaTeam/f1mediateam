@@ -145,7 +145,8 @@ export async function requestChangesAction(formData: FormData) {
     await notifyAdmins({
       subject: `${name} requested changes`,
       heading: "Changes requested",
-      body: `${name} requested changes on ${title}:\n\n${excerpt(noteText, 300)}`,
+      body: `${name} requested changes on ${title}:`,
+      quote: excerpt(noteText, 400),
       ctaLabel: "Review request",
       ctaPath: "/admin/content",
     });
@@ -392,7 +393,8 @@ export async function sendClientMessageAction(
       await notifyAdmins({
         subject: `New message from ${name}`,
         heading: `${name} sent you a message`,
-        body: body ? excerpt(body, 160) : `${name} sent an attachment.`,
+        body: body ? "" : `${name} sent an attachment.`,
+        quote: body ? excerpt(body, 400) : undefined,
         ctaLabel: "Open messages",
         ctaPath: `/admin/messages/${session.client_id}`,
       });

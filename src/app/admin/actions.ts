@@ -342,15 +342,11 @@ export async function sendAdminMessageAction(
       body,
       attachments,
     });
-    const sender = await adminSenderName(session.user_id);
     await notifyClient(client_id, {
-      subject: `New message from ${sender}`,
-      heading: `${sender} sent you a message`,
-      body: body
-        ? body.length > 160
-          ? body.slice(0, 157) + "…"
-          : body
-        : `${sender} sent you an attachment.`,
+      subject: "New message from F1 Media Team",
+      heading: "F1 Media Team sent you a message",
+      body: body ? "" : "You received an attachment.",
+      quote: body ? (body.length > 400 ? body.slice(0, 397) + "…" : body) : undefined,
       ctaLabel: "Open your portal",
       ctaPath: "/client",
     });

@@ -562,19 +562,30 @@ export async function listSnapshotsByMetrics(filter: {
   const out = new Map<string, MetricSnapshot[]>();
   if (filter.metrics.length === 0) return out;
   const supabase = await createClient();
-  let q = supabase
-    .from("metric_snapshots")
-    .select("*")
-    .eq("client_id", filter.clientId)
-    .in("metric", filter.metrics)
-    .order("captured_at", { ascending: true });
-  if (filter.from) q = q.gte("captured_at", filter.from);
-  if (filter.to) q = q.lte("captured_at", filter.to);
-  const { data } = await q;
   for (const m of filter.metrics) out.set(m, []);
-  for (const row of (data ?? []) as MetricSnapshot[]) {
-    const bucket = out.get(row.metric);
-    if (bucket) bucket.push(row);
+
+  // PostgREST caps an unbounded select at 1000 rows, so a client with a few
+  // hundred days × 4 metrics silently truncates to the OLDEST 1000 rows —
+  // freezing charts (and "Last update") at whatever date that lands on.
+  // Page through with .range() until a short page tells us we've drained it.
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    let q = supabase
+      .from("metric_snapshots")
+      .select("*")
+      .eq("client_id", filter.clientId)
+      .in("metric", filter.metrics)
+      .order("captured_at", { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    if (filter.from) q = q.gte("captured_at", filter.from);
+    if (filter.to) q = q.lte("captured_at", filter.to);
+    const { data } = await q;
+    const rows = (data ?? []) as MetricSnapshot[];
+    for (const row of rows) {
+      const bucket = out.get(row.metric);
+      if (bucket) bucket.push(row);
+    }
+    if (rows.length < PAGE) break;
   }
   return out;
 }

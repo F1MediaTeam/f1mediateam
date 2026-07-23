@@ -18,6 +18,11 @@
 
 const FIELDY_BASE = "https://api.fieldy.ai/api/public/v2";
 
+// The /conversations endpoint caps pageSize at 50 (min 1). Sending more is a
+// 400 "Input validation failed", so clamp to this and let cursor pagination
+// collect the caller's full `limit` across pages.
+const FIELDY_MAX_PAGE_SIZE = 50;
+
 /** True when a key is present so the server can reach Fieldy. */
 export function fieldyConfigured(): boolean {
   return Boolean(process.env.FIELDY_API_KEY);
@@ -110,7 +115,7 @@ export async function fieldyMeetingsInWindow(
     const url = new URL(FIELDY_BASE + "/conversations");
     url.searchParams.set("startTime", `${fromIso}T00:00:00.000Z`);
     url.searchParams.set("endTime", `${toIso}T23:59:59.999Z`);
-    url.searchParams.set("pageSize", String(Math.min(limit, 100)));
+    url.searchParams.set("pageSize", String(Math.min(limit, FIELDY_MAX_PAGE_SIZE)));
     if (cursor) url.searchParams.set("cursor", cursor);
 
     let body: unknown;

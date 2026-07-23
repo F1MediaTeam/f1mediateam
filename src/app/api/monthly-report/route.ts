@@ -767,7 +767,7 @@ export async function POST(request: NextRequest) {
     } catch (e) {
       transcript = "";
       warnings.push(
-        `Fieldy fetch failed (${e instanceof Error ? e.message.slice(0, 120) : "unknown error"}) — this deck has NO meeting-notes context.`,
+        `Fieldy fetch failed (${e instanceof Error ? e.message.slice(0, 300) : "unknown error"}) — this deck has NO meeting-notes context.`,
       );
     }
   }

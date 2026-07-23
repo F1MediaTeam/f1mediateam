@@ -78,42 +78,6 @@ export default async function AdminSettings() {
           </CardBody>
         </Card>
 
-        <Card className="mb-6">
-          <CardHeader
-            title="Sync schedule"
-            subtitle="When backend syncs run automatically"
-          />
-          <CardBody className="text-sm space-y-2">
-            <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-4 py-3">
-              <div>Daily background sync</div>
-              <span className="text-xs font-mono text-[var(--color-text-muted)]">09:00 UTC</span>
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-4 py-3">
-              <div>On-visit freshen</div>
-              <span className="text-xs text-[var(--color-text-muted)]">
-                fires if connector stale &gt; 30 min
-              </span>
-            </div>
-            <div className="text-xs text-[var(--color-text-muted)] mt-2">
-              Want hourly background sync? Vercel Pro plan unlocks per-minute cron schedules.
-            </div>
-          </CardBody>
-        </Card>
-
-        <Card className="mb-6">
-          <CardHeader title="Build" subtitle="Deployment metadata" />
-          <CardBody className="text-sm space-y-2">
-            <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-4 py-3">
-              <div>Domain</div>
-              <span className="font-mono text-xs">f1mediateam.com</span>
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-4 py-3">
-              <div>Environment</div>
-              <span className="font-mono text-xs">{process.env.VERCEL_ENV ?? "development"}</span>
-            </div>
-          </CardBody>
-        </Card>
-
         <DropdownCard
           className="mb-6"
           title="Recent sign-ins"

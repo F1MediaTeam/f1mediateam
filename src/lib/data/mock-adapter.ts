@@ -30,6 +30,7 @@ import type {
   UserRole,
   UUID,
   SemrushReport,
+  ConnectorToken,
 } from "@/lib/types";
 
 const nowIso = () => new Date().toISOString();
@@ -1060,4 +1061,22 @@ export function deleteDocument(id: UUID): boolean {
 export function documentDownloadUrl(id: UUID): string | null {
   const d = documentStore.find((x) => x.id === id);
   return d ? `mock://documents/${d.storage_path}` : null;
+}
+
+
+// ---------------- admin command centre (mock) ----------------
+
+export function saveClientNotes(clientId: UUID, notes: string): void {
+  const c = getState().clients.find((x) => x.id === clientId);
+  if (c) (c as unknown as { internal_notes: string }).internal_notes = notes;
+}
+
+export function listAllConnectors(): ConnectorToken[] {
+  return getState().connectors.slice();
+}
+
+export function listRecentReports(
+  _limit = 25,
+): Array<Pick<DeckReport, "id" | "client_id" | "report_type" | "meeting_date" | "created_at">> {
+  return [];
 }

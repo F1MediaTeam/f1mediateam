@@ -1647,3 +1647,31 @@ export async function documentDownloadUrl(id: UUID): Promise<string | null> {
     });
   return signed?.signedUrl ?? null;
 }
+
+
+// ---------------- admin command centre ----------------
+
+export async function saveClientNotes(clientId: UUID, notes: string): Promise<void> {
+  const supabase = await createClient();
+  await supabase.from("clients").update({ internal_notes: notes }).eq("id", clientId);
+}
+
+/** Every connector across all clients, for the health matrix. Admin-gated. */
+export async function listAllConnectors(): Promise<ConnectorToken[]> {
+  const supabase = await createServiceClient();
+  const { data } = await supabase.from("connector_tokens").select("*");
+  return (data as ConnectorToken[]) ?? [];
+}
+
+/** Most recent generated reports across all clients, for the send log. */
+export async function listRecentReports(
+  limit = 25,
+): Promise<Array<Pick<DeckReport, "id" | "client_id" | "report_type" | "meeting_date" | "created_at">>> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("deck_reports")
+    .select("id, client_id, report_type, meeting_date, created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  return (data as Array<Pick<DeckReport, "id" | "client_id" | "report_type" | "meeting_date" | "created_at">>) ?? [];
+}

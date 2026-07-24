@@ -48,6 +48,7 @@ export interface Client {
   config: ClientConfig;
   branding: Record<string, unknown>;
   tier?: ClientTier;
+  internal_notes?: string | null;
   created_at: ISODateTime;
   updated_at: ISODateTime;
 }

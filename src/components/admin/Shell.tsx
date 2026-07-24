@@ -8,6 +8,7 @@ import type { Session } from "@/lib/data";
 
 const NAV = [
   { href: "/admin",           label: "Dashboard" },
+  { href: "/admin/command-center", label: "Command Center" },
   { href: "/admin/clients",   label: "Clients" },
   { href: "/admin/content",   label: "Content" },
   { href: "/admin/messages",  label: "Messages" },

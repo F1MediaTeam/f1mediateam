@@ -820,3 +820,14 @@ export async function adminRequestChangesAction(formData: FormData) {
   revalidatePath("/admin/content");
   revalidatePath("/admin/clients");
 }
+
+/** Save the admin-only internal notes on a client. Never shown in the portal. */
+export async function saveClientNotesAction(formData: FormData): Promise<{ error: string | null }> {
+  await requireAdmin();
+  const clientId = String(formData.get("client_id") ?? "");
+  const notes = String(formData.get("notes") ?? "");
+  if (!clientId) return { error: "Missing client." };
+  await data.saveClientNotes(clientId, notes);
+  revalidatePath(`/admin/clients/${clientId}`);
+  return { error: null };
+}

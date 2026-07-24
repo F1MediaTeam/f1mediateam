@@ -18,6 +18,7 @@ import CreateClientUserForm from "@/components/admin/CreateClientUserForm";
 import EditClientUserForm from "@/components/admin/EditClientUserForm";
 import ReopenOnboardingButton from "@/components/admin/ReopenOnboardingButton";
 import AdminContentAddModal from "@/components/admin/AdminContentAddModal";
+import ClientNotes from "@/components/admin/ClientNotes";
 import ContentDetailModal from "@/components/shared/ContentDetailModal";
 import RequestChangesModal from "@/components/client/RequestChangesModal";
 import IncrementalList from "@/components/shared/IncrementalList";
@@ -281,6 +282,13 @@ export default async function ClientProfile({
           <SemrushGauges clientId={id} />
           <OrganicKeywordsPanel clientId={id} />
         </div>
+
+        <Card className="mb-6">
+          <CardHeader title="Notes" subtitle="Private to the F1 Media team" />
+          <CardBody>
+            <ClientNotes clientId={client.id} initial={client.internal_notes ?? ""} />
+          </CardBody>
+        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <Card>

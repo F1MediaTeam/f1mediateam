@@ -191,6 +191,19 @@ export interface FileRecord {
   created_at: ISODateTime;
 }
 
+/** A stored document in the admin library. client_id null = F1 Media Team folder. */
+export interface DocumentRecord {
+  id: UUID;
+  client_id: UUID | null;
+  filename: string;
+  storage_path: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  signed: boolean;
+  uploaded_by: UUID | null;
+  created_at: ISODateTime;
+}
+
 export interface LoginAudit {
   id: UUID;
   client_id: UUID | null;

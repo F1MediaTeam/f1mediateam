@@ -14,6 +14,7 @@ import type {
   ContentCardEvent,
   ContentStage,
   DeckReport,
+  DocumentRecord,
   EmailPref,
   FileRecord,
   LoginAudit,
@@ -1531,4 +1532,78 @@ export async function requestChangesAsAdmin(
   // Re-save the stage so updated_at moves and the card floats to the top.
   await supabase.from("content_cards").update({ stage: "proposed" }).eq("id", cardId);
   return { ok: true };
+}
+
+// ---------------- admin document library (0016_documents.sql) ----------------
+//
+// Folders of stored documents; client_id null is the shared F1 Media folder.
+// Admin-only via RLS. Bytes live in the private 'documents' bucket, reached
+// through server-signed URLs.
+
+export async function listDocuments(clientId: UUID | null): Promise<DocumentRecord[]> {
+  const supabase = await createClient();
+  let q = supabase.from("documents").select("*").order("created_at", { ascending: false });
+  q = clientId === null ? q.is("client_id", null) : q.eq("client_id", clientId);
+  const { data } = await q;
+  return (data as DocumentRecord[]) ?? [];
+}
+
+/** Counts per folder for the sidebar, in one query. Key null = F1 Media. */
+export async function documentCounts(): Promise<Map<string | null, number>> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("documents").select("client_id");
+  const out = new Map<string | null, number>();
+  for (const row of (data ?? []) as { client_id: string | null }[]) {
+    out.set(row.client_id, (out.get(row.client_id) ?? 0) + 1);
+  }
+  return out;
+}
+
+export async function recordDocument(
+  input: Omit<DocumentRecord, "id" | "created_at">,
+): Promise<DocumentRecord | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("documents").insert(input).select().single();
+  if (error) throw new Error(`recordDocument failed: ${error.message}`);
+  return (data as DocumentRecord) ?? null;
+}
+
+export async function setDocumentSigned(id: UUID, signed: boolean): Promise<void> {
+  const supabase = await createClient();
+  await supabase.from("documents").update({ signed }).eq("id", id);
+}
+
+/** Delete a document row and its stored bytes. */
+export async function deleteDocument(id: UUID): Promise<boolean> {
+  const supabase = await createClient();
+  const { data: doc } = await supabase
+    .from("documents")
+    .select("storage_path")
+    .eq("id", id)
+    .single();
+  const { error } = await supabase.from("documents").delete().eq("id", id);
+  if (error) return false;
+  if (doc?.storage_path) {
+    const service = await createServiceClient();
+    await service.storage.from("documents").remove([(doc as { storage_path: string }).storage_path]);
+  }
+  return true;
+}
+
+/** Short-lived signed URL to download a document's bytes. */
+export async function documentDownloadUrl(id: UUID): Promise<string | null> {
+  const supabase = await createClient();
+  const { data: doc } = await supabase
+    .from("documents")
+    .select("storage_path, filename")
+    .eq("id", id)
+    .single();
+  if (!doc) return null;
+  const service = await createServiceClient();
+  const { data: signed } = await service.storage
+    .from("documents")
+    .createSignedUrl((doc as { storage_path: string }).storage_path, 60 * 5, {
+      download: (doc as { filename: string }).filename,
+    });
+  return signed?.signedUrl ?? null;
 }

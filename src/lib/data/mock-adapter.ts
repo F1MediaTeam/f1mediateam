@@ -18,6 +18,7 @@ import type {
   ContentCardEvent,
   ContentStage,
   DeckReport,
+  DocumentRecord,
   EmailPref,
   FileRecord,
   LoginAudit,
@@ -974,4 +975,45 @@ export function requestChangesAsAdmin(
     });
     return { ok: true } as const;
   });
+}
+
+// ---------------- admin document library (mock) ----------------
+
+const documentStore: DocumentRecord[] = [];
+
+export function listDocuments(clientId: UUID | null): DocumentRecord[] {
+  return documentStore
+    .filter((d) => (clientId === null ? d.client_id === null : d.client_id === clientId))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+export function documentCounts(): Map<string | null, number> {
+  const out = new Map<string | null, number>();
+  for (const d of documentStore) out.set(d.client_id, (out.get(d.client_id) ?? 0) + 1);
+  return out;
+}
+
+export function recordDocument(
+  input: Omit<DocumentRecord, "id" | "created_at">,
+): DocumentRecord {
+  const row: DocumentRecord = { ...input, id: `doc-${uid()}`, created_at: nowIso() };
+  documentStore.unshift(row);
+  return row;
+}
+
+export function setDocumentSigned(id: UUID, signed: boolean): void {
+  const d = documentStore.find((x) => x.id === id);
+  if (d) d.signed = signed;
+}
+
+export function deleteDocument(id: UUID): boolean {
+  const i = documentStore.findIndex((d) => d.id === id);
+  if (i === -1) return false;
+  documentStore.splice(i, 1);
+  return true;
+}
+
+export function documentDownloadUrl(id: UUID): string | null {
+  const d = documentStore.find((x) => x.id === id);
+  return d ? `mock://documents/${d.storage_path}` : null;
 }

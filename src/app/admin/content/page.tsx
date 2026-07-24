@@ -23,17 +23,6 @@ import RequestChangesModal from "@/components/client/RequestChangesModal";
 import { visibleCards } from "@/lib/content-visibility";
 import type { ContentStage } from "@/lib/types";
 
-// Calendar chip colors per client — matches the master calendar's palette so
-// events read the same across the app. Indexed by the client's position.
-const CAL_PALETTE = [
-  "bg-emerald-500/10 text-emerald-300",
-  "bg-orange-500/10 text-orange-300",
-  "bg-violet-500/10 text-violet-300",
-  "bg-sky-500/10 text-sky-300",
-  "bg-rose-500/10 text-rose-300",
-];
-const CAL_INTERNAL = "bg-slate-500/10 text-slate-300";
-
 const STAGES: { stage: ContentStage; label: string; tone: "warn" | "accent" | "ok" }[] = [
   { stage: "proposed", label: "Proposed", tone: "warn" },
   { stage: "pending",  label: "Pending",  tone: "accent" },
@@ -99,11 +88,6 @@ export default async function AdminContent({
   }
   const calMonthLabel = now.toLocaleString("en-US", { month: "long", year: "numeric" });
   const calMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const chipFor = (id: string | null) => {
-    if (!id) return CAL_INTERNAL;
-    const idx = clients.findIndex((c) => c.id === id);
-    return idx === -1 ? CAL_PALETTE[0] : CAL_PALETTE[idx % CAL_PALETTE.length];
-  };
   const calEvents: CalEvent[] = calendarEvents.map((e) => ({
     id: e.id,
     title: e.title,
@@ -111,7 +95,12 @@ export default async function AdminContent({
     starts_at: e.starts_at,
     notes: e.notes,
     clientLabel: e.client_id ? clientNameOf(e.client_id) : "F1 Media (internal)",
-    chipClass: chipFor(e.client_id),
+    // Neutral chip so the client's own dot color (below) reads clearly — the
+    // same companyAccent that colors the filter chips above.
+    chipClass: "bg-[var(--color-bg-hover)] text-[var(--color-text)]",
+    accentColor: e.client_id
+      ? companyAccent(e.client_id, clientNameOf(e.client_id))
+      : undefined,
   }));
   const filteredClientName = clientFilter ? clientNameOf(clientFilter) : null;
 

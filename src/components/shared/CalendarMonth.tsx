@@ -29,6 +29,10 @@ export interface CalEvent {
   attachmentCount?: number;
   /** tailwind chip classes, e.g. "bg-sky-500/10 text-sky-300"; defaults to emerald */
   chipClass?: string;
+  /** the client's brand color as a CSS background (hex, hsl, or gradient) —
+   *  drives a colored dot on the chip and a swatch in the detail popup so an
+   *  event reads as belonging to a specific client */
+  accentColor?: string;
 }
 
 function localIsoToday(): string {
@@ -109,9 +113,17 @@ export default function CalendarMonth({
           (e.chipClass ?? DEFAULT_CHIP)
         }
       >
-        <span className="truncate">
-          {e.type === "deadline" ? "◆ " : "● "}
-          {e.title}
+        <span className="flex items-center gap-1 truncate">
+          {e.accentColor ? (
+            <span
+              aria-hidden
+              className="inline-block h-2 w-2 shrink-0 rounded-full"
+              style={{ background: e.accentColor }}
+            />
+          ) : (
+            <span aria-hidden>{e.type === "deadline" ? "◆" : "●"}</span>
+          )}
+          <span className="truncate">{e.title}</span>
         </span>
         {url ? <span className="ml-0.5 opacity-70">↗</span> : null}
         {e.attachmentCount ? <span className="ml-0.5 font-mono text-[9px] opacity-90">📎{e.attachmentCount}</span> : null}
@@ -251,8 +263,13 @@ function EventDetail({ event, onClose }: { event: CalEvent; onClose: () => void 
       <div
         role="dialog"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-5 shadow-2xl"
+        className="w-full max-w-md overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] shadow-2xl"
       >
+        {/* Client color bar across the top — themes the card for that client. */}
+        {event.accentColor ? (
+          <div className="h-1.5 w-full" style={{ background: event.accentColor }} />
+        ) : null}
+        <div className="p-5">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="flex items-center gap-2">
             <span
@@ -279,8 +296,17 @@ function EventDetail({ event, onClose }: { event: CalEvent; onClose: () => void 
             <span>{fmtDateTime(event.starts_at)}</span>
           </div>
           {event.clientLabel ? (
-            <div className="text-[var(--color-text-muted)]">
-              <span className="text-[var(--color-text-subtle)]">Client:</span> {event.clientLabel}
+            <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
+              {event.accentColor ? (
+                <span
+                  aria-hidden
+                  className="inline-block h-3 w-3 shrink-0 rounded-full"
+                  style={{ background: event.accentColor }}
+                />
+              ) : null}
+              <span>
+                <span className="text-[var(--color-text-subtle)]">Client:</span> {event.clientLabel}
+              </span>
             </div>
           ) : null}
           {event.attachmentCount ? (
@@ -307,6 +333,7 @@ function EventDetail({ event, onClose }: { event: CalEvent; onClose: () => void 
             <ExternalLink size={15} /> Open link
           </a>
         ) : null}
+        </div>
       </div>
     </div>
   );

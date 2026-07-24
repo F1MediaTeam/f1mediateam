@@ -6,7 +6,6 @@ import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import MultiMetricCard from "@/components/shared/MultiMetricCard";
 import DropdownCard from "@/components/shared/DropdownCard";
-import SeoMetricsRow from "@/components/shared/SeoMetricsRow";
 import SemrushGauges from "@/components/shared/SemrushGauges";
 import OrganicKeywordsPanel from "@/components/shared/OrganicKeywordsPanel";
 import SemrushInsights from "@/components/shared/SemrushInsights";
@@ -247,7 +246,6 @@ export default async function ClientProfile({
               { metric: "bing_avg_impression_position", label: "Avg impr position",  color: "#fb7185", aggregation: "average", invert: true },
             ]}
           />
-          <SeoMetricsRow clientId={id} />
           <SemrushGauges clientId={id} />
           <OrganicKeywordsPanel clientId={id} />
         </div>

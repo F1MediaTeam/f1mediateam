@@ -10,7 +10,6 @@ import { createClientCalendarEventAction } from "./actions";
 import { isoDate, formatDateTime } from "@/lib/utils";
 import MultiMetricCard from "@/components/shared/MultiMetricCard";
 import GscDashboard from "@/components/shared/GscDashboard";
-import SeoMetricsRow from "@/components/shared/SeoMetricsRow";
 import OrganicKeywordsPanel from "@/components/shared/OrganicKeywordsPanel";
 import SemrushInsights from "@/components/shared/SemrushInsights";
 import { buildSemrushChartData } from "@/lib/semrush-charts";
@@ -226,12 +225,7 @@ export default async function ClientHome() {
               <div className="px-5 py-4 text-center border-b border-[var(--color-border)]">
                 <h2 className="text-2xl font-semibold tracking-tight">SEO insights</h2>
               </div>
-              <div className="p-5">
-                <SeoMetricsRow clientId={client.id} embedded />
-              </div>
-              <div className="border-t border-[var(--color-border)]">
-                <OrganicKeywordsPanel clientId={client.id} embedded />
-              </div>
+              <OrganicKeywordsPanel clientId={client.id} embedded />
             </div>
           ) : (
             <div className="mb-6 text-center">

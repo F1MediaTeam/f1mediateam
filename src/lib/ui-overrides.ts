@@ -29,6 +29,9 @@ export const EDITABLE_PROPS = {
   textTransform: "text-transform",
   textDecoration: "text-decoration",
   opacity: "opacity",
+  // Repositioning is done with translate() rather than top/left so an element
+  // can be nudged anywhere without pulling its neighbours around.
+  transform: "transform",
 } as const;
 
 export type EditableProp = keyof typeof EDITABLE_PROPS;

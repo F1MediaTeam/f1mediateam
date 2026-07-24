@@ -19,6 +19,7 @@ import type {
   ContentStage,
   DeckReport,
   DocumentRecord,
+  DocumentFolder,
   EmailPref,
   FileRecord,
   LoginAudit,
@@ -981,10 +982,53 @@ export function requestChangesAsAdmin(
 
 const documentStore: DocumentRecord[] = [];
 
-export function listDocuments(clientId: UUID | null): DocumentRecord[] {
+export function listDocuments(
+  clientId: UUID | null,
+  folderId: UUID | null = null,
+): DocumentRecord[] {
   return documentStore
     .filter((d) => (clientId === null ? d.client_id === null : d.client_id === clientId))
+    .filter((d) => (d.folder_id ?? null) === (folderId ?? null))
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+// ---- subfolders (mock) ----
+
+const folderStore: DocumentFolder[] = [];
+
+export function listFolders(clientId: UUID | null): DocumentFolder[] {
+  return folderStore
+    .filter((f) => (clientId === null ? f.client_id === null : f.client_id === clientId))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function createFolder(input: {
+  client_id: UUID | null;
+  parent_id: UUID | null;
+  name: string;
+}): DocumentFolder {
+  const row: DocumentFolder = { ...input, id: `dfld-${uid()}`, created_at: nowIso() };
+  folderStore.push(row);
+  return row;
+}
+
+export function renameFolder(id: UUID, name: string): void {
+  const f = folderStore.find((x) => x.id === id);
+  if (f) f.name = name;
+}
+
+export function deleteFolder(id: UUID): void {
+  // Cascade child folders; move affected documents back to the scope root.
+  const toDelete = new Set<string>();
+  const collect = (fid: string) => {
+    toDelete.add(fid);
+    for (const c of folderStore.filter((f) => f.parent_id === fid)) collect(c.id);
+  };
+  collect(id);
+  for (let i = folderStore.length - 1; i >= 0; i--) {
+    if (toDelete.has(folderStore[i].id)) folderStore.splice(i, 1);
+  }
+  for (const d of documentStore) if (d.folder_id && toDelete.has(d.folder_id)) d.folder_id = null;
 }
 
 export function documentCounts(): Map<string | null, number> {

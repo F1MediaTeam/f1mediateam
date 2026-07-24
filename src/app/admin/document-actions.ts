@@ -28,6 +28,8 @@ export async function uploadDocumentsAction(
   // "f1" (or empty) → the shared F1 Media Team folder (client_id null).
   const raw = String(formData.get("client_id") ?? "").trim();
   const clientId = raw && raw !== "f1" ? raw : null;
+  // Current subfolder, or empty for the scope root.
+  const folderId = String(formData.get("folder_id") ?? "").trim() || null;
   const signed = String(formData.get("signed") ?? "") === "on";
 
   const files = formData.getAll("documents").filter((f): f is File => f instanceof File && f.size > 0);
@@ -38,6 +40,7 @@ export async function uploadDocumentsAction(
     for (const f of files) {
       await data.recordDocument({
         client_id: clientId,
+        folder_id: folderId,
         filename: f.name,
         storage_path: `mock/${randomUUID()}`,
         mime_type: f.type || null,
@@ -59,8 +62,9 @@ export async function uploadDocumentsAction(
       skipped.push(`${file.name} (over 50 MB)`);
       continue;
     }
-    const folder = clientId ?? "f1-media";
-    const path = `${folder}/${randomUUID()}-${safeName(file.name)}`;
+    const scope = clientId ?? "f1-media";
+    const sub = folderId ? `${folderId}/` : "";
+    const path = `${scope}/${sub}${randomUUID()}-${safeName(file.name)}`;
     const { error: upErr } = await supabase.storage
       .from(BUCKET)
       .upload(path, await file.arrayBuffer(), {
@@ -73,6 +77,7 @@ export async function uploadDocumentsAction(
     }
     await data.recordDocument({
       client_id: clientId,
+      folder_id: folderId,
       filename: file.name,
       storage_path: path,
       mime_type: file.type || null,
@@ -89,6 +94,42 @@ export async function uploadDocumentsAction(
     error: skipped.length ? `Uploaded ${uploaded}; skipped ${skipped.join("; ")}` : null,
     uploaded,
   };
+}
+
+// ---- subfolders ----
+
+export async function createFolderAction(
+  scope: string,
+  parentId: string | null,
+  name: string,
+): Promise<{ error: string | null }> {
+  await requireAdmin();
+  const clean = name.trim();
+  if (!clean) return { error: "Give the folder a name." };
+  const clientId = scope && scope !== "f1" ? scope : null;
+  await data.createFolder({ client_id: clientId, parent_id: parentId || null, name: clean });
+  revalidatePath("/admin/documents");
+  return { error: null };
+}
+
+export async function renameFolderAction(
+  id: string,
+  name: string,
+): Promise<{ error: string | null }> {
+  await requireAdmin();
+  const clean = name.trim();
+  if (!clean) return { error: "Folder name can't be empty." };
+  await data.renameFolder(id, clean);
+  revalidatePath("/admin/documents");
+  return { error: null };
+}
+
+export async function deleteFolderAction(id: string): Promise<{ error: string | null }> {
+  await requireAdmin();
+  // Documents inside fall back to the scope root — they aren't deleted.
+  await data.deleteFolder(id);
+  revalidatePath("/admin/documents");
+  return { error: null };
 }
 
 export async function deleteDocumentAction(id: string): Promise<{ error: string | null }> {

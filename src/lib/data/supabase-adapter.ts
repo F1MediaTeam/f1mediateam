@@ -15,6 +15,7 @@ import type {
   ContentStage,
   DeckReport,
   DocumentRecord,
+  DocumentFolder,
   EmailPref,
   FileRecord,
   LoginAudit,
@@ -1540,12 +1541,51 @@ export async function requestChangesAsAdmin(
 // Admin-only via RLS. Bytes live in the private 'documents' bucket, reached
 // through server-signed URLs.
 
-export async function listDocuments(clientId: UUID | null): Promise<DocumentRecord[]> {
+export async function listDocuments(
+  clientId: UUID | null,
+  folderId: UUID | null = null,
+): Promise<DocumentRecord[]> {
   const supabase = await createClient();
   let q = supabase.from("documents").select("*").order("created_at", { ascending: false });
   q = clientId === null ? q.is("client_id", null) : q.eq("client_id", clientId);
+  q = folderId === null ? q.is("folder_id", null) : q.eq("folder_id", folderId);
   const { data } = await q;
   return (data as DocumentRecord[]) ?? [];
+}
+
+// ---- subfolders ----
+
+/** Every folder under a scope (all depths) — small per scope, so the page
+ *  builds breadcrumbs and child lists in memory rather than recursing in SQL. */
+export async function listFolders(clientId: UUID | null): Promise<DocumentFolder[]> {
+  const supabase = await createClient();
+  let q = supabase.from("document_folders").select("*").order("name", { ascending: true });
+  q = clientId === null ? q.is("client_id", null) : q.eq("client_id", clientId);
+  const { data } = await q;
+  return (data as DocumentFolder[]) ?? [];
+}
+
+export async function createFolder(input: {
+  client_id: UUID | null;
+  parent_id: UUID | null;
+  name: string;
+}): Promise<DocumentFolder | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("document_folders").insert(input).select().single();
+  if (error) throw new Error(`createFolder failed: ${error.message}`);
+  return (data as DocumentFolder) ?? null;
+}
+
+export async function renameFolder(id: UUID, name: string): Promise<void> {
+  const supabase = await createClient();
+  await supabase.from("document_folders").update({ name }).eq("id", id);
+}
+
+/** Delete a folder. Child folders cascade; documents fall back to the scope
+ *  root (folder_id → null) rather than being destroyed. Storage bytes stay. */
+export async function deleteFolder(id: UUID): Promise<void> {
+  const supabase = await createClient();
+  await supabase.from("document_folders").delete().eq("id", id);
 }
 
 /** Counts per folder for the sidebar, in one query. Key null = F1 Media. */

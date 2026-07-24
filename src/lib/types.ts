@@ -195,12 +195,24 @@ export interface FileRecord {
 export interface DocumentRecord {
   id: UUID;
   client_id: UUID | null;
+  /** subfolder it lives in; null = the scope root */
+  folder_id: UUID | null;
   filename: string;
   storage_path: string;
   mime_type: string | null;
   size_bytes: number | null;
   signed: boolean;
   uploaded_by: UUID | null;
+  created_at: ISODateTime;
+}
+
+/** A user-created subfolder in the document library. client_id null = under the
+ *  F1 Media Team scope; parent_id null = directly under the scope root. */
+export interface DocumentFolder {
+  id: UUID;
+  client_id: UUID | null;
+  parent_id: UUID | null;
+  name: string;
   created_at: ISODateTime;
 }
 

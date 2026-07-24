@@ -11,10 +11,13 @@ import { uploadDocumentsAction } from "@/app/admin/document-actions";
 
 export default function DocumentUpload({
   folderId,
+  dirId,
   folderLabel,
 }: {
-  /** client id, or "f1" for the F1 Media Team folder */
+  /** scope: client id, or "f1" for the F1 Media Team folder */
   folderId: string;
+  /** current subfolder id, or null at the scope root */
+  dirId?: string | null;
   folderLabel: string;
 }) {
   const [note, setNote] = useState<string | null>(null);
@@ -31,6 +34,7 @@ export default function DocumentUpload({
   return (
     <form action={submit} className="space-y-3">
       <input type="hidden" name="client_id" value={folderId} />
+      <input type="hidden" name="folder_id" value={dirId ?? ""} />
       <FileDropZone
         name="documents"
         label={`Drop files into ${folderLabel}, or click to browse`}

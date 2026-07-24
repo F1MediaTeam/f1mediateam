@@ -5,6 +5,8 @@ import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import Time from "@/components/shared/Time";
 import { approveContentAction, requestChangesAction, addClientContentAction } from "../actions";
 import ContentDetailModal from "@/components/shared/ContentDetailModal";
+import IncrementalList from "@/components/shared/IncrementalList";
+import { visibleCards } from "@/lib/content-visibility";
 import ClientAddContentModal from "@/components/client/ClientAddContentModal";
 import RequestChangesModal from "@/components/client/RequestChangesModal";
 import type { ContentStage } from "@/lib/types";
@@ -19,7 +21,9 @@ export default async function ClientContent() {
   const session = await requireClient();
   const client = await data.getClient(session.client_id!);
   if (!client) return null;
-  const cards = await data.listContent({ clientId: client.id });
+  // Posted cards age off the board after the cutoff (lib/content-visibility.ts)
+  // so Live stops burying the columns that need action.
+  const cards = visibleCards(await data.listContent({ clientId: client.id }));
   // Batched: one query instead of one-per-card (was an N+1).
   const [eventsByCard, imagesByCard] = await Promise.all([
     data.listContentEventsByCards(cards.map((c) => c.id)),
@@ -57,7 +61,8 @@ export default async function ClientContent() {
                 {col.length === 0 ? (
                   <div className="text-xs text-[var(--color-text-subtle)] text-center py-6">Empty.</div>
                 ) : (
-                  col.map((card) => {
+                  <IncrementalList step={10}>
+                  {col.map((card) => {
                     const events = eventsByCard.get(card.id) ?? [];
                     return (
                       <div
@@ -98,7 +103,8 @@ export default async function ClientContent() {
                         ) : null}
                       </div>
                     );
-                  })
+                  })}
+                  </IncrementalList>
                 )}
               </CardBody>
             </Card>

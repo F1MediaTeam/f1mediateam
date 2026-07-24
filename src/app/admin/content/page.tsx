@@ -13,6 +13,8 @@ import {
 import AdminContentAddModal from "@/components/admin/AdminContentAddModal";
 import ContentCardControls from "@/components/shared/ContentCardControls";
 import ContentDetailModal from "@/components/shared/ContentDetailModal";
+import IncrementalList from "@/components/shared/IncrementalList";
+import { visibleCards } from "@/lib/content-visibility";
 import type { ContentStage } from "@/lib/types";
 
 const STAGES: { stage: ContentStage; label: string; tone: "warn" | "accent" | "ok" }[] = [
@@ -48,10 +50,14 @@ export default async function AdminContent({
 }) {
   const session = await requireAdmin();
   const { client: clientFilter } = await searchParams;
-  const [clients, cards] = await Promise.all([
+  const [clients, allCards] = await Promise.all([
     data.listClients(),
     data.listContent({ clientId: clientFilter }),
   ]);
+  // Posted cards older than the cutoff drop off the board (see
+  // lib/content-visibility.ts). Applied before the per-stage split so the
+  // column counts match what's actually listed.
+  const cards = visibleCards(allCards);
   // Batched: one query for all cards instead of N parallel queries
   const [eventsByCard, imagesByCard] = await Promise.all([
     data.listContentEventsByCards(cards.map((c) => c.id)),
@@ -159,7 +165,8 @@ export default async function AdminContent({
                       Empty.
                     </div>
                   ) : (
-                    col.map((card) => {
+                    <IncrementalList step={10}>
+                    {col.map((card) => {
                       const events = eventsByCard.get(card.id) ?? [];
                       // An open change request = the latest event on a still-proposed
                       // card is a client "CHANGES REQUESTED" note.
@@ -243,7 +250,8 @@ export default async function AdminContent({
                           </div>
                         </div>
                       );
-                    })
+                    })}
+                    </IncrementalList>
                   )}
                 </CardBody>
               </Card>

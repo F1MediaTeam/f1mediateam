@@ -19,6 +19,7 @@ import CalendarAddModal from "@/components/client/CalendarAddModal";
 import Time from "@/components/shared/Time";
 import { approveContentAction, requestChangesAction } from "./actions";
 import { parseEventNotes } from "@/lib/calendar-event-url";
+import { visibleCards } from "@/lib/content-visibility";
 import type { ContentCard, ContentCardEvent } from "@/lib/types";
 
 export default async function ClientHome() {
@@ -47,10 +48,13 @@ export default async function ClientHome() {
 
   // Three-column status preview: proposed = awaiting approval, pending =
   // approved & being posted, posted = live. Most recent first per column.
+  // Posted cards past the cutoff are dropped here too, so the overview agrees
+  // with the content board instead of showing a higher Live count.
+  const onBoard = visibleCards(content);
   const byStage = {
-    proposed: content.filter((c) => c.stage === "proposed").sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
-    pending:  content.filter((c) => c.stage === "pending").sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
-    posted:   content.filter((c) => c.stage === "posted").sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+    proposed: onBoard.filter((c) => c.stage === "proposed").sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+    pending:  onBoard.filter((c) => c.stage === "pending").sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+    posted:   onBoard.filter((c) => c.stage === "posted").sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
   };
 
   const upcomingMeetings = [...events]

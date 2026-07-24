@@ -522,6 +522,14 @@ const REPORT_SPECS: ReportSpec[] = [
     key: "pla_keywords", label: "Shopping (PLA) keywords", unitsPerLine: 30,
     build: (c) => analyticsUrl(c, "domain_shopping", "Ph,Po,Pp,Pc,Tr,Ur", { domain: c.domain, display_limit: "200" }),
   },
+  {
+    key: "pla_competitors", label: "Shopping (PLA) competitors", unitsPerLine: 40,
+    build: (c) => analyticsUrl(c, "domain_shopping_shopping", "Dn,Cr,Np,Ad", { domain: c.domain, display_limit: "100" }),
+  },
+  {
+    key: "homepage_keywords", label: "Homepage keywords (per-URL)", unitsPerLine: 10,
+    build: (c) => analyticsUrl(c, "url_organic", "Ph,Po,Pp,Nq,Cp,Co,Tr,Tc,Td", { url: `https://${c.domain}/`, display_limit: "500" }),
+  },
   // --- Keyword research (seeded from the top organic keyword) ---
   {
     key: "keyword_overview", label: "Top keyword — overview", unitsPerLine: 10,
@@ -534,6 +542,14 @@ const REPORT_SPECS: ReportSpec[] = [
   {
     key: "question_keywords", label: "Question keywords", unitsPerLine: 40,
     build: (c) => (c.seedPhrase ? analyticsUrl(c, "phrase_questions", "Ph,Nq,Cp,Co,Nr,Td", { phrase: c.seedPhrase, display_limit: "100" }) : null),
+  },
+  {
+    key: "broad_match_keywords", label: "Broad-match keyword universe", unitsPerLine: 40,
+    build: (c) => (c.seedPhrase ? analyticsUrl(c, "phrase_fullsearch", "Ph,Nq,Cp,Co,Nr,Td", { phrase: c.seedPhrase, display_limit: "300" }) : null),
+  },
+  {
+    key: "phrase_organic_results", label: "Who ranks for the top keyword", unitsPerLine: 10,
+    build: (c) => (c.seedPhrase ? analyticsUrl(c, "phrase_organic", "Dn,Ur", { phrase: c.seedPhrase, display_limit: "100" }) : null),
   },
   // --- Backlinks API ---
   {
@@ -567,6 +583,14 @@ const REPORT_SPECS: ReportSpec[] = [
   {
     key: "backlink_competitors", label: "Backlink competitors", unitsPerLine: 40,
     build: (c) => backlinksUrl(c, "backlinks_competitors", "neighbour,similarity,common_refdomains,domains_num,backlinks_num", 50),
+  },
+  {
+    key: "ref_domains_tld", label: "Referring domains by TLD", unitsPerLine: 40,
+    build: (c) => backlinksUrl(c, "backlinks_tld", "zone,domains_num,backlinks_num", 100),
+  },
+  {
+    key: "ref_domains_geo", label: "Referring domains by country", unitsPerLine: 40,
+    build: (c) => backlinksUrl(c, "backlinks_geo", "country,domains_num,backlinks_num", 100),
   },
 ];
 

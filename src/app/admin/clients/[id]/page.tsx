@@ -19,6 +19,7 @@ import EditClientUserForm from "@/components/admin/EditClientUserForm";
 import ReopenOnboardingButton from "@/components/admin/ReopenOnboardingButton";
 import AdminContentAddModal from "@/components/admin/AdminContentAddModal";
 import ClientNotes from "@/components/admin/ClientNotes";
+import ClientSectionNav from "@/components/admin/ClientSectionNav";
 import ContentDetailModal from "@/components/shared/ContentDetailModal";
 import RequestChangesModal from "@/components/client/RequestChangesModal";
 import IncrementalList from "@/components/shared/IncrementalList";
@@ -120,7 +121,21 @@ export default async function ClientProfile({
           </div>
         ) : null}
 
+        {/* Jump nav — hop straight to a section instead of scrolling. */}
+        <ClientSectionNav
+          sections={[
+            { id: "section-account", label: "Account" },
+            ...(customerUser ? [{ id: "section-content", label: "Content" }] : []),
+            { id: "section-notes", label: "Notes" },
+            { id: "section-connectors", label: "Connectors" },
+            { id: "section-widgets", label: "Widgets" },
+            { id: "section-semrush", label: "SEMrush" },
+            { id: "section-files", label: "Files" },
+          ]}
+        />
+
         {customerUser ? (
+          <div id="section-account" className="scroll-mt-24">
           <DropdownCard
             className="mb-8"
             title="Customer account"
@@ -137,10 +152,11 @@ export default async function ClientProfile({
               initialTier={(client.tier === "1" || client.tier === "2" || client.tier === "3") ? client.tier : ""}
             />
           </DropdownCard>
+          </div>
         ) : null}
 
         {customerUser ? (
-          <div className="mb-8">
+          <div id="section-content" className="mb-8 scroll-mt-24">
             <div className="mb-3 flex items-end justify-between">
               <div>
                 <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
@@ -283,14 +299,16 @@ export default async function ClientProfile({
           <OrganicKeywordsPanel clientId={id} />
         </div>
 
+        <div id="section-notes" className="scroll-mt-24">
         <Card className="mb-6">
           <CardHeader title="Notes" subtitle="Private to the F1 Media team" />
           <CardBody>
             <ClientNotes clientId={client.id} initial={client.internal_notes ?? ""} />
           </CardBody>
         </Card>
+        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div id="section-connectors" className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 scroll-mt-24">
           <Card>
             <CardHeader title="Data connectors" subtitle="Live sync sources" />
             <CardBody className="space-y-2">
@@ -378,7 +396,7 @@ export default async function ClientProfile({
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div id="section-widgets" className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 scroll-mt-24">
           <Card>
             <CardHeader title="Client dashboard widgets" subtitle="What the client sees in their portal" />
             <CardBody className="space-y-2">
@@ -425,6 +443,7 @@ export default async function ClientProfile({
           </Card>
         </div>
 
+        <div id="section-semrush" className="scroll-mt-24">
         <Card className="mb-8">
           <CardHeader
             title="Semrush — deep data"
@@ -491,7 +510,9 @@ export default async function ClientProfile({
             )}
           </CardBody>
         </Card>
+        </div>
 
+        <div id="section-files" className="scroll-mt-24">
         <Card>
           <CardHeader title="Files" subtitle={`${files.length} items`} />
           <CardBody className="space-y-1.5">
@@ -512,6 +533,7 @@ export default async function ClientProfile({
             )}
           </CardBody>
         </Card>
+        </div>
       </div>
     </AdminShell>
   );

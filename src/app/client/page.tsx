@@ -164,7 +164,7 @@ export default async function ClientHome() {
               />
             ) : null}
             {widgets.rankings && semrushChart.hasAny ? (
-              <SemrushInsights data={semrushChart} />
+              <SemrushInsights data={semrushChart} canRemove={false} />
             ) : null}
           </div>
         </section>

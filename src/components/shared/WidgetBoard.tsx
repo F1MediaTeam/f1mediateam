@@ -40,6 +40,10 @@ interface Props {
   widgets: WidgetSlot[];
   /** Tailwind grid classes for the inner container — caller controls cols/gap. */
   gridClassName?: string;
+  /** When false, the × is hidden and every widget always shows. Reordering
+   *  still works. Used for the client portal, where panels aren't theirs to
+   *  remove. */
+  canRemove?: boolean;
 }
 
 interface PersistedLayout {
@@ -73,7 +77,7 @@ function subscribeToStorage(onChange: () => void) {
   return () => window.removeEventListener("storage", onChange);
 }
 
-export default function WidgetBoard({ storageKey, widgets, gridClassName }: Props) {
+export default function WidgetBoard({ storageKey, widgets, gridClassName, canRemove = true }: Props) {
   // localStorage is the source of truth for the persisted layout. The server
   // (and the hydration pass) see null → natural widget order, so SSR markup
   // matches; right after hydration React re-reads the real snapshot and the
@@ -94,9 +98,14 @@ export default function WidgetBoard({ storageKey, widgets, gridClassName }: Prop
     const missing = widgets.map((w) => w.id).filter((id) => !ordered.includes(id));
     return {
       order: [...ordered, ...missing],
-      hidden: new Set(base.hidden.filter((id) => known.has(id))),
+      // With removal disabled, ignore any previously-saved hidden set so a
+      // panel hidden before this change comes back rather than being stuck
+      // off-screen with no restore control to bring it back.
+      hidden: canRemove
+        ? new Set(base.hidden.filter((id) => known.has(id)))
+        : new Set<string>(),
     };
-  }, [edited, savedRaw, widgets]);
+  }, [edited, savedRaw, widgets, canRemove]);
 
   function applyLayout(next: PersistedLayout) {
     setEdited(next);
@@ -137,6 +146,7 @@ export default function WidgetBoard({ storageKey, widgets, gridClassName }: Prop
                   key={id}
                   id={id}
                   fullWidth={w.fullWidth}
+                  canRemove={canRemove}
                   onHide={() => applyLayout({ order, hidden: [...Array.from(hidden), id] })}
                 >
                   {w.node}
@@ -147,7 +157,7 @@ export default function WidgetBoard({ storageKey, widgets, gridClassName }: Prop
         </SortableContext>
       </DndContext>
 
-      {hiddenList.length > 0 ? (
+      {canRemove && hiddenList.length > 0 ? (
         <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
           <span className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)] mr-1">
             + Add widget
@@ -177,11 +187,13 @@ function SortableWidget({
   id,
   fullWidth,
   onHide,
+  canRemove = true,
   children,
 }: {
   id: string;
   fullWidth?: boolean;
   onHide: () => void;
+  canRemove?: boolean;
   children: React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
@@ -222,16 +234,19 @@ function SortableWidget({
         </svg>
       </button>
 
-      {/* Hide (×) button — also floats outside the corner. */}
-      <button
-        type="button"
-        onClick={onHide}
-        aria-label="Hide widget"
-        title="Hide widget"
-        className={btnCls + " -top-2 -right-2 hover:text-red-300 hover:border-red-500/40 text-sm leading-none"}
-      >
-        ×
-      </button>
+      {/* Hide (×) button — also floats outside the corner. Omitted entirely
+          rather than disabled, so there's nothing for a client to click. */}
+      {canRemove ? (
+        <button
+          type="button"
+          onClick={onHide}
+          aria-label="Hide widget"
+          title="Hide widget"
+          className={btnCls + " -top-2 -right-2 hover:text-red-300 hover:border-red-500/40 text-sm leading-none"}
+        >
+          ×
+        </button>
+      ) : null}
 
       {children}
     </div>

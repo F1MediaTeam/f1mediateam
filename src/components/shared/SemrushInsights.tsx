@@ -164,7 +164,14 @@ function Donut({ follow, nofollow }: { follow: number; nofollow: number }) {
   );
 }
 
-export default function SemrushInsights({ data }: { data: SemrushChartData }) {
+export default function SemrushInsights({
+  data,
+  canRemove = true,
+}: {
+  data: SemrushChartData;
+  /** false on the client portal — panels aren't theirs to remove */
+  canRemove?: boolean;
+}) {
   if (!data.hasAny) {
     return (
       <div className="text-xs text-[var(--color-text-muted)]">
@@ -248,6 +255,7 @@ export default function SemrushInsights({ data }: { data: SemrushChartData }) {
 
   return (
     <WidgetBoard
+      canRemove={canRemove}
       storageKey="f1.semrush-insights.layout.v1"
       widgets={widgets}
       gridClassName="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:auto-rows-fr"

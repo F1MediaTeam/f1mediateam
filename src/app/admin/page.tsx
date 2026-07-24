@@ -5,7 +5,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill } from "@/components/ui";
-import { formatDate, formatDateTime, isoDate } from "@/lib/utils";
+import { formatDate, isoDate } from "@/lib/utils";
 import {
   createTaskAction,
   toggleTaskAction,
@@ -16,7 +16,7 @@ import {
 import Time from "@/components/shared/Time";
 import AdminTaskAddModal from "@/components/admin/AdminTaskAddModal";
 import AdminCalendarAddModal from "@/components/admin/AdminCalendarAddModal";
-import CalendarDayHeader from "@/components/admin/CalendarDayHeader";
+import CalendarMonth, { type CalEvent } from "@/components/shared/CalendarMonth";
 import Greeting from "@/components/admin/Greeting";
 import { parseEventNotes } from "@/lib/calendar-event-url";
 
@@ -34,13 +34,17 @@ function buildMonth(today: Date) {
   const startDay = first.getDay();
   const start = new Date(first);
   start.setDate(first.getDate() - startDay);
-  const days: Date[] = [];
+  const days: string[] = [];
   for (let i = 0; i < 42; i++) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
-    days.push(d);
+    days.push(isoDate(d));
   }
-  return { days, monthLabel: today.toLocaleString("en-US", { month: "long", year: "numeric" }) };
+  return {
+    days,
+    monthLabel: today.toLocaleString("en-US", { month: "long", year: "numeric" }),
+    monthKey: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`,
+  };
 }
 
 const PALETTE = [
@@ -83,19 +87,24 @@ export default async function AdminDashboard() {
     clients.find((c) => c.id === id)?.company_name ?? "—";
 
   // -------- calendar ----------
-  const { days, monthLabel } = buildMonth(new Date());
+  const { days, monthLabel, monthKey } = buildMonth(new Date());
   const colorForClient = (id: string | null) => {
     if (!id) return INTERNAL_COLOR;
     const idx = clients.findIndex((c) => c.id === id);
     return PALETTE[(idx < 0 ? 0 : idx) % PALETTE.length];
   };
-  const eventsByDay = new Map<string, typeof events>();
-  for (const e of events) {
-    const key = e.starts_at.slice(0, 10);
-    const arr = eventsByDay.get(key) ?? [];
-    arr.push(e);
-    eventsByDay.set(key, arr);
-  }
+  const calEvents: CalEvent[] = events.map((e) => {
+    const p = colorForClient(e.client_id);
+    return {
+      id: e.id,
+      title: e.title,
+      type: e.type,
+      starts_at: e.starts_at,
+      notes: e.notes,
+      clientLabel: e.client_id ? clientName(e.client_id) : "F1 Media (internal)",
+      chipClass: `${p.bg} ${p.text}`,
+    };
+  });
   const upcoming = [...events]
     .filter((e) => e.starts_at.slice(0, 10) >= today)
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
@@ -226,78 +235,17 @@ export default async function AdminDashboard() {
             of the grid; + Add stays in the top-right corner of the card. */}
         <Card className="mt-2">
           <CardBody className="pt-5">
-            <div className="relative mb-4">
-              <div className="text-center text-xl font-semibold tracking-tight">{monthLabel}</div>
-              <div className="absolute top-0 right-0">
-                <AdminCalendarAddModal action={createCalendarAction} clients={clients} />
-              </div>
-            </div>
             <div className="overflow-x-auto -mx-2 px-2 pb-2">
               <div className="min-w-[700px] sm:min-w-0">
-                <div className="grid grid-cols-7 text-xs uppercase tracking-wider text-[var(--color-text-muted)] mb-2">
-                  {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
-                    <div key={d} className="px-2 py-1">{d}</div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-7 gap-2">
-                  {days.map((d) => {
-                    const key = isoDate(d);
-                    const isCurrentMonth = d.getMonth() === new Date().getMonth();
-                    const dayEvents = eventsByDay.get(key) ?? [];
-                    return (
-                      <div
-                        key={key}
-                        className={
-                          "rounded-lg border p-2 min-h-[160px] sm:min-h-[180px] lg:min-h-[200px] flex flex-col " +
-                          (isCurrentMonth
-                            ? "border-[var(--color-border)] bg-[var(--color-bg-elev)]"
-                            : "border-[var(--color-border)]/40 bg-[var(--color-bg-elev)]/40 opacity-50")
-                        }
-                      >
-                        <CalendarDayHeader iso={key} dayNumber={d.getDate()} />
-                        <div className="space-y-1 mt-1 flex-1 overflow-hidden">
-                          {dayEvents.slice(0, 5).map((e) => {
-                            const p = colorForClient(e.client_id);
-                            const { url } = parseEventNotes(e.notes);
-                            const inner = (
-                              <>
-                                <div className="font-medium truncate">
-                                  {e.type === "deadline" ? "◆" : "●"} {e.title}
-                                  {url ? <span className="ml-1 opacity-70">↗</span> : null}
-                                </div>
-                              </>
-                            );
-                            return url ? (
-                              <a
-                                key={e.id}
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`block text-[11px] rounded px-1.5 py-1 ${p.bg} ${p.text} leading-tight hover:brightness-110`}
-                                title={`${e.title} — ${formatDateTime(e.starts_at)} · ${url}`}
-                              >
-                                {inner}
-                              </a>
-                            ) : (
-                              <div
-                                key={e.id}
-                                className={`text-[11px] rounded px-1.5 py-1 ${p.bg} ${p.text} leading-tight`}
-                                title={`${e.title} — ${formatDateTime(e.starts_at)}`}
-                              >
-                                {inner}
-                              </div>
-                            );
-                          })}
-                          {dayEvents.length > 5 ? (
-                            <div className="text-[10px] text-[var(--color-text-muted)]">
-                              +{dayEvents.length - 5} more
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <CalendarMonth
+                  days={days}
+                  monthKey={monthKey}
+                  monthLabel={monthLabel}
+                  events={calEvents}
+                  minCellHeight="min-h-[160px] sm:min-h-[180px] lg:min-h-[200px]"
+                  maxPerCell={5}
+                  addSlot={<AdminCalendarAddModal action={createCalendarAction} clients={clients} />}
+                />
               </div>
             </div>
           </CardBody>

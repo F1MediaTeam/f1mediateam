@@ -2,10 +2,10 @@ import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
-import { formatDateTime, isoDate } from "@/lib/utils";
+import { isoDate } from "@/lib/utils";
 import { createCalendarAction, deleteCalendarAction } from "../actions";
 import Time from "@/components/shared/Time";
-import CalendarDayHeader from "@/components/admin/CalendarDayHeader";
+import CalendarMonth, { type CalEvent } from "@/components/shared/CalendarMonth";
 
 // Simple month grid with events. 6-row x 7-day layout.
 function buildMonth(today: Date) {
@@ -13,13 +13,17 @@ function buildMonth(today: Date) {
   const startDay = first.getDay(); // 0 = Sunday
   const start = new Date(first);
   start.setDate(first.getDate() - startDay);
-  const days: Date[] = [];
+  const days: string[] = [];
   for (let i = 0; i < 42; i++) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
-    days.push(d);
+    days.push(isoDate(d));
   }
-  return { days, monthLabel: today.toLocaleString("en-US", { month: "long", year: "numeric" }) };
+  return {
+    days,
+    monthLabel: today.toLocaleString("en-US", { month: "long", year: "numeric" }),
+    monthKey: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`,
+  };
 }
 
 const PALETTE = [
@@ -36,7 +40,7 @@ export default async function AdminCalendar() {
     data.listClients(),
     data.listCalendar(),
   ]);
-  const { days, monthLabel } = buildMonth(new Date());
+  const { days, monthLabel, monthKey } = buildMonth(new Date());
 
   // null client_id = internal F1 Media event — fall back to the first palette
   // slot instead of indexing PALETTE[-1] and crashing on p.bg.
@@ -44,14 +48,21 @@ export default async function AdminCalendar() {
     const idx = id ? clients.findIndex((c) => c.id === id) : -1;
     return idx === -1 ? PALETTE[0] : PALETTE[idx % PALETTE.length];
   };
+  const clientName = (id: string | null) =>
+    id ? clients.find((c) => c.id === id)?.company_name ?? "—" : "F1 Media (internal)";
 
-  const eventsByDay = new Map<string, typeof events>();
-  for (const e of events) {
-    const key = e.starts_at.slice(0, 10);
-    const arr = eventsByDay.get(key) ?? [];
-    arr.push(e);
-    eventsByDay.set(key, arr);
-  }
+  const calEvents: CalEvent[] = events.map((e) => {
+    const p = colorForClient(e.client_id);
+    return {
+      id: e.id,
+      title: e.title,
+      type: e.type,
+      starts_at: e.starts_at,
+      notes: e.notes,
+      clientLabel: clientName(e.client_id),
+      chipClass: `${p.bg} ${p.text}`,
+    };
+  });
 
   const today = isoDate();
   const upcoming = [...events]
@@ -87,51 +98,13 @@ export default async function AdminCalendar() {
 
         <Card className="mb-8">
           <CardBody className="pt-6">
-            <div className="grid grid-cols-7 text-xs uppercase tracking-wider text-[var(--color-text-muted)] mb-2">
-              {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
-                <div key={d} className="px-2 py-1">{d}</div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1.5">
-              {days.map((d) => {
-                const key = isoDate(d);
-                const isCurrentMonth = d.getMonth() === new Date().getMonth();
-                const dayEvents = eventsByDay.get(key) ?? [];
-                return (
-                  <div
-                    key={key}
-                    className={
-                      "rounded-lg border p-2 min-h-[88px] " +
-                      (isCurrentMonth
-                        ? "border-[var(--color-border)] bg-[var(--color-bg-elev)]"
-                        : "border-[var(--color-border)]/40 bg-[var(--color-bg-elev)]/40 opacity-50")
-                    }
-                  >
-                    <CalendarDayHeader iso={key} dayNumber={d.getDate()} />
-                    <div className="space-y-1">
-                      {dayEvents.slice(0, 3).map((e) => {
-                        const p = colorForClient(e.client_id);
-                        return (
-                          <div
-                            key={e.id}
-                            className={`truncate text-[11px] rounded px-1.5 py-0.5 ${p.bg} ${p.text}`}
-                            title={`${e.title} — ${formatDateTime(e.starts_at)}`}
-                          >
-                            {e.type === "deadline" ? "◆ " : "● "}
-                            {e.title}
-                          </div>
-                        );
-                      })}
-                      {dayEvents.length > 3 ? (
-                        <div className="text-[10px] text-[var(--color-text-muted)]">
-                          +{dayEvents.length - 3} more
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <CalendarMonth
+              days={days}
+              monthKey={monthKey}
+              events={calEvents}
+              minCellHeight="min-h-[88px]"
+              maxPerCell={3}
+            />
           </CardBody>
         </Card>
 

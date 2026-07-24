@@ -64,6 +64,32 @@ export const METRIC_GLOSSARY: Record<string, MetricExplainer> = {
     why: "Lower is better.",
     lowerIsBetter: true,
   },
+
+  // --- Semrush insight widgets (keys match the widget ids) ---
+  authority: {
+    what: "Semrush's 0\u2013100 estimate of how strong your site looks to search engines, based mainly on how many quality sites link to you.",
+    why: "This is a third-party score, not a Google number. It's most useful as a rough benchmark against competitors rather than a target to hit.",
+  },
+  positions: {
+    what: "How many of your keywords sit in each ranking band \u2014 1\u20133, 4\u201310, 11\u201320 and so on.",
+    why: "Shows where your rankings are concentrated. Terms sitting in 11\u201320 are the closest to reaching the first page.",
+  },
+  "top-keywords": {
+    what: "The search terms bringing you the most organic traffic, with each one's share of that traffic.",
+    why: "Tells you what your site is actually being found for, which isn't always what you'd expect it to be found for.",
+  },
+  "backlink-profile": {
+    what: "The split between follow and nofollow links pointing at your site. Follow links pass ranking credit to you; nofollow links don't.",
+    why: "A natural profile has a mix of both. The follow share is the portion carrying SEO value.",
+  },
+  "ref-domains": {
+    what: "The websites linking to you most often, ranked by how many links each one sends.",
+    why: "Links from many different sites generally count for more than many links from a single site.",
+  },
+  competitors: {
+    what: "Other sites ranking for the same search terms as you, ranked by how many keywords you have in common.",
+    why: "These are who you're up against in search results, which can differ from who you think of as your business competitors.",
+  },
 };
 
 export function explainMetric(key: string): MetricExplainer | null {

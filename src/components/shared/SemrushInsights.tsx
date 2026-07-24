@@ -7,6 +7,7 @@
 "use client";
 
 import WidgetBoard, { type WidgetSlot } from "@/components/shared/WidgetBoard";
+import InfoTip from "./InfoTip";
 import type { SemrushChartData, ChartSeries } from "@/lib/semrush-charts";
 
 function AuthorityScoreCard({ points }: { points: { date: string; value: number }[] }) {
@@ -67,13 +68,27 @@ function fmt(n: number): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
-function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function Panel({
+  title,
+  subtitle,
+  metric,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  /** glossary key — omit and no ⓘ is rendered */
+  metric?: string;
+  children: React.ReactNode;
+}) {
   // h-full + flex-col so every panel fills its grid cell to the same height,
   // and the body region absorbs any extra space below the header.
   return (
     <div className="h-full flex flex-col rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
       <div className="mb-3">
-        <div className="text-sm font-medium">{title}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm font-medium">{title}</span>
+          {metric ? <InfoTip metric={metric} label={title} /> : null}
+        </div>
         {subtitle ? <div className="text-[11px] text-[var(--color-text-muted)]">{subtitle}</div> : null}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
@@ -169,7 +184,7 @@ export default function SemrushInsights({ data }: { data: SemrushChartData }) {
       id: "authority",
       label: "Authority Score",
       node: (
-        <Panel title="Authority Score" subtitle="Current score">
+        <Panel metric="authority" title="Authority Score" subtitle="Current score">
           <AuthorityScoreCard points={data.authority} />
         </Panel>
       ),
@@ -180,7 +195,7 @@ export default function SemrushInsights({ data }: { data: SemrushChartData }) {
       id: "positions",
       label: "Keyword positions",
       node: (
-        <Panel title="Keyword positions" subtitle="Organic keywords by ranking bucket">
+        <Panel metric="positions" title="Keyword positions" subtitle="Organic keywords by ranking bucket">
           <HBars series={data.positions} />
         </Panel>
       ),
@@ -191,7 +206,7 @@ export default function SemrushInsights({ data }: { data: SemrushChartData }) {
       id: "top-keywords",
       label: "Top keywords",
       node: (
-        <Panel title="Top keywords" subtitle="By share of organic traffic">
+        <Panel metric="top-keywords" title="Top keywords" subtitle="By share of organic traffic">
           <HBars series={data.topKeywords} />
         </Panel>
       ),
@@ -202,7 +217,7 @@ export default function SemrushInsights({ data }: { data: SemrushChartData }) {
       id: "backlink-profile",
       label: "Backlink profile",
       node: (
-        <Panel title="Backlink profile" subtitle="Follow vs nofollow">
+        <Panel metric="backlink-profile" title="Backlink profile" subtitle="Follow vs nofollow">
           <Donut follow={data.backlinkProfile.follow} nofollow={data.backlinkProfile.nofollow} />
         </Panel>
       ),
@@ -213,7 +228,7 @@ export default function SemrushInsights({ data }: { data: SemrushChartData }) {
       id: "ref-domains",
       label: "Top referring domains",
       node: (
-        <Panel title="Top referring domains" subtitle="By number of backlinks">
+        <Panel metric="ref-domains" title="Top referring domains" subtitle="By number of backlinks">
           <HBars series={data.refDomains} accent="var(--color-up)" />
         </Panel>
       ),
@@ -224,7 +239,7 @@ export default function SemrushInsights({ data }: { data: SemrushChartData }) {
       id: "competitors",
       label: "Organic competitors",
       node: (
-        <Panel title="Organic competitors" subtitle="By shared keywords">
+        <Panel metric="competitors" title="Organic competitors" subtitle="By shared keywords">
           <HBars series={data.competitors} accent="var(--color-up)" />
         </Panel>
       ),

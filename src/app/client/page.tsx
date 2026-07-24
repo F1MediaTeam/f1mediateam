@@ -7,7 +7,6 @@ import { data } from "@/lib/data";
 import ClientShell from "@/components/client/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import { createClientCalendarEventAction } from "./actions";
-import { isoDate, formatDateTime } from "@/lib/utils";
 import MultiMetricCard from "@/components/shared/MultiMetricCard";
 import GscDashboard from "@/components/shared/GscDashboard";
 import OrganicKeywordsPanel from "@/components/shared/OrganicKeywordsPanel";
@@ -15,10 +14,9 @@ import SemrushInsights from "@/components/shared/SemrushInsights";
 import { buildSemrushChartData } from "@/lib/semrush-charts";
 import RequestChangesModal from "@/components/client/RequestChangesModal";
 import ContentDetailModal from "@/components/shared/ContentDetailModal";
-import CalendarAddModal from "@/components/client/CalendarAddModal";
+import ClientCalendar from "@/components/client/ClientCalendar";
 import Time from "@/components/shared/Time";
 import { approveContentAction, requestChangesAction } from "./actions";
-import { parseEventNotes } from "@/lib/calendar-event-url";
 import { visibleCards } from "@/lib/content-visibility";
 import type { ContentCard, ContentCardEvent } from "@/lib/types";
 
@@ -41,11 +39,6 @@ export default async function ClientHome() {
     data.listContentImagesByCards(content.map((c) => c.id)),
   ]);
 
-  // Count attachments per event so the calendar grid can show a 📎 N badge.
-  const attachments = await data.listAttachmentsForEvents(events.map((e) => e.id));
-  const attCount = new Map<string, number>();
-  for (const a of attachments) attCount.set(a.event_id, (attCount.get(a.event_id) ?? 0) + 1);
-
   // Three-column status preview: proposed = awaiting approval, pending =
   // approved & being posted, posted = live. Most recent first per column.
   // Posted cards past the cutoff are dropped here too, so the overview agrees
@@ -61,28 +54,6 @@ export default async function ClientHome() {
     .filter((e) => e.type === "meeting" && e.starts_at >= new Date().toISOString())
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
     .slice(0, 4);
-
-  // Build the month grid for the current month (6 rows × 7 days)
-  const now = new Date();
-  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startDayIdx = firstOfMonth.getDay();
-  const gridStart = new Date(firstOfMonth);
-  gridStart.setDate(firstOfMonth.getDate() - startDayIdx);
-  const monthDays: Date[] = [];
-  for (let i = 0; i < 42; i++) {
-    const d = new Date(gridStart);
-    d.setDate(gridStart.getDate() + i);
-    monthDays.push(d);
-  }
-  const monthLabel = now.toLocaleString("en-US", { month: "long", year: "numeric" });
-  const todayIso = isoDate();
-  const eventsByDay = new Map<string, typeof events>();
-  for (const e of events) {
-    const key = e.starts_at.slice(0, 10);
-    const arr = eventsByDay.get(key) ?? [];
-    arr.push(e);
-    eventsByDay.set(key, arr);
-  }
 
   return (
     <ClientShell session={session} client={client} active="/client">
@@ -126,82 +97,11 @@ export default async function ClientHome() {
       ) : null}
 
       {widgets.calendar ? (
-        <Card className="mb-10">
-          <CardBody className="pt-5">
-            {/* Centered month title with the + Add button right-aligned on the
-                same row — matches the admin dashboard's calendar header. */}
-            <div className="relative mb-4">
-              <div className="text-center text-xl font-semibold tracking-tight">{monthLabel}</div>
-              <div className="absolute top-0 right-0">
-                <CalendarAddModal action={createClientCalendarEventAction} />
-              </div>
-            </div>
-            <div className="grid grid-cols-7 text-[10px] sm:text-xs uppercase tracking-wider text-[var(--color-text-muted)] mb-2">
-              {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
-                <div key={d} className="px-0.5 sm:px-2 py-1 text-center sm:text-left">{d}</div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1 sm:gap-1.5 mb-6">
-              {monthDays.map((d) => {
-                const key = isoDate(d);
-                const isCurrentMonth = d.getMonth() === now.getMonth();
-                const isToday = key === todayIso;
-                const dayEvents = eventsByDay.get(key) ?? [];
-                return (
-                  <div
-                    key={key}
-                    className={
-                      "rounded-md sm:rounded-lg border p-1 sm:p-2 min-h-[54px] sm:min-h-[80px] " +
-                      (isCurrentMonth
-                        ? "border-[var(--color-border)] bg-[var(--color-bg-elev)]"
-                        : "border-[var(--color-border)]/40 bg-[var(--color-bg-elev)]/40 opacity-50")
-                    }
-                  >
-                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] mb-1">
-                      <span className={isToday ? "text-[var(--color-accent)] font-semibold" : "text-[var(--color-text-muted)]"}>
-                        {d.getDate()}
-                      </span>
-                      {isToday ? (
-                        <span className="text-[9px] uppercase text-[var(--color-accent)] tracking-widest">
-                          Today
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="space-y-1">
-                      {dayEvents.slice(0, 2).map((e) => {
-                        const n = attCount.get(e.id) ?? 0;
-                        const { url } = parseEventNotes(e.notes);
-                        const cls = "truncate text-[11px] rounded px-1.5 py-0.5 bg-emerald-500/10 text-emerald-300 flex items-center gap-1";
-                        const title = `${e.title} — ${formatDateTime(e.starts_at)}${n ? ` · ${n} attachment${n === 1 ? "" : "s"}` : ""}${url ? ` · ${url}` : ""}`;
-                        const inner = (
-                          <>
-                            <span className="truncate flex-1">{e.type === "deadline" ? "◆ " : "● "}{e.title}</span>
-                            {url ? <span className="opacity-80 text-[9px]">↗</span> : null}
-                            {n > 0 ? <span className="font-mono text-[9px] opacity-90">📎{n}</span> : null}
-                          </>
-                        );
-                        return url ? (
-                          <a key={e.id} href={url} target="_blank" rel="noopener noreferrer" title={title} className={cls + " hover:brightness-110"}>
-                            {inner}
-                          </a>
-                        ) : (
-                          <div key={e.id} title={title} className={cls}>
-                            {inner}
-                          </div>
-                        );
-                      })}
-                      {dayEvents.length > 2 ? (
-                        <div className="text-[10px] text-[var(--color-text-muted)]">
-                          +{dayEvents.length - 2} more
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardBody>
-        </Card>
+        <ClientCalendar
+          events={events}
+          action={createClientCalendarEventAction}
+          className="mb-10"
+        />
       ) : null}
 
       {widgets.calendar && upcomingMeetings.length > 0 ? (

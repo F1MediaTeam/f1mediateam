@@ -3,12 +3,13 @@ import { data } from "@/lib/data";
 import ClientShell from "@/components/client/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import Time from "@/components/shared/Time";
-import { approveContentAction, requestChangesAction, addClientContentAction } from "../actions";
+import { approveContentAction, requestChangesAction, addClientContentAction, createClientCalendarEventAction } from "../actions";
 import ContentDetailModal from "@/components/shared/ContentDetailModal";
 import IncrementalList from "@/components/shared/IncrementalList";
 import { visibleCards } from "@/lib/content-visibility";
 import ClientAddContentModal from "@/components/client/ClientAddContentModal";
 import RequestChangesModal from "@/components/client/RequestChangesModal";
+import ClientCalendar from "@/components/client/ClientCalendar";
 import type { ContentStage } from "@/lib/types";
 
 const STAGES: { stage: ContentStage; label: string; tone: "warn" | "accent" | "ok" }[] = [
@@ -23,7 +24,11 @@ export default async function ClientContent() {
   if (!client) return null;
   // Posted cards age off the board after the cutoff (lib/content-visibility.ts)
   // so Live stops burying the columns that need action.
-  const cards = visibleCards(await data.listContent({ clientId: client.id }));
+  const [rawCards, calendarEvents] = await Promise.all([
+    data.listContent({ clientId: client.id }),
+    data.listCalendar({ clientId: client.id }),
+  ]);
+  const cards = visibleCards(rawCards);
   // Batched: one query instead of one-per-card (was an N+1).
   const [eventsByCard, imagesByCard] = await Promise.all([
     data.listContentEventsByCards(cards.map((c) => c.id)),
@@ -111,6 +116,16 @@ export default async function ClientContent() {
           );
         })}
       </div>
+
+      {/* Same calendar as the Overview tab — one component, so the two can
+          never drift apart. */}
+      {client.config.widgets.calendar ? (
+        <ClientCalendar
+          events={calendarEvents}
+          action={createClientCalendarEventAction}
+          className="mt-8"
+        />
+      ) : null}
     </ClientShell>
   );
 }

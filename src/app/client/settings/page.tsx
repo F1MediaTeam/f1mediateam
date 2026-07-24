@@ -7,16 +7,13 @@ import { signOutAction } from "@/app/login/actions";
 import Time from "@/components/shared/Time";
 import OnboardingDownloadsCard from "@/components/client/OnboardingDownloadsCard";
 import { TIER_LABELS } from "@/lib/types";
-import SignInHistoryCard from "@/components/client/SignInHistoryCard";
 
 export default async function ClientSettings() {
   const session = await requireClient();
   const client = await data.getClient(session.client_id!);
   if (!client) return null;
-  const [pref, audit, clientUser, onboarding] = await Promise.all([
+  const [pref, clientUser, onboarding] = await Promise.all([
     data.getEmailPref(session.user_id),
-    // Filter by client_id — admin view-as never leaks into this list.
-    data.listAudit({ clientId: session.client_id!, limit: 500 }),
     // The CUSTOMER-side user assigned to this client. When an admin is
     // impersonating, session.user_id is the admin — this fetches the actual
     // client portal account so we show their email, not the impersonator's.
@@ -83,7 +80,6 @@ export default async function ClientSettings() {
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6">
-        <SignInHistoryCard audit={audit} />
         <OnboardingDownloadsCard
           hasOnboarding={Boolean(onboarding)}
           clientName={client.company_name}

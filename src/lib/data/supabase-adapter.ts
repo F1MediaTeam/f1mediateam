@@ -5,6 +5,7 @@
 
 import { cache } from "react";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import type { UiOverride } from "@/lib/ui-overrides";
 import type {
   CalendarEvent,
   CalendarEventAttachment,
@@ -1419,4 +1420,73 @@ export async function listSemrushReports(clientId: UUID): Promise<SemrushReport[
     .eq("client_id", clientId)
     .order("report_type", { ascending: true });
   return (data as SemrushReport[]) ?? [];
+}
+
+// ---------------- admin style overrides ----------------
+//
+// Backs the crosshair style inspector (0015_ui_overrides.sql). Admin-only via
+// RLS; the generated <style> block renders solely from the admin layout.
+
+export async function listUiOverrides(): Promise<UiOverride[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("ui_overrides")
+    .select("scope, selector, styles")
+    .order("scope", { ascending: true });
+  return (data as UiOverride[]) ?? [];
+}
+
+export async function upsertUiOverride(override: UiOverride, userId: UUID): Promise<void> {
+  const supabase = await createClient();
+  await supabase
+    .from("ui_overrides")
+    .upsert(
+      { ...override, updated_at: new Date().toISOString(), updated_by: userId },
+      { onConflict: "scope,selector" },
+    );
+}
+
+export async function deleteUiOverride(scope: string, selector: string): Promise<void> {
+  const supabase = await createClient();
+  await supabase.from("ui_overrides").delete().eq("scope", scope).eq("selector", selector);
+}
+
+/** Wipe every override — the site falls back to globals.css. */
+export async function clearUiOverrides(): Promise<void> {
+  const supabase = await createClient();
+  await supabase.from("ui_overrides").delete().neq("scope", "");
+}
+
+/** "Set as default": snapshot the live overrides so Reset can restore them. */
+export async function saveUiDefault(userId: UUID): Promise<void> {
+  const supabase = await createClient();
+  const snapshot = await listUiOverrides();
+  await supabase
+    .from("ui_style_default")
+    .upsert(
+      { id: 1, snapshot, saved_at: new Date().toISOString(), saved_by: userId },
+      { onConflict: "id" },
+    );
+}
+
+export async function getUiDefault(): Promise<{ snapshot: UiOverride[]; saved_at: string | null }> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("ui_style_default")
+    .select("snapshot, saved_at")
+    .eq("id", 1)
+    .maybeSingle();
+  const row = data as { snapshot: UiOverride[]; saved_at: string } | null;
+  return { snapshot: row?.snapshot ?? [], saved_at: row?.saved_at ?? null };
+}
+
+/** "Reset": replace the live overrides with the saved default. */
+export async function resetUiToDefault(userId: UUID): Promise<void> {
+  const supabase = await createClient();
+  const { snapshot } = await getUiDefault();
+  await clearUiOverrides();
+  if (snapshot.length === 0) return;
+  await supabase.from("ui_overrides").insert(
+    snapshot.map((o) => ({ ...o, updated_at: new Date().toISOString(), updated_by: userId })),
+  );
 }

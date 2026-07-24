@@ -5,6 +5,7 @@
 // will enforce the real boundary; this is for parity locally.
 
 import { mutate, getState } from "@/lib/mock/store";
+import type { UiOverride } from "@/lib/ui-overrides";
 import {
   DEMO_ADMIN_ID,
   SEED_USERS,
@@ -901,4 +902,48 @@ export function signMessageAttachments(
 ) {
   // No storage bucket to sign against in mock mode.
   return (attachments ?? []).map((a) => ({ ...a, url: null as string | null }));
+}
+
+// ---------------- admin style overrides ----------------
+//
+// In-memory mirror of the Supabase implementation so the style inspector is
+// usable in local dev without a database. Lost on server restart, by design.
+
+const uiOverrideStore: UiOverride[] = [];
+let uiDefaultSnapshot: UiOverride[] = [];
+let uiDefaultSavedAt: string | null = null;
+
+export function listUiOverrides(): UiOverride[] {
+  return uiOverrideStore.map((o) => ({ ...o, styles: { ...o.styles } }));
+}
+
+export function upsertUiOverride(override: UiOverride, _userId: UUID): void {
+  const idx = uiOverrideStore.findIndex(
+    (o) => o.scope === override.scope && o.selector === override.selector,
+  );
+  if (idx >= 0) uiOverrideStore[idx] = override;
+  else uiOverrideStore.push(override);
+}
+
+export function deleteUiOverride(scope: string, selector: string): void {
+  const idx = uiOverrideStore.findIndex((o) => o.scope === scope && o.selector === selector);
+  if (idx >= 0) uiOverrideStore.splice(idx, 1);
+}
+
+export function clearUiOverrides(): void {
+  uiOverrideStore.length = 0;
+}
+
+export function saveUiDefault(_userId: UUID): void {
+  uiDefaultSnapshot = listUiOverrides();
+  uiDefaultSavedAt = nowIso();
+}
+
+export function getUiDefault(): { snapshot: UiOverride[]; saved_at: string | null } {
+  return { snapshot: uiDefaultSnapshot.map((o) => ({ ...o })), saved_at: uiDefaultSavedAt };
+}
+
+export function resetUiToDefault(_userId: UUID): void {
+  uiOverrideStore.length = 0;
+  for (const o of uiDefaultSnapshot) uiOverrideStore.push({ ...o, styles: { ...o.styles } });
 }

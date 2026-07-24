@@ -4,20 +4,35 @@ import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import Time from "@/components/shared/Time";
+import { isoDate } from "@/lib/utils";
 import {
   advanceContentAction,
   createContentAction,
+  createCalendarAction,
   deleteContentAction,
   updateContentAction,
   adminRequestChangesAction,
 } from "../actions";
 import AdminContentAddModal from "@/components/admin/AdminContentAddModal";
+import AdminCalendarAddModal from "@/components/admin/AdminCalendarAddModal";
+import CalendarMonth, { type CalEvent } from "@/components/shared/CalendarMonth";
 import ContentCardControls from "@/components/shared/ContentCardControls";
 import ContentDetailModal from "@/components/shared/ContentDetailModal";
 import IncrementalList from "@/components/shared/IncrementalList";
 import RequestChangesModal from "@/components/client/RequestChangesModal";
 import { visibleCards } from "@/lib/content-visibility";
 import type { ContentStage } from "@/lib/types";
+
+// Calendar chip colors per client — matches the master calendar's palette so
+// events read the same across the app. Indexed by the client's position.
+const CAL_PALETTE = [
+  "bg-emerald-500/10 text-emerald-300",
+  "bg-orange-500/10 text-orange-300",
+  "bg-violet-500/10 text-violet-300",
+  "bg-sky-500/10 text-sky-300",
+  "bg-rose-500/10 text-rose-300",
+];
+const CAL_INTERNAL = "bg-slate-500/10 text-slate-300";
 
 const STAGES: { stage: ContentStage; label: string; tone: "warn" | "accent" | "ok" }[] = [
   { stage: "proposed", label: "Proposed", tone: "warn" },
@@ -52,9 +67,12 @@ export default async function AdminContent({
 }) {
   const session = await requireAdmin();
   const { client: clientFilter } = await searchParams;
-  const [clients, allCards] = await Promise.all([
+  const [clients, allCards, calendarEvents] = await Promise.all([
     data.listClients(),
     data.listContent({ clientId: clientFilter }),
+    // Same filter drives the calendar: "All" shows every client, a chip narrows
+    // it to that one client's events.
+    data.listCalendar(clientFilter ? { clientId: clientFilter } : undefined),
   ]);
   // Posted cards older than the cutoff drop off the board (see
   // lib/content-visibility.ts). Applied before the per-stage split so the
@@ -66,6 +84,36 @@ export default async function AdminContent({
     data.listContentImagesByCards(cards.map((c) => c.id)),
   ]);
   const clientNameOf = (id: string) => clients.find((c) => c.id === id)?.company_name ?? "—";
+
+  // Calendar for the current month, colored per client and filtered by the same
+  // ?client= chip as the board.
+  const now = new Date();
+  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const gridStart = new Date(firstOfMonth);
+  gridStart.setDate(firstOfMonth.getDate() - firstOfMonth.getDay());
+  const calDays: string[] = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(gridStart);
+    d.setDate(gridStart.getDate() + i);
+    calDays.push(isoDate(d));
+  }
+  const calMonthLabel = now.toLocaleString("en-US", { month: "long", year: "numeric" });
+  const calMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const chipFor = (id: string | null) => {
+    if (!id) return CAL_INTERNAL;
+    const idx = clients.findIndex((c) => c.id === id);
+    return idx === -1 ? CAL_PALETTE[0] : CAL_PALETTE[idx % CAL_PALETTE.length];
+  };
+  const calEvents: CalEvent[] = calendarEvents.map((e) => ({
+    id: e.id,
+    title: e.title,
+    type: e.type,
+    starts_at: e.starts_at,
+    notes: e.notes,
+    clientLabel: e.client_id ? clientNameOf(e.client_id) : "F1 Media (internal)",
+    chipClass: chipFor(e.client_id),
+  }));
+  const filteredClientName = clientFilter ? clientNameOf(clientFilter) : null;
 
   return (
     <AdminShell session={session} active="/admin/content">
@@ -270,6 +318,29 @@ export default async function AdminContent({
             );
           })}
         </div>
+
+        {/* Calendar — driven by the same client filter as the board above. */}
+        <Card className="mt-8">
+          <CardHeader
+            title="Calendar"
+            subtitle={
+              filteredClientName
+                ? `Showing ${filteredClientName}'s events`
+                : "All clients — use the filter above to narrow to one"
+            }
+          />
+          <CardBody className="pt-5">
+            <CalendarMonth
+              days={calDays}
+              monthKey={calMonthKey}
+              monthLabel={calMonthLabel}
+              events={calEvents}
+              minCellHeight="min-h-[88px]"
+              maxPerCell={3}
+              addSlot={<AdminCalendarAddModal action={createCalendarAction} clients={clients} />}
+            />
+          </CardBody>
+        </Card>
 
       </div>
     </AdminShell>

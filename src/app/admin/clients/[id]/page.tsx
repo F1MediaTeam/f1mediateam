@@ -20,6 +20,7 @@ import ReopenOnboardingButton from "@/components/admin/ReopenOnboardingButton";
 import AdminContentAddModal from "@/components/admin/AdminContentAddModal";
 import ClientNotes from "@/components/admin/ClientNotes";
 import ClientSectionNav from "@/components/admin/ClientSectionNav";
+import SemrushAutoPull from "@/components/admin/SemrushAutoPull";
 import ContentDetailModal from "@/components/shared/ContentDetailModal";
 import RequestChangesModal from "@/components/client/RequestChangesModal";
 import IncrementalList from "@/components/shared/IncrementalList";
@@ -476,14 +477,8 @@ export default async function ClientProfile({
                 Connect Semrush (API key + domain) to enable the deep pull.
               </div>
             ) : semrushReports.length === 0 ? (
-              <div className="space-y-1 text-xs text-[var(--color-text-muted)]">
-                <p>
-                  No deep pull yet. One run fetches organic &amp; paid keywords, competitors, ad copies, the full
-                  backlink profile (overview, backlinks, referring domains/IPs, anchors, indexed pages, competitors,
-                  Authority Score history), seeded keyword research, and — best-effort — Traffic Analytics.
-                </p>
-                <p className="text-amber-400">Heads up: a full pull can use ~100k+ Semrush API units and takes ~30–60s.</p>
-              </div>
+              // Empty section auto-populates on view — no button click needed.
+              <SemrushAutoPull clientId={id} />
             ) : (
               <>
                 <div className="mb-3 font-mono text-[11px] text-[var(--color-text-subtle)]">

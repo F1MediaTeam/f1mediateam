@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import InfoTip from "./InfoTip";
 import { Card, CardBody, CardHeader } from "@/components/ui";
 import MultiLineChart, { type ChartSeries } from "@/components/shared/MultiLineChart";
 import { formatNumber } from "@/lib/utils";
@@ -140,8 +141,8 @@ export default function MultiMetricChartCard({ title, hint, metrics }: Props) {
             }
             const displayValue = hoverValue ?? w.aggregated;
             return (
+              <div key={m.metric} className="relative">
               <button
-                key={m.metric}
                 type="button"
                 onClick={() => toggle(m.metric)}
                 style={{
@@ -171,6 +172,14 @@ export default function MultiMetricChartCard({ title, hint, metrics }: Props) {
                   <span className="text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] truncate">
                     {m.label}
                   </span>
+                  {m.invert ? (
+                    <span
+                      title="Lower is better"
+                      className="ml-auto shrink-0 text-[9px] font-semibold uppercase tracking-wider text-[var(--color-text-subtle)]"
+                    >
+                      ↓
+                    </span>
+                  ) : null}
                 </div>
                 <div
                   className="mt-1.5 text-base sm:text-xl font-semibold tabular-nums"
@@ -184,6 +193,14 @@ export default function MultiMetricChartCard({ title, hint, metrics }: Props) {
                   </div>
                 ) : null}
               </button>
+              {/* Sibling of the tile button — nesting a button inside a button
+                  is invalid HTML and the click would toggle the series. */}
+              <InfoTip
+                metric={m.metric}
+                label={m.label}
+                className="absolute top-1.5 right-1.5 z-10 p-0.5"
+              />
+              </div>
             );
           })}
         </div>

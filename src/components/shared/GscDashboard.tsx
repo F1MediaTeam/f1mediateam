@@ -13,6 +13,7 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { formatNumber } from "@/lib/utils";
+import InfoTip from "./InfoTip";
 
 interface Snapshot {
   captured_at: string;
@@ -412,8 +413,8 @@ export default function GscDashboard(props: Props) {
             const on = enabled[def.id];
             const checkboxId = `series-toggle-${def.id}`;
             return (
+              <div key={def.id} className="relative">
               <label
-                key={def.id}
                 htmlFor={checkboxId}
                 className={
                   "relative cursor-pointer select-none text-left rounded-lg sm:rounded-xl border px-2 py-2 sm:px-4 sm:py-3 transition flex flex-col " +
@@ -449,11 +450,29 @@ export default function GscDashboard(props: Props) {
                     aria-hidden
                   />
                   <span className="text-[10px] sm:text-sm text-[var(--color-text)] font-medium truncate">{def.label}</span>
+                  {/* Avg. Position has no glossary entry, so no icon there —
+                      the arrow hint below carries the meaning instead. */}
+                  {def.invert ? (
+                    <span
+                      title="Lower is better"
+                      className="ml-auto shrink-0 text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-subtle)]"
+                    >
+                      ↓ better
+                    </span>
+                  ) : null}
                 </div>
                 <div className="mt-1 sm:mt-2 text-lg sm:text-3xl font-semibold tabular-nums" style={{ color: def.color }}>
                   {def.fmt(headline)}
                 </div>
               </label>
+              {/* Sibling, not a child: a <button> inside a <label> is invalid
+                  HTML and would toggle the series when opened. */}
+              <InfoTip
+                metric={def.id}
+                label={def.label}
+                className="absolute top-1 right-1 sm:top-2 sm:right-2 z-10 p-0.5"
+              />
+              </div>
             );
           })}
         </div>

@@ -13,11 +13,15 @@ import WidgetBoard, { type WidgetSlot } from "@/components/shared/WidgetBoard";
 import { buildSemrushChartData } from "@/lib/semrush-charts";
 import { formatBytes, formatLocation } from "@/lib/utils";
 import Time from "@/components/shared/Time";
-import { setWidgetAction, disconnectConnectorAction, refreshConnectorAction, advanceContentAction, createContentAction, semrushDeepPullAction } from "@/app/admin/actions";
+import { setWidgetAction, disconnectConnectorAction, refreshConnectorAction, advanceContentAction, createContentAction, semrushDeepPullAction, adminRequestChangesAction } from "@/app/admin/actions";
 import CreateClientUserForm from "@/components/admin/CreateClientUserForm";
 import EditClientUserForm from "@/components/admin/EditClientUserForm";
 import ReopenOnboardingButton from "@/components/admin/ReopenOnboardingButton";
 import AdminContentAddModal from "@/components/admin/AdminContentAddModal";
+import ContentDetailModal from "@/components/shared/ContentDetailModal";
+import RequestChangesModal from "@/components/client/RequestChangesModal";
+import IncrementalList from "@/components/shared/IncrementalList";
+import { visibleCards } from "@/lib/content-visibility";
 import ImpersonateButton from "@/components/admin/ImpersonateButton";
 import LiveSyncTrigger from "@/components/admin/LiveSyncTrigger";
 import type { ContentStage, SemrushReport } from "@/lib/types";
@@ -55,6 +59,11 @@ export default async function ClientProfile({
     data.listConnectors(id),
     data.getClientUser(id),
     data.listSemrushReports(id),
+  ]);
+  // Stage history + inline images so the card detail popup matches the board.
+  const [eventsByCard, imagesByCard] = await Promise.all([
+    data.listContentEventsByCards(content.map((c) => c.id)),
+    data.listContentImagesByCards(content.map((c) => c.id)),
   ]);
   if (!client) notFound();
   const semrushConnected = connectors.some((c) => c.provider === "semrush");
@@ -155,7 +164,8 @@ export default async function ClientProfile({
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {stageMeta.map(({ stage, label, tone }) => {
-                const col = content.filter((c) => c.stage === stage);
+                // Posted cards age off after the cutoff, same as the main board.
+                const col = visibleCards(content).filter((c) => c.stage === stage);
                 return (
                   <Card key={stage}>
                     <CardHeader
@@ -166,17 +176,32 @@ export default async function ClientProfile({
                       {col.length === 0 ? (
                         <div className="text-xs text-[var(--color-text-subtle)] text-center py-6">Empty.</div>
                       ) : (
-                        col.map((card) => {
+                        <IncrementalList step={10}>
+                        {col.map((card) => {
                           return (
                             <div
                               key={card.id}
                               className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3"
                             >
-                              <div className="text-sm font-medium leading-snug">{card.title}</div>
-                              {card.body ? (
-                                <div className="mt-2 text-xs text-[var(--color-text-muted)] line-clamp-3">{card.body}</div>
-                              ) : null}
-                              <div className="mt-3 flex items-center gap-1.5">
+                              {/* Whole card body opens the detail popup, same
+                                  affordance the client and main board have. */}
+                              <ContentDetailModal
+                                triggerClassName="block w-full text-left"
+                                card={{ id: card.id, title: card.title, body: card.body, link: card.link, stage: card.stage, created_at: card.created_at, updated_at: card.updated_at }}
+                                companyName={client.company_name}
+                                events={(eventsByCard.get(card.id) ?? []).map((e) => ({ id: e.id, created_at: e.created_at, from_stage: e.from_stage, to_stage: e.to_stage, actor_role: e.actor_role, note: e.note }))}
+                                attachmentImages={imagesByCard.get(card.id) ?? []}
+                                triggerLabel={
+                                  <>
+                                    <div className="text-sm font-medium leading-snug">{card.title}</div>
+                                    {card.body ? (
+                                      <div className="mt-2 text-xs text-[var(--color-text-muted)] line-clamp-3">{card.body}</div>
+                                    ) : null}
+                                    <div className="mt-2 text-[10px] text-[var(--color-accent)] opacity-70">Click for details ↗</div>
+                                  </>
+                                }
+                              />
+                              <div className="mt-3 flex items-center gap-1.5 flex-wrap">
                                 {stage !== "proposed" ? (
                                   <form action={advanceContentAction}>
                                     <input type="hidden" name="id" value={card.id} />
@@ -193,10 +218,17 @@ export default async function ClientProfile({
                                     </Button>
                                   </form>
                                 ) : null}
+                                {stage === "proposed" ? (
+                                  <RequestChangesModal
+                                    action={adminRequestChangesAction}
+                                    card={{ id: card.id, title: card.title, body: card.body, link: card.link }}
+                                  />
+                                ) : null}
                               </div>
                             </div>
                           );
-                        })
+                        })}
+                        </IncrementalList>
                       )}
                     </CardBody>
                   </Card>

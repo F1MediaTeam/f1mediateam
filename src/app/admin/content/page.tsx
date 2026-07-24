@@ -9,11 +9,13 @@ import {
   createContentAction,
   deleteContentAction,
   updateContentAction,
+  adminRequestChangesAction,
 } from "../actions";
 import AdminContentAddModal from "@/components/admin/AdminContentAddModal";
 import ContentCardControls from "@/components/shared/ContentCardControls";
 import ContentDetailModal from "@/components/shared/ContentDetailModal";
 import IncrementalList from "@/components/shared/IncrementalList";
+import RequestChangesModal from "@/components/client/RequestChangesModal";
 import { visibleCards } from "@/lib/content-visibility";
 import type { ContentStage } from "@/lib/types";
 
@@ -126,9 +128,13 @@ export default async function AdminContent({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 mb-8 items-stretch">
           {STAGES.map(({ stage, label, tone }) => {
             const rawCol = cards.filter((c) => c.stage === stage);
+            // Admins can request changes too, so the badge is restricted to
+            // client-authored asks — otherwise our own notes would inflate it.
             const hasOpenChangeRequest = (id: string) => {
               const ev = (eventsByCard.get(id) ?? [])[0];
-              return Boolean(ev && (ev.note ?? "").startsWith("CHANGES REQUESTED"));
+              return Boolean(
+                ev && ev.actor_role === "client" && (ev.note ?? "").startsWith("CHANGES REQUESTED"),
+              );
             };
             // Float change-requested cards to the top of Proposed; once the
             // request is resolved (admin replies or advances the card) the
@@ -172,7 +178,7 @@ export default async function AdminContent({
                       // card is a client "CHANGES REQUESTED" note.
                       const latest = events[0];
                       const changeRequest =
-                        card.stage === "proposed" && latest && (latest.note ?? "").startsWith("CHANGES REQUESTED")
+                        card.stage === "proposed" && latest && latest.actor_role === "client" && (latest.note ?? "").startsWith("CHANGES REQUESTED")
                           ? (latest.note ?? "").replace(/^CHANGES REQUESTED:\s*/, "")
                           : null;
                       return (
@@ -246,6 +252,12 @@ export default async function AdminContent({
                                   {stage === "proposed" ? "Approve →" : "Mark posted →"}
                                 </Button>
                               </form>
+                            ) : null}
+                            {stage === "proposed" ? (
+                              <RequestChangesModal
+                                action={adminRequestChangesAction}
+                                card={{ id: card.id, title: card.title, body: card.body, link: card.link }}
+                              />
                             ) : null}
                           </div>
                         </div>

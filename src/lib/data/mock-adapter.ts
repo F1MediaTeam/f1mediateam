@@ -947,3 +947,31 @@ export function resetUiToDefault(_userId: UUID): void {
   uiOverrideStore.length = 0;
   for (const o of uiDefaultSnapshot) uiOverrideStore.push({ ...o, styles: { ...o.styles } });
 }
+
+/** Mock mirror of the admin-side "request changes" — see supabase-adapter. */
+export function requestChangesAsAdmin(
+  cardId: UUID,
+  actor: { user_id: UUID; role: UserRole },
+  note: string,
+): { error: string } | { ok: true } {
+  if (actor.role !== "admin") return { error: "Admins only" };
+  return mutate((s) => {
+    const card = s.content.find((c) => c.id === cardId);
+    if (!card) return { error: "Card not found" };
+    if (card.stage !== "proposed") {
+      return { error: "Can only request changes on a proposed card" };
+    }
+    card.updated_at = nowIso();
+    s.contentEvents.unshift({
+      id: `evt-${uid()}`,
+      card_id: card.id,
+      from_stage: "proposed",
+      to_stage: "proposed",
+      actor_user_id: actor.user_id,
+      actor_role: "admin",
+      note: `CHANGES REQUESTED: ${note}`,
+      created_at: nowIso(),
+    });
+    return { ok: true } as const;
+  });
+}

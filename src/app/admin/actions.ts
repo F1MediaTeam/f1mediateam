@@ -805,3 +805,18 @@ export async function semrushDeepPullAction(formData: FormData) {
   }
   revalidatePath(`/admin/clients/${client_id}`);
 }
+
+/** Admin-side "request changes" on a proposed card.
+ *
+ *  Clients can submit their own content, so the admin needs a way to hand one
+ *  back with a note. The event is recorded as actor_role 'admin' so the
+ *  board's amber "changes requested" badge keeps counting client asks only. */
+export async function adminRequestChangesAction(formData: FormData) {
+  const session = await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const note = String(formData.get("note") ?? "").trim();
+  if (!id || !note) return;
+  await data.requestChangesAsAdmin(id, { user_id: session.user_id, role: session.role }, note);
+  revalidatePath("/admin/content");
+  revalidatePath("/admin/clients");
+}

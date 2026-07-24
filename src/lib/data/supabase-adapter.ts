@@ -1493,3 +1493,42 @@ export async function resetUiToDefault(userId: UUID): Promise<void> {
     snapshot.map((o) => ({ ...o, updated_at: new Date().toISOString(), updated_by: userId })),
   );
 }
+
+/** Admin-side "request changes".
+ *
+ *  Clients can submit their own content cards, so the admin needs a way to
+ *  send one back with a note. rejectContent() deliberately refuses anyone but
+ *  the owning client, so this is a separate entry point rather than a relaxed
+ *  guard on that one. The event is stamped actor_role 'admin', which is what
+ *  keeps the board's "changes requested" badge counting client asks only.
+ */
+export async function requestChangesAsAdmin(
+  cardId: UUID,
+  actor: { user_id: UUID; role: UserRole },
+  note: string,
+): Promise<{ error: string } | { ok: true }> {
+  if (actor.role !== "admin") return { error: "Admins only" };
+  const supabase = await createClient();
+  const { data: card } = await supabase
+    .from("content_cards")
+    .select("*")
+    .eq("id", cardId)
+    .single();
+  if (!card) return { error: "Card not found" };
+  if ((card as ContentCard).stage !== "proposed") {
+    return { error: "Can only request changes on a proposed card" };
+  }
+
+  await supabase.from("content_card_events").insert({
+    card_id: cardId,
+    from_stage: "proposed",
+    to_stage: "proposed",
+    actor_user_id: actor.user_id,
+    actor_role: "admin",
+    note: `CHANGES REQUESTED: ${note}`,
+  });
+
+  // Re-save the stage so updated_at moves and the card floats to the top.
+  await supabase.from("content_cards").update({ stage: "proposed" }).eq("id", cardId);
+  return { ok: true };
+}

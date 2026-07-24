@@ -5,8 +5,6 @@ import HtmlTools from "@/components/admin/HtmlTools";
 import UtmBuilder from "@/components/admin/UtmBuilder";
 import SerpPreview from "@/components/admin/SerpPreview";
 import RedirectChecker from "@/components/admin/RedirectChecker";
-import ClaudeChat from "@/components/admin/ClaudeChat";
-import { aiConfigured } from "@/lib/deck/ai-narrative";
 
 export default async function AdminTools() {
   const session = await requireAdmin();
@@ -22,23 +20,6 @@ export default async function AdminTools() {
         </div>
 
         <div className="space-y-6">
-          <Card>
-            <CardHeader
-              title="Claude AI chat"
-              subtitle="Chat with Claude right here — draft copy, brainstorm, rewrite, explain"
-            />
-            <CardBody>
-              {aiConfigured() ? (
-                <ClaudeChat />
-              ) : (
-                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                  <strong>ANTHROPIC_API_KEY</strong> is not set on this environment, so the chat is
-                  unavailable. Add it under Vercel → Project Settings → Environment Variables.
-                </div>
-              )}
-            </CardBody>
-          </Card>
-
           <Card>
             <CardHeader
               title="UTM link builder"

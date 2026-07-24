@@ -1438,12 +1438,15 @@ export async function listUiOverrides(): Promise<UiOverride[]> {
 
 export async function upsertUiOverride(override: UiOverride, userId: UUID): Promise<void> {
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("ui_overrides")
     .upsert(
       { ...override, updated_at: new Date().toISOString(), updated_by: userId },
       { onConflict: "scope,selector" },
     );
+  // Surfaced to the panel rather than swallowed: without this, a missing table
+  // (migration 0015 not yet applied) would report "saved" and change nothing.
+  if (error) throw new Error(error.message);
 }
 
 export async function deleteUiOverride(scope: string, selector: string): Promise<void> {

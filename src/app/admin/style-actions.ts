@@ -25,7 +25,12 @@ export async function saveStyleOverrideAction(input: {
   if (!override) {
     return { error: "That style couldn't be saved — unrecognized target or value." };
   }
-  await data.upsertUiOverride(override, session.user_id);
+  try {
+    await data.upsertUiOverride(override, session.user_id);
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : "unknown error";
+    return { error: `Couldn't save: ${detail}. Has migration 0015 been applied?` };
+  }
   revalidateAdmin();
   return { error: null };
 }

@@ -546,3 +546,42 @@ export async function submitOnboardingAction(formData: FormData) {
   // the saved PDF appears under Settings → Onboarding downloads.
   redirect("/client");
 }
+
+/** Add-on request from the client portal.
+ *
+ *  Posted into the existing client_messages thread rather than a new table:
+ *  it lands in the admin Messages tab with an unread badge, so requests show
+ *  up where the team already looks instead of somewhere new to remember. */
+export async function requestAddOnAction(
+  formData: FormData,
+): Promise<{ error: string | null }> {
+  const session = await requireClient();
+  if (!session.client_id) return { error: "No client linked to this session." };
+
+  const month = String(formData.get("month") ?? "").trim();
+  const addOn = String(formData.get("add_on") ?? "").trim();
+  const details = String(formData.get("details") ?? "").trim();
+  if (!month) return { error: "Pick which month this is for." };
+  if (!details && !addOn) return { error: "Tell us what you'd like added." };
+
+  // Prefixed so it's obvious in the thread that this needs a quote back.
+  const lines = [`ADD-ON REQUEST — ${month}`];
+  if (addOn) lines.push(`Service: ${addOn}`);
+  if (details) lines.push("", details);
+
+  try {
+    await data.sendMessage({
+      client_id: session.client_id,
+      from_user_id: session.user_id,
+      from_role: "client",
+      body: lines.join("\n"),
+    });
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : "unknown error";
+    return { error: `Couldn't send that request: ${detail}` };
+  }
+
+  revalidatePath("/client/messages");
+  revalidatePath("/admin/messages");
+  return { error: null };
+}

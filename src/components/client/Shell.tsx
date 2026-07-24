@@ -13,6 +13,7 @@ import type { Client } from "@/lib/types";
 const NAV = [
   { href: "/client",         label: "Overview" },
   { href: "/client/content", label: "Content" },
+  { href: "/client/add-ons", label: "Add-Ons" },
   { href: "/client/settings",label: "Settings" },
 ];
 

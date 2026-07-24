@@ -172,14 +172,6 @@ export default function MultiMetricChartCard({ title, hint, metrics }: Props) {
                   <span className="text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] truncate">
                     {m.label}
                   </span>
-                  {m.invert ? (
-                    <span
-                      title="Lower is better"
-                      className="ml-auto shrink-0 text-[9px] font-semibold uppercase tracking-wider text-[var(--color-text-subtle)]"
-                    >
-                      ↓
-                    </span>
-                  ) : null}
                 </div>
                 <div
                   className="mt-1.5 text-base sm:text-xl font-semibold tabular-nums"

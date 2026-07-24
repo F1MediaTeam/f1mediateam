@@ -450,16 +450,6 @@ export default function GscDashboard(props: Props) {
                     aria-hidden
                   />
                   <span className="text-[10px] sm:text-sm text-[var(--color-text)] font-medium truncate">{def.label}</span>
-                  {/* Avg. Position has no glossary entry, so no icon there —
-                      the arrow hint below carries the meaning instead. */}
-                  {def.invert ? (
-                    <span
-                      title="Lower is better"
-                      className="ml-auto shrink-0 text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-subtle)]"
-                    >
-                      ↓ better
-                    </span>
-                  ) : null}
                 </div>
                 <div className="mt-1 sm:mt-2 text-lg sm:text-3xl font-semibold tabular-nums" style={{ color: def.color }}>
                   {def.fmt(headline)}

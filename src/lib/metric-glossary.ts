@@ -23,10 +23,12 @@ export const METRIC_GLOSSARY: Record<string, MetricExplainer> = {
     what: "How many times one of your pages showed up in someone's Google search results naturally — not as a paid ad — whether or not they clicked.",
     why: "This measures how visible you are. If impressions climb while clicks stay flat, you're being found for the right topics but the title and description aren't earning the click yet.",
   },
-  // Avg. Position deliberately has no entry: it reads as self-explanatory, so
-  // the tile shows a "lower is better" hint instead of an ⓘ. InfoTip renders
-  // nothing for a metric that isn't listed here, so leaving it out is what
-  // removes the icon.
+  // Position metrics stay deliberately terse.
+  position: {
+    what: "Your average ranking spot in Google's natural results, averaged across your whole site.",
+    why: "Lower is better.",
+    lowerIsBetter: true,
+  },
 
   // --- Google Analytics 4 ---
   sessions: {

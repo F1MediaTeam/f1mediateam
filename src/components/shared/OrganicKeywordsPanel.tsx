@@ -32,6 +32,7 @@ export default function OrganicKeywordsPanel({ clientId, embedded = false }: { c
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [sort, setSort] = useState<SortKey>("trafficPct");
   const [asc, setAsc] = useState(false);
+  const [query, setQuery] = useState("");
 
   async function toggle() {
     const next = !open;
@@ -66,6 +67,11 @@ export default function OrganicKeywordsPanel({ clientId, embedded = false }: { c
     return asc ? d : -d;
   });
 
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? sorted.filter((k) => k.phrase.toLowerCase().includes(q) || k.url.toLowerCase().includes(q))
+    : sorted;
+
   const arrow = (key: SortKey) => (sort === key ? (asc ? " ↑" : " ↓") : "");
 
   const Wrap = embedded ? EmbeddedWrap : Card;
@@ -95,6 +101,24 @@ export default function OrganicKeywordsPanel({ clientId, embedded = false }: { c
           ) : sorted.length === 0 ? (
             <div className="py-10 text-center text-sm text-[var(--color-text-muted)]">No organic keywords found.</div>
           ) : (
+            <>
+            {/* Search / filter across the loaded keyword list. */}
+            <div className="mb-3 flex items-center gap-3">
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search keywords or URLs…"
+                className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
+              />
+              <span className="shrink-0 whitespace-nowrap text-xs text-[var(--color-text-muted)]">
+                {q ? `${filtered.length} of ${sorted.length}` : `${sorted.length} keywords`}
+              </span>
+            </div>
+            {filtered.length === 0 ? (
+              <div className="py-8 text-center text-sm text-[var(--color-text-muted)]">
+                No keywords match &ldquo;{query}&rdquo;.
+              </div>
+            ) : (
             <div className="max-h-[520px] overflow-auto rounded-lg border border-[var(--color-border)]">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-[var(--color-bg-elev)]">
@@ -107,7 +131,7 @@ export default function OrganicKeywordsPanel({ clientId, embedded = false }: { c
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)]">
-                  {sorted.map((k, i) => (
+                  {filtered.map((k, i) => (
                     <tr key={i} className="hover:bg-[var(--color-bg-hover)]">
                       <td className="py-2 px-3 font-medium">{k.phrase}</td>
                       <td className="py-2 px-3 tabular-nums">{k.position}</td>
@@ -123,6 +147,8 @@ export default function OrganicKeywordsPanel({ clientId, embedded = false }: { c
                 </tbody>
               </table>
             </div>
+            )}
+            </>
           )}
         </CardBody>
       ) : null}

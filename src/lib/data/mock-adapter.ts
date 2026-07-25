@@ -13,6 +13,7 @@ import {
 import type {
   CalendarEvent,
   CalendarEventAttachment,
+  AssignablePerson,
   Client,
   ContentCard,
   ContentCardEvent,
@@ -240,6 +241,7 @@ export function createCalendarEvent(input: {
   starts_at: string;
   ends_at?: string | null;
   created_by?: UUID | null;
+  assignee_ids?: UUID[];
 }): CalendarEvent {
   return mutate((s) => {
     const e: CalendarEvent = {
@@ -251,11 +253,35 @@ export function createCalendarEvent(input: {
       starts_at: input.starts_at,
       ends_at: input.ends_at ?? null,
       created_by: input.created_by ?? DEMO_ADMIN_ID,
+      assignee_ids: input.assignee_ids ?? [],
       created_at: nowIso(),
     };
     s.calendar.push(e);
     return e;
   });
+}
+
+export function listAssignablePeople(): AssignablePerson[] {
+  const clients = getState().clients;
+  const nameOf = (id: string | null) =>
+    id ? clients.find((c) => c.id === id)?.company_name ?? "Client" : "Client";
+  return getState()
+    .profiles.filter((p) => p.role === "admin" || p.role === "client")
+    .map((p) => ({
+      id: p.id,
+      label:
+        (p.full_name || p.email) +
+        (p.role === "admin" ? " — F1 Media" : ` — ${nameOf(p.client_id)}`),
+      group: (p.role === "admin" ? "F1 Media team" : "Clients") as AssignablePerson["group"],
+    }));
+}
+
+export function listAssignedEvents(userId: UUID, limit = 20): CalendarEvent[] {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  return getState()
+    .calendar.filter((e) => (e.assignee_ids ?? []).includes(userId) && e.starts_at >= cutoff)
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+    .slice(0, limit);
 }
 
 export function deleteCalendarEvent(id: UUID): boolean {

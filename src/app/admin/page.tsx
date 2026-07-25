@@ -59,10 +59,11 @@ const INTERNAL_COLOR = { ring: "ring-slate-400/50", text: "text-slate-300", bg: 
 
 export default async function AdminDashboard() {
   const session = await requireAdmin();
-  const [clients, tasks, events] = await Promise.all([
+  const [clients, tasks, events, people] = await Promise.all([
     data.listClients(),
     data.listTasks({ status: "open" }),
     data.listCalendar(),
+    data.listAssignablePeople(),
   ]);
 
   // -------- tasks ----------
@@ -245,7 +246,7 @@ export default async function AdminDashboard() {
                   events={calEvents}
                   minCellHeight="min-h-[160px] sm:min-h-[180px] lg:min-h-[200px]"
                   maxPerCell={5}
-                  addSlot={<AdminCalendarAddModal action={createCalendarAction} clients={clients} />}
+                  addSlot={<AdminCalendarAddModal action={createCalendarAction} clients={clients} people={people} />}
                   reschedule={rescheduleCalendarAction}
                 />
               </div>

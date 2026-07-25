@@ -57,12 +57,13 @@ export default async function AdminContent({
 }) {
   const session = await requireAdmin();
   const { client: clientFilter } = await searchParams;
-  const [clients, allCards, calendarEvents] = await Promise.all([
+  const [clients, allCards, calendarEvents, people] = await Promise.all([
     data.listClients(),
     data.listContent({ clientId: clientFilter }),
     // Same filter drives the calendar: "All" shows every client, a chip narrows
     // it to that one client's events.
     data.listCalendar(clientFilter ? { clientId: clientFilter } : undefined),
+    data.listAssignablePeople(),
   ]);
   // Posted cards older than the cutoff drop off the board (see
   // lib/content-visibility.ts). Applied before the per-stage split so the
@@ -327,7 +328,7 @@ export default async function AdminContent({
               events={calEvents}
               minCellHeight="min-h-[88px]"
               maxPerCell={3}
-              addSlot={<AdminCalendarAddModal action={createCalendarAction} clients={clients} />}
+              addSlot={<AdminCalendarAddModal action={createCalendarAction} clients={clients} people={people} />}
               reschedule={rescheduleCalendarAction}
             />
           </CardBody>

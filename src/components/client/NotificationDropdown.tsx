@@ -13,6 +13,10 @@ export interface NotificationItem {
   title: string;
   updated_at: string;
   body: string | null;
+  /** where clicking goes; defaults to the content board */
+  href?: string;
+  /** small caption under the item, e.g. "Awaiting approval" or "Assigned to you" */
+  meta?: string;
 }
 
 interface Props {
@@ -85,7 +89,7 @@ export default function NotificationDropdown({ items }: Props) {
           <div className="px-4 py-3 border-b border-[var(--color-border)] flex items-center justify-between">
             <span className="text-sm font-semibold">Notifications</span>
             <span className="text-[11px] text-[var(--color-text-muted)] font-mono">
-              {count} pending
+              {count} new
             </span>
           </div>
           <div className="max-h-[60vh] overflow-y-auto">
@@ -98,7 +102,7 @@ export default function NotificationDropdown({ items }: Props) {
                 {items.map((n) => (
                   <li key={n.id}>
                     <Link
-                      href={`/client/content`}
+                      href={n.href ?? "/client/content"}
                       onClick={() => setOpen(false)}
                       className="block px-4 py-3 hover:bg-[var(--color-bg-hover)] transition"
                     >
@@ -114,7 +118,7 @@ export default function NotificationDropdown({ items }: Props) {
                             </div>
                           ) : null}
                           <div className="mt-1 text-[10px] text-[var(--color-text-subtle)] font-mono">
-                            Awaiting approval · {fmt(n.updated_at)}
+                            {n.meta ?? "Awaiting approval"} · {fmt(n.updated_at)}
                           </div>
                         </div>
                       </div>

@@ -76,6 +76,8 @@ export async function createCalendarAction(formData: FormData) {
   // Embed the URL as a sentinel-prefixed first line so the schema doesn't
   // need a migration; the event card/popup picks the URL out for rendering.
   const notes = composeEventNotes(url, rawNotes);
+  // People to assign / cc — they'll see the event in their notification bell.
+  const assignee_ids = formData.getAll("assignee_ids").map(String).filter(Boolean);
   if (!raw || !title || !starts_at) return;
   await data.createCalendarEvent({
     client_id,
@@ -84,6 +86,7 @@ export async function createCalendarAction(formData: FormData) {
     starts_at: new Date(starts_at).toISOString(),
     notes,
     created_by: session.user_id,
+    assignee_ids,
   });
   if (client_id) {
     const { persistAttachments } = await import("@/lib/attachments");

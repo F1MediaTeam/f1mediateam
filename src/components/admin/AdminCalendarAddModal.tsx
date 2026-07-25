@@ -5,9 +5,10 @@
 // to the admin createCalendarAction. Centered popup, dim backdrop, closes on
 // Escape / backdrop click / submit.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui";
 import FileDropZone from "@/components/shared/FileDropZone";
+import type { AssignablePerson } from "@/lib/types";
 
 interface ClientOption {
   id: string;
@@ -17,10 +18,18 @@ interface ClientOption {
 interface Props {
   action: (formData: FormData) => void | Promise<void>;
   clients: ClientOption[];
+  /** everyone who can be cc'd / assigned (admins + client users) */
+  people?: AssignablePerson[];
 }
 
-export default function AdminCalendarAddModal({ action, clients }: Props) {
+export default function AdminCalendarAddModal({ action, clients, people = [] }: Props) {
   const [open, setOpen] = useState(false);
+  const [peopleQuery, setPeopleQuery] = useState("");
+
+  const shownPeople = useMemo(() => {
+    const q = peopleQuery.trim().toLowerCase();
+    return q ? people.filter((p) => p.label.toLowerCase().includes(q)) : people;
+  }, [people, peopleQuery]);
 
   useEffect(() => {
     if (!open) return;
@@ -88,6 +97,41 @@ export default function AdminCalendarAddModal({ action, clients }: Props) {
                 className={field}
               />
               <textarea name="notes" rows={3} placeholder="Notes (optional)" className={field} />
+
+              {people.length > 0 ? (
+                <div>
+                  <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
+                    Assign / cc (they&apos;ll get a notification)
+                  </label>
+                  <input
+                    value={peopleQuery}
+                    onChange={(e) => setPeopleQuery(e.target.value)}
+                    placeholder="Search people…"
+                    className={field + " mb-2"}
+                  />
+                  <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-2">
+                    {shownPeople.length === 0 ? (
+                      <div className="px-1 py-2 text-xs text-[var(--color-text-subtle)]">No matches.</div>
+                    ) : (
+                      shownPeople.map((p) => (
+                        <label
+                          key={p.id}
+                          className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-[var(--color-bg-hover)]"
+                        >
+                          <input
+                            type="checkbox"
+                            name="assignee_ids"
+                            value={p.id}
+                            className="accent-[var(--color-accent)]"
+                          />
+                          <span className="truncate">{p.label}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
               <div>
                 <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">
                   Attachments (optional)

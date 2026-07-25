@@ -9,6 +9,7 @@ import type { UiOverride } from "@/lib/ui-overrides";
 import type {
   CalendarEvent,
   CalendarEventAttachment,
+  AssignablePerson,
   Client,
   ContentCard,
   ContentCardEvent,
@@ -310,6 +311,44 @@ export async function listCalendar(filter?: {
   return (data as CalendarEvent[]) ?? [];
 }
 
+/** People an admin can assign / cc on a calendar event: every F1 Media admin
+ *  plus every client's portal user, labelled. Service role — cross-tenant, and
+ *  only ever called from admin-gated pages. */
+export async function listAssignablePeople(): Promise<AssignablePerson[]> {
+  const service = await createServiceClient();
+  const [{ data: profiles }, clients] = await Promise.all([
+    service.from("profiles").select("id, role, full_name, email, client_id"),
+    listClients(),
+  ]);
+  const clientName = (id: string | null) =>
+    id ? clients.find((c) => c.id === id)?.company_name ?? "Client" : "Client";
+  return ((profiles ?? []) as Array<{ id: string; role: string; full_name: string | null; email: string; client_id: string | null }>)
+    .filter((p) => p.role === "admin" || p.role === "client")
+    .map((p) => ({
+      id: p.id,
+      label:
+        (p.full_name || p.email) +
+        (p.role === "admin" ? " — F1 Media" : ` — ${clientName(p.client_id)}`),
+      group: (p.role === "admin" ? "F1 Media team" : "Clients") as AssignablePerson["group"],
+    }))
+    .sort((a, b) => (a.group === b.group ? a.label.localeCompare(b.label) : a.group === "F1 Media team" ? -1 : 1));
+}
+
+/** Calendar events this user is assigned to, from yesterday onward (so a
+ *  same-day event stays visible), soonest first. Powers the notification bell. */
+export async function listAssignedEvents(userId: UUID, limit = 20): Promise<CalendarEvent[]> {
+  const supabase = await createClient();
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data } = await supabase
+    .from("calendar_events")
+    .select("*")
+    .contains("assignee_ids", [userId])
+    .gte("starts_at", cutoff)
+    .order("starts_at", { ascending: true })
+    .limit(limit);
+  return (data as CalendarEvent[]) ?? [];
+}
+
 export async function createCalendarEvent(input: {
   client_id: UUID | null;
   type: CalendarEvent["type"];
@@ -318,6 +357,7 @@ export async function createCalendarEvent(input: {
   starts_at: string;
   ends_at?: string | null;
   created_by?: UUID | null;
+  assignee_ids?: UUID[];
 }): Promise<CalendarEvent | null> {
   const supabase = await createClient();
   const { data } = await supabase
@@ -330,6 +370,7 @@ export async function createCalendarEvent(input: {
       starts_at: input.starts_at,
       ends_at: input.ends_at ?? null,
       created_by: input.created_by ?? null,
+      assignee_ids: input.assignee_ids ?? [],
     })
     .select()
     .single();

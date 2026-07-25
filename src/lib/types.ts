@@ -79,7 +79,16 @@ export interface CalendarEvent {
   starts_at: ISODateTime;
   ends_at: ISODateTime | null;
   created_by: UUID | null;
+  /** profile ids assigned / cc'd — the event shows in their notification bell */
+  assignee_ids?: UUID[];
   created_at: ISODateTime;
+}
+
+/** Someone who can be assigned to a calendar event (admin or client user). */
+export interface AssignablePerson {
+  id: UUID;
+  label: string;
+  group: "F1 Media team" | "Clients";
 }
 
 export interface CalendarEventAttachment {

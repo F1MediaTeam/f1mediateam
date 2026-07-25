@@ -93,7 +93,7 @@ export default async function ClientShell({
               <MessagesButton clientId={client.id} userId={session.user_id} />
             </Suspense>
             <Suspense fallback={<div className="w-9 h-9" />}>
-              <NotificationBell clientId={client.id} />
+              <NotificationBell clientId={client.id} userId={session.user_id} />
             </Suspense>
             <ThemeToggle />
             {/* Mobile hamburger — shows the same nav items as desktop. */}

@@ -3,6 +3,7 @@ import Logo from "@/components/shared/Logo";
 import MobileNavMenu from "@/components/shared/MobileNavMenu";
 import ThemeToggle from "@/components/shared/ThemeToggle";
 import StyleInspector from "@/components/admin/StyleInspector";
+import AdminNotificationBell from "@/components/admin/AdminNotificationBell";
 import { data } from "@/lib/data";
 import type { Session } from "@/lib/data";
 
@@ -45,6 +46,7 @@ export default async function AdminShell({
           <Logo compact width={140} height={40} />
         </Link>
         <div className="flex items-center gap-2">
+          <AdminNotificationBell userId={session.user_id} />
           <StyleInspector />
           <ThemeToggle />
           <MobileNavMenu items={NAV} active={active} heading="Admin console" />
@@ -61,8 +63,9 @@ export default async function AdminShell({
             <span className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-subtle)]">
               Admin console
             </span>
-            {/* Theme toggle beside the crosshair style-inspector entry point. */}
+            {/* Notification bell + theme toggle beside the crosshair inspector. */}
             <div className="flex items-center gap-1.5">
+              <AdminNotificationBell userId={session.user_id} />
               <ThemeToggle />
               <StyleInspector />
             </div>

@@ -66,7 +66,7 @@ export default async function ClientContent() {
                 {col.length === 0 ? (
                   <div className="text-xs text-[var(--color-text-subtle)] text-center py-6">Empty.</div>
                 ) : (
-                  <IncrementalList step={10}>
+                  <IncrementalList step={5}>
                   {col.map((card) => {
                     const events = eventsByCard.get(card.id) ?? [];
                     return (

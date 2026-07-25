@@ -209,7 +209,7 @@ export default async function AdminContent({
                       Empty.
                     </div>
                   ) : (
-                    <IncrementalList step={10}>
+                    <IncrementalList step={5}>
                     {col.map((card) => {
                       const events = eventsByCard.get(card.id) ?? [];
                       // An open change request = the latest event on a still-proposed

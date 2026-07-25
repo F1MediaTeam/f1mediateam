@@ -1,17 +1,13 @@
 import { requireAdmin } from "@/lib/auth/session";
-import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader } from "@/components/ui";
 import HtmlTools from "@/components/admin/HtmlTools";
 import UtmBuilder from "@/components/admin/UtmBuilder";
 import SerpPreview from "@/components/admin/SerpPreview";
 import RedirectChecker from "@/components/admin/RedirectChecker";
-import MetaGenerator from "@/components/admin/MetaGenerator";
-import { aiConfigured } from "@/lib/deck/ai-narrative";
 
 export default async function AdminTools() {
   const session = await requireAdmin();
-  const clients = await data.listClients();
 
   return (
     <AdminShell session={session} active="/admin/tools">
@@ -24,23 +20,6 @@ export default async function AdminTools() {
         </div>
 
         <div className="space-y-6">
-          <Card>
-            <CardHeader
-              title="Title &amp; meta description generator"
-              subtitle="Pick a client, add the page's keywords, and generate SEO title + meta options"
-            />
-            <CardBody>
-              {aiConfigured() ? (
-                <MetaGenerator clients={clients.map((c) => ({ id: c.id, company_name: c.company_name }))} />
-              ) : (
-                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                  <strong>ANTHROPIC_API_KEY</strong> is not set on this environment, so generation is
-                  unavailable. Add it under Vercel → Project Settings → Environment Variables.
-                </div>
-              )}
-            </CardBody>
-          </Card>
-
           <Card>
             <CardHeader
               title="UTM link builder"

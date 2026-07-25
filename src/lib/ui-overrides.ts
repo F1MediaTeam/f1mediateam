@@ -66,12 +66,16 @@ export const THEME_TOKENS = [
 // parses.
 
 const FORBIDDEN = /[{}<>;@\\]|\/\*|\*\//;
+// Selectors legitimately use the `>` `~` `+` combinators, so they're allowed
+// here — but `<` (would let a saved selector emit `</style>`), `{}` (declaration
+// breakout), `;`, `@`, comments, and backslashes stay banned.
+const FORBIDDEN_IN_SELECTOR = /[<{};@\\]|\/\*|\*\//;
 
-/** Selectors are built by the client from tag names, classes, and data
- *  attributes. Allow exactly that alphabet and nothing else. */
+/** Selectors are built by the client from tag names, classes, data
+ *  attributes, and structural combinators. Allow exactly that alphabet. */
 export function isSafeSelector(selector: string): boolean {
-  if (!selector || selector.length > 300) return false;
-  if (FORBIDDEN.test(selector)) return false;
+  if (!selector || selector.length > 400) return false;
+  if (FORBIDDEN_IN_SELECTOR.test(selector)) return false;
   return /^[A-Za-z0-9_\-[\]="'.:#>~+,()\s]+$/.test(selector);
 }
 
@@ -145,9 +149,12 @@ export function overrideToCss(override: UiOverride): string {
   }
 
   if (scope === "element") {
-    // !important is required: Tailwind utilities like bg-[var(--color-bg-elev)]
-    // are single-class rules that would otherwise tie and win on source order.
-    return `[data-style-id="${selector}"]{${declarations(styles, true)}}`;
+    // A bare identifier is a legacy data-style-id → wrap it. A full selector
+    // (attribute/combinator path) is used as-is: this is what lets "just this
+    // one" target the exact clicked element rather than a whole landmark.
+    // !important is required so it beats Tailwind's single-class utilities.
+    const sel = /^[A-Za-z][\w-]*$/.test(selector) ? `[data-style-id="${selector}"]` : selector;
+    return `${sel}{${declarations(styles, true)}}`;
   }
 
   return `${selector}{${declarations(styles, true)}}`;

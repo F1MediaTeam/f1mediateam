@@ -32,14 +32,49 @@ const PREVIEW_STYLE_ID = "style-inspector-preview";
 
 interface Target {
   element: HTMLElement;
-  /** data-style-id on the element or its nearest ancestor, when present */
-  styleId: string | null;
+  /** a selector matching ONLY this exact element — the clicked node's own
+   *  data-style-id, or a unique structural path anchored at the nearest tagged
+   *  ancestor. This is what "just this one" targets. */
+  elementSelector: string;
+  /** true when the exact element carries its own data-style-id (a stable id) */
+  ownId: boolean;
   /** exact-class-attribute selector matching every sibling of the same kind */
   groupSelector: string | null;
   /** token whose value already matches this element's background or text */
   tokenGuess: string;
   label: string;
   count: number;
+}
+
+/** A CSS selector that matches only this one element. Prefers the element's own
+ *  data-style-id; otherwise builds a structural path (nth-of-type) up to the
+ *  nearest tagged/id'd ancestor, so it can't match siblings or other cards. */
+function uniqueSelector(el: HTMLElement): string {
+  if (el.dataset.styleId) return `[data-style-id="${el.dataset.styleId}"]`;
+  const parts: string[] = [];
+  let cur: HTMLElement | null = el;
+  while (cur && cur !== document.body && parts.length < 12) {
+    if (cur.dataset.styleId) {
+      parts.unshift(`[data-style-id="${cur.dataset.styleId}"]`);
+      break;
+    }
+    if (cur.id && /^[A-Za-z][\w-]*$/.test(cur.id)) {
+      parts.unshift(`#${cur.id}`);
+      break;
+    }
+    const tag = cur.tagName.toLowerCase();
+    const parent: HTMLElement | null = cur.parentElement;
+    if (parent) {
+      const node = cur;
+      const sameTag = Array.from(parent.children).filter((c) => c.tagName === node.tagName);
+      const idx = sameTag.indexOf(node) + 1;
+      parts.unshift(sameTag.length > 1 ? `${tag}:nth-of-type(${idx})` : tag);
+    } else {
+      parts.unshift(tag);
+    }
+    cur = parent;
+  }
+  return parts.join(" > ");
 }
 
 const FONT_STACKS = [
@@ -112,8 +147,8 @@ function describe(el: HTMLElement): string {
 }
 
 function resolveTarget(el: HTMLElement): Target {
-  const withId = el.closest<HTMLElement>("[data-style-id]");
-  const styleId = withId?.dataset.styleId ?? null;
+  const elementSelector = uniqueSelector(el);
+  const ownId = Boolean(el.dataset.styleId);
 
   // Exact class-attribute match is the most durable "everything like this"
   // selector available: it needs no CSS escaping of Tailwind's bracket syntax
@@ -146,7 +181,7 @@ function resolveTarget(el: HTMLElement): Target {
     }
   }
 
-  return { element: el, styleId, groupSelector, tokenGuess, label: describe(el), count };
+  return { element: el, elementSelector, ownId, groupSelector, tokenGuess, label: describe(el), count };
 }
 
 // --- component --------------------------------------------------------------
@@ -156,7 +191,7 @@ export default function StyleInspector() {
   const [picking, setPicking] = useState(false);
   const [target, setTarget] = useState<Target | null>(null);
   const [hoverRect, setHoverRect] = useState<DOMRect | null>(null);
-  const [scope, setScope] = useState<OverrideScope>("group");
+  const [scope, setScope] = useState<OverrideScope>("element");
   const [token, setToken] = useState<string>("--color-accent");
   const [styles, setStyles] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -205,7 +240,7 @@ export default function StyleInspector() {
       const resolved = resolveTarget(el);
       setTarget(resolved);
       setToken(resolved.tokenGuess);
-      setScope(resolved.groupSelector ? "group" : resolved.styleId ? "element" : "token");
+      setScope("element");
       const computed = getComputedStyle(el);
       setStyles({
         color: toHex(computed.color),
@@ -238,7 +273,7 @@ export default function StyleInspector() {
   const draft = useMemo<UiOverride | null>(() => {
     if (!target) return null;
     const selector =
-      scope === "token" ? token : scope === "element" ? target.styleId : target.groupSelector;
+      scope === "token" ? token : scope === "element" ? target.elementSelector : target.groupSelector;
     if (!selector) return null;
     // A move is written whenever the element sits somewhere other than where
     // the stylesheet puts it — including back at 0,0, which is how "Reset
@@ -354,8 +389,8 @@ export default function StyleInspector() {
     {
       value: "element",
       label: "Just this one",
-      hint: target?.styleId ? `#${target.styleId}` : "needs a data-style-id",
-      ok: Boolean(target?.styleId),
+      hint: target?.ownId ? "this element" : "only the exact element",
+      ok: Boolean(target?.elementSelector),
     },
     {
       value: "group",

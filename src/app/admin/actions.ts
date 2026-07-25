@@ -845,3 +845,14 @@ export async function rescheduleCalendarAction(
   revalidatePath("/admin/content");
   return { error: ok ? null : "Couldn't move that event." };
 }
+
+/** Remove one customer portal login (an additional email/password for the
+ *  client). The client and its primary login are unaffected. */
+export async function deleteClientUserAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const client_id = String(formData.get("client_id") ?? "");
+  const user_id = String(formData.get("user_id") ?? "");
+  if (!client_id || !user_id) return;
+  await data.deleteClientUser(user_id);
+  revalidatePath(`/admin/clients/${client_id}`);
+}

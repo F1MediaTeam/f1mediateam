@@ -147,18 +147,32 @@ export const getProfile = cache(async (userId: UUID): Promise<Profile | null> =>
   return (data as Profile) ?? null;
 });
 
-export const getClientUser = cache(async (clientId: UUID): Promise<Profile | null> => {
-  // Returns the customer-side user assigned to this client (if any). Used to
-  // decide whether to show the "create customer account" form on a client's
-  // admin profile page, or the content board (because the account exists).
+/** Every customer-side login assigned to this client — a client can have more
+ *  than one person with their own email + password, all opening the same
+ *  portal. Ordered oldest-first so the original account stays "primary". */
+export async function listClientUsers(clientId: UUID): Promise<Profile[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("profiles")
     .select("*")
     .eq("client_id", clientId)
     .eq("role", "client")
-    .maybeSingle();
-  return (data as Profile) ?? null;
+    .order("created_at", { ascending: true });
+  return (data as Profile[]) ?? [];
+}
+
+/** Delete one customer login — its auth user and profile row. */
+export async function deleteClientUser(userId: UUID): Promise<boolean> {
+  const admin = await createServiceClient();
+  const { error } = await admin.auth.admin.deleteUser(userId);
+  return !error;
+}
+
+export const getClientUser = cache(async (clientId: UUID): Promise<Profile | null> => {
+  // The client's PRIMARY (oldest) customer login. Uses the list rather than
+  // maybeSingle so a client with several logins doesn't throw.
+  const users = await listClientUsers(clientId);
+  return users[0] ?? null;
 });
 
 // ---------- clients ----------

@@ -13,7 +13,7 @@ import WidgetBoard, { type WidgetSlot } from "@/components/shared/WidgetBoard";
 import { buildSemrushChartData } from "@/lib/semrush-charts";
 import { formatBytes, formatLocation } from "@/lib/utils";
 import Time from "@/components/shared/Time";
-import { setWidgetAction, disconnectConnectorAction, refreshConnectorAction, advanceContentAction, createContentAction, semrushDeepPullAction, adminRequestChangesAction } from "@/app/admin/actions";
+import { setWidgetAction, disconnectConnectorAction, refreshConnectorAction, advanceContentAction, createContentAction, semrushDeepPullAction, adminRequestChangesAction, deleteClientUserAction } from "@/app/admin/actions";
 import CreateClientUserForm from "@/components/admin/CreateClientUserForm";
 import EditClientUserForm from "@/components/admin/EditClientUserForm";
 import ReopenOnboardingButton from "@/components/admin/ReopenOnboardingButton";
@@ -52,7 +52,7 @@ export default async function ClientProfile({
   };
   // Parallelize getClient with the rest of the per-client fan-out — was a
   // sequential round trip before the Promise.all kicked off.
-  const [client, tasks, events, files, audit, content, connectors, customerUser, semrushReports] = await Promise.all([
+  const [client, tasks, events, files, audit, content, connectors, clientUsers, semrushReports] = await Promise.all([
     data.getClient(id),
     data.listTasks({ clientId: id }),
     data.listCalendar({ clientId: id }),
@@ -60,9 +60,13 @@ export default async function ClientProfile({
     data.listAudit({ clientId: id, limit: 8 }),
     data.listContent({ clientId: id }),
     data.listConnectors(id),
-    data.getClientUser(id),
+    data.listClientUsers(id),
     data.listSemrushReports(id),
   ]);
+  // A client can have several portal logins. The first (oldest) is "primary"
+  // and drives the account card + content board; the rest are extra logins.
+  const customerUser = clientUsers[0] ?? null;
+  const extraUsers = clientUsers.slice(1);
   // Stage history + inline images so the card detail popup matches the board.
   const [eventsByCard, imagesByCard] = await Promise.all([
     data.listContentEventsByCards(content.map((c) => c.id)),
@@ -152,6 +156,39 @@ export default async function ClientProfile({
               initialEmail={customerUser.email}
               initialTier={(client.tier === "1" || client.tier === "2" || client.tier === "3") ? client.tier : ""}
             />
+
+            {/* Extra portal logins — more people at the client, each with their
+                own email + password, all opening the same portal. */}
+            <div className="mt-6 border-t border-[var(--color-border)] pt-5">
+              <div className="text-sm font-medium">Additional portal logins</div>
+              <p className="mt-0.5 mb-3 text-xs text-[var(--color-text-muted)]">
+                Give more people at {client.company_name} their own email and password. They all sign
+                into the same portal.
+              </p>
+
+              {extraUsers.length > 0 ? (
+                <div className="mb-4 space-y-2">
+                  {extraUsers.map((u) => (
+                    <div
+                      key={u.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2"
+                    >
+                      <span className="truncate text-sm">{u.email}</span>
+                      <form action={deleteClientUserAction}>
+                        <input type="hidden" name="client_id" value={client.id} />
+                        <input type="hidden" name="user_id" value={u.id} />
+                        <Button size="sm" variant="danger" type="submit">Remove</Button>
+                      </form>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="text-[11px] uppercase tracking-widest text-[var(--color-text-subtle)] mb-2">
+                Add a login
+              </div>
+              <CreateClientUserForm clientId={client.id} />
+            </div>
           </DropdownCard>
           </div>
         ) : null}

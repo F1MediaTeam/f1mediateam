@@ -853,6 +853,19 @@ export function signOut(): void {
   // Mock sessions live in the f1_session cookie; the caller clears it.
 }
 
+export function listClientUsers(clientId: UUID): Profile[] {
+  return getState().profiles.filter((p) => p.role === "client" && p.client_id === clientId);
+}
+
+export function deleteClientUser(userId: UUID): boolean {
+  return mutate((s) => {
+    const i = s.profiles.findIndex((p) => p.id === userId);
+    if (i === -1) return false;
+    s.profiles.splice(i, 1);
+    return true;
+  });
+}
+
 export function getClientUser(clientId: UUID): Profile | null {
   return (
     getState().profiles.find((p) => p.role === "client" && p.client_id === clientId) ?? null

@@ -5,7 +5,7 @@
 
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/session";
-import { fetchClientOrganicKeywords } from "@/lib/connectors/semrush";
+import { fetchClientOrganicKeywords, storedOrganicKeywords } from "@/lib/connectors/semrush";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,6 +21,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     return Response.json({ keywords: [], error: "Not authorized" }, { status: 200 });
   }
   try {
+    // Prefer the keywords already stored by the last deep pull — the panel is
+    // always visible now, so a live fetch on every view would burn API units.
+    // Only fall back to a live call when a client has no deep pull yet.
+    const stored = await storedOrganicKeywords(clientId);
+    if (stored.length > 0) return Response.json({ keywords: stored });
     const keywords = await fetchClientOrganicKeywords(clientId, 250);
     return Response.json({ keywords });
   } catch (err) {

@@ -1,10 +1,10 @@
 "use client";
 
-// Collapsible "Organic keywords" dropdown. The live SEMrush list is fetched
-// only the first time it's expanded (it costs API units), then cached in state.
-// Columns are sortable; click a header to re-sort.
+// "Organic keywords" list. Loads once on mount (from the client's stored deep
+// pull, so it costs no API units) and stays visible — no show/hide toggle.
+// Columns are sortable; a search box filters the list.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardBody, CardHeader } from "@/components/ui";
 import { formatNumber } from "@/lib/utils";
 
@@ -25,34 +25,33 @@ function EmbeddedWrap({ children }: { children: React.ReactNode }) {
 }
 
 export default function OrganicKeywordsPanel({ clientId, embedded = false }: { clientId: string; embedded?: boolean }) {
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [sort, setSort] = useState<SortKey>("trafficPct");
   const [asc, setAsc] = useState(false);
   const [query, setQuery] = useState("");
 
-  async function toggle() {
-    const next = !open;
-    setOpen(next);
-    if (next && !loaded && !loading) {
-      setLoading(true);
-      setError(null);
+  // Load once on mount and keep the list visible.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
       try {
         const res = await fetch(`/api/keywords/${clientId}`);
         const json = await res.json();
+        if (cancelled) return;
         if (json.error) setError(json.error);
         setKeywords(Array.isArray(json.keywords) ? json.keywords : []);
-        setLoaded(true);
       } catch {
-        setError("Failed to load keywords.");
+        if (!cancelled) setError("Failed to load keywords.");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    }
-  }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId]);
 
   function sortBy(key: SortKey) {
     if (key === sort) setAsc((a) => !a);
@@ -77,23 +76,8 @@ export default function OrganicKeywordsPanel({ clientId, embedded = false }: { c
   const Wrap = embedded ? EmbeddedWrap : Card;
   return (
     <Wrap>
-      <CardHeader
-        title={<span className="block text-center sm:text-left">Organic keywords</span>}
-        right={
-          <div className="flex justify-end sm:justify-start w-full">
-            <button
-              type="button"
-              onClick={toggle}
-              className="rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-bg-elev)] hover:bg-[var(--color-bg-hover)] px-3 py-1.5 text-xs font-medium transition flex items-center gap-1.5"
-            >
-              {open ? "Hide" : "Show keywords"}
-              <span className={"transition-transform " + (open ? "rotate-180" : "")}>▾</span>
-            </button>
-          </div>
-        }
-      />
-      {open ? (
-        <CardBody>
+      <CardHeader title={<span className="block text-center sm:text-left">Organic keywords</span>} />
+      <CardBody>
           {loading ? (
             <div className="py-10 text-center text-sm text-[var(--color-text-muted)]">Loading…</div>
           ) : error ? (
@@ -151,7 +135,6 @@ export default function OrganicKeywordsPanel({ clientId, embedded = false }: { c
             </>
           )}
         </CardBody>
-      ) : null}
     </Wrap>
   );
 }

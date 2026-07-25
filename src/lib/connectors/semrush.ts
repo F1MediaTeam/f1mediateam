@@ -396,6 +396,34 @@ export async function fetchClientOrganicKeywords(clientId: string, limit = 250):
   return fetchOrganicKeywords(apikey, creds.account_label, limit);
 }
 
+/** Read the organic-keyword list from the client's last deep pull instead of a
+ *  live SEMrush call — so the always-visible panel costs zero API units per
+ *  view. Rows are keyed by Semrush's own CSV header labels; match them by name
+ *  (exact, case-insensitive) to avoid picking up "Previous Position" etc. */
+export async function storedOrganicKeywords(clientId: string, limit = 1000): Promise<OrganicKeyword[]> {
+  const reports = await data.listSemrushReports(clientId);
+  const report = reports.find((r) => r.report_type === "organic_keywords");
+  if (!report || !Array.isArray(report.rows) || report.rows.length === 0) return [];
+
+  const pick = (row: Record<string, string>, candidates: string[]): string => {
+    const lower = new Map(Object.entries(row).map(([k, v]) => [k.toLowerCase().trim(), v]));
+    for (const c of candidates) {
+      const hit = lower.get(c);
+      if (hit !== undefined) return hit;
+    }
+    return "";
+  };
+
+  return report.rows.slice(0, limit).map((row) => ({
+    phrase: pick(row, ["keyword", "ph"]) || Object.values(row)[0] || "",
+    position: Number(pick(row, ["position", "po"])) || 0,
+    volume: Number(pick(row, ["search volume", "volume", "nq"])) || 0,
+    cpc: Number(pick(row, ["cpc", "cp"])) || 0,
+    trafficPct: Number(pick(row, ["traffic (%)", "traffic %", "tr"])) || 0,
+    url: pick(row, ["url", "ur"]) || "",
+  }));
+}
+
 // ===========================================================================
 // DEEP PULL — fetch the full Semrush catalog (Analytics domain + keyword +
 // Backlinks API + best-effort .Trends) for one client, on demand.

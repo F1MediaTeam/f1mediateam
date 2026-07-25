@@ -585,3 +585,20 @@ export async function requestAddOnAction(
   revalidatePath("/admin/messages");
   return { error: null };
 }
+
+/** Drag-and-drop reschedule, restricted to the client's own events. */
+export async function rescheduleClientCalendarAction(
+  id: string,
+  startsAt: string,
+): Promise<{ error: string | null }> {
+  const session = await requireClient();
+  if (!session.client_id) return { error: "No client linked to this session." };
+  if (!id || !startsAt) return { error: "Missing event or date." };
+  // Ownership check: only reschedule events belonging to this client.
+  const events = await data.listCalendar({ clientId: session.client_id });
+  if (!events.some((e) => e.id === id)) return { error: "That event isn't yours to move." };
+  const ok = await data.rescheduleCalendarEvent(id, startsAt);
+  revalidatePath("/client");
+  revalidatePath("/client/content");
+  return { error: ok ? null : "Couldn't move that event." };
+}

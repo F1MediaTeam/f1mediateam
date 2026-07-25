@@ -3,7 +3,7 @@ import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import { isoDate } from "@/lib/utils";
-import { createCalendarAction, deleteCalendarAction } from "../actions";
+import { createCalendarAction, deleteCalendarAction, rescheduleCalendarAction } from "../actions";
 import Time from "@/components/shared/Time";
 import CalendarMonth, { type CalEvent } from "@/components/shared/CalendarMonth";
 
@@ -104,6 +104,7 @@ export default async function AdminCalendar() {
               events={calEvents}
               minCellHeight="min-h-[88px]"
               maxPerCell={3}
+              reschedule={rescheduleCalendarAction}
             />
           </CardBody>
         </Card>

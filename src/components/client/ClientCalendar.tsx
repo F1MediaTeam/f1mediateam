@@ -8,6 +8,7 @@
 
 import { Card, CardBody } from "@/components/ui";
 import CalendarAddModal from "@/components/client/CalendarAddModal";
+import { rescheduleClientCalendarAction } from "@/app/client/actions";
 import CalendarMonth, { type CalEvent } from "@/components/shared/CalendarMonth";
 import { data } from "@/lib/data";
 import { isoDate } from "@/lib/utils";
@@ -61,6 +62,7 @@ export default async function ClientCalendar({
           events={calEvents}
           maxPerCell={2}
           addSlot={<CalendarAddModal action={action} />}
+          reschedule={rescheduleClientCalendarAction}
         />
       </CardBody>
     </Card>

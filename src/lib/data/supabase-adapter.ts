@@ -328,6 +328,16 @@ export async function deleteCalendarEvent(id: UUID): Promise<boolean> {
   return !error;
 }
 
+/** Move a calendar event to a new start (drag-and-drop rescheduling). */
+export async function rescheduleCalendarEvent(id: UUID, startsAt: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("calendar_events")
+    .update({ starts_at: startsAt })
+    .eq("id", id);
+  return !error;
+}
+
 // ---------- calendar event attachments ----------
 
 export async function listEventAttachments(eventId: UUID): Promise<CalendarEventAttachment[]> {

@@ -12,6 +12,7 @@ import {
   deleteTaskAction,
   createCalendarAction,
   deleteCalendarAction,
+  rescheduleCalendarAction,
 } from "./actions";
 import Time from "@/components/shared/Time";
 import AdminTaskAddModal from "@/components/admin/AdminTaskAddModal";
@@ -245,6 +246,7 @@ export default async function AdminDashboard() {
                   minCellHeight="min-h-[160px] sm:min-h-[180px] lg:min-h-[200px]"
                   maxPerCell={5}
                   addSlot={<AdminCalendarAddModal action={createCalendarAction} clients={clients} />}
+                  reschedule={rescheduleCalendarAction}
                 />
               </div>
             </div>

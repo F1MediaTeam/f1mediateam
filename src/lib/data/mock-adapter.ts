@@ -269,6 +269,15 @@ export function deleteCalendarEvent(id: UUID): boolean {
   });
 }
 
+export function rescheduleCalendarEvent(id: UUID, startsAt: string): boolean {
+  return mutate((s) => {
+    const e = s.calendar.find((x) => x.id === id);
+    if (!e) return false;
+    e.starts_at = startsAt;
+    return true;
+  });
+}
+
 // ---------------- meetings ----------------
 
 export function listMeetings(): Meeting[] {

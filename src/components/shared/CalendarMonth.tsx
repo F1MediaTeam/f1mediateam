@@ -12,7 +12,8 @@
 // "Today" is computed in the browser's local timezone: the server runs in UTC,
 // so a server-computed "today" can be off by a day for the viewer.
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { X, Calendar as CalIcon, ExternalLink, Paperclip } from "lucide-react";
 import { parseEventNotes } from "@/lib/calendar-event-url";
 import { useHydrated } from "@/lib/use-hydrated";
@@ -71,6 +72,7 @@ export default function CalendarMonth({
   maxPerCell = 3,
   addSlot,
   monthLabel,
+  reschedule,
 }: {
   /** 42 ISO date strings (Sun-aligned 6×7 grid) */
   days: string[];
@@ -82,18 +84,51 @@ export default function CalendarMonth({
   /** the "+ Add" control, rendered top-right */
   addSlot?: ReactNode;
   monthLabel?: string;
+  /** when provided, events can be dragged to another day to reschedule them */
+  reschedule?: (id: string, newStartIso: string) => Promise<{ error: string | null }>;
 }) {
+  const router = useRouter();
   const hydrated = useHydrated();
   const todayIso = hydrated ? localIsoToday() : "";
   const [selected, setSelected] = useState<string | null>(null);
   const [openEvent, setOpenEvent] = useState<CalEvent | null>(null);
 
+  // Local copy so a drag reschedules optimistically; re-synced when the server
+  // sends fresh events after router.refresh().
+  const [items, setItems] = useState(events);
+  useEffect(() => setItems(events), [events]);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverDay, setDragOverDay] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+
   const byDay = new Map<string, CalEvent[]>();
-  for (const e of events) {
+  for (const e of items) {
     const key = e.starts_at.slice(0, 10);
     const arr = byDay.get(key) ?? [];
     arr.push(e);
     byDay.set(key, arr);
+  }
+
+  function handleDrop(targetKey: string) {
+    setDragOverDay(null);
+    const id = dragId;
+    setDragId(null);
+    if (!id || !reschedule) return;
+    const ev = items.find((e) => e.id === id);
+    if (!ev || ev.starts_at.slice(0, 10) === targetKey) return;
+    // Keep the time-of-day, swap only the date — same slice the grid groups by.
+    const newStart = `${targetKey}${ev.starts_at.slice(10)}`;
+    const prev = items;
+    setItems((list) => list.map((e) => (e.id === id ? { ...e, starts_at: newStart } : e)));
+    setNote(null);
+    reschedule(id, newStart).then((res) => {
+      if (res?.error) {
+        setItems(prev); // revert on failure
+        setNote(res.error);
+      } else {
+        router.refresh();
+      }
+    });
   }
 
   const selectedEvents = selected ? (byDay.get(selected) ?? []) : [];
@@ -103,13 +138,24 @@ export default function CalendarMonth({
     return (
       <button
         type="button"
+        draggable={Boolean(reschedule)}
+        onDragStart={(ev) => {
+          ev.dataTransfer.effectAllowed = "move";
+          ev.dataTransfer.setData("text/plain", e.id);
+          setDragId(e.id);
+        }}
+        onDragEnd={() => {
+          setDragId(null);
+          setDragOverDay(null);
+        }}
         onClick={(ev) => {
           ev.stopPropagation();
           setOpenEvent(e);
         }}
-        title={`${e.title} — ${fmtDateTime(e.starts_at)}`}
+        title={reschedule ? `${e.title} — drag to another day to reschedule` : `${e.title} — ${fmtDateTime(e.starts_at)}`}
         className={
           "block w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] transition hover:brightness-125 " +
+          (reschedule ? "cursor-grab active:cursor-grabbing " : "") +
           (e.chipClass ?? DEFAULT_CHIP)
         }
       >
@@ -160,17 +206,30 @@ export default function CalendarMonth({
               type="button"
               key={key}
               onClick={() => setSelected(isSelected ? null : key)}
+              onDragOver={
+                reschedule
+                  ? (e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (dragOverDay !== key) setDragOverDay(key);
+                    }
+                  : undefined
+              }
+              onDragLeave={reschedule ? () => setDragOverDay((d) => (d === key ? null : d)) : undefined}
+              onDrop={reschedule ? () => handleDrop(key) : undefined}
               className={
                 "rounded-md sm:rounded-lg border p-1 sm:p-2 text-left transition " +
                 minCellHeight +
                 " " +
-                (isSelected
-                  ? "border-[var(--color-accent)] ring-2 ring-[var(--color-accent)] ring-inset bg-[var(--color-accent-soft)]"
-                  : isToday
-                    ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] ring-2 ring-[var(--color-accent)] ring-inset"
-                    : inMonth
-                      ? "border-[var(--color-border)] bg-[var(--color-bg-elev)] hover:border-[var(--color-border-strong)]"
-                      : "border-[var(--color-border)]/40 bg-[var(--color-bg-elev)]/40 opacity-50 hover:opacity-80")
+                (dragOverDay === key
+                  ? "border-[var(--color-accent)] ring-2 ring-[var(--color-accent)] ring-inset bg-[var(--color-accent)]/20"
+                  : isSelected
+                    ? "border-[var(--color-accent)] ring-2 ring-[var(--color-accent)] ring-inset bg-[var(--color-accent-soft)]"
+                    : isToday
+                      ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] ring-2 ring-[var(--color-accent)] ring-inset"
+                      : inMonth
+                        ? "border-[var(--color-border)] bg-[var(--color-bg-elev)] hover:border-[var(--color-border-strong)]"
+                        : "border-[var(--color-border)]/40 bg-[var(--color-bg-elev)]/40 opacity-50 hover:opacity-80")
               }
             >
               <div className="mb-1 flex items-center justify-between text-[10px] sm:text-[11px]">
@@ -203,6 +262,13 @@ export default function CalendarMonth({
           );
         })}
       </div>
+
+      {reschedule ? (
+        <p className="mt-2 text-[11px] text-[var(--color-text-subtle)]">
+          Tip: drag an event to another day to reschedule it.
+        </p>
+      ) : null}
+      {note ? <p className="mt-1 text-[11px] text-red-400">{note}</p> : null}
 
       {/* Selected-day list */}
       {selected ? (

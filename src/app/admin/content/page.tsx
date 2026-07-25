@@ -9,6 +9,7 @@ import {
   advanceContentAction,
   createContentAction,
   createCalendarAction,
+  rescheduleCalendarAction,
   deleteContentAction,
   updateContentAction,
   adminRequestChangesAction,
@@ -327,6 +328,7 @@ export default async function AdminContent({
               minCellHeight="min-h-[88px]"
               maxPerCell={3}
               addSlot={<AdminCalendarAddModal action={createCalendarAction} clients={clients} />}
+              reschedule={rescheduleCalendarAction}
             />
           </CardBody>
         </Card>

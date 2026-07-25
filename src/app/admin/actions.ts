@@ -831,3 +831,17 @@ export async function saveClientNotesAction(formData: FormData): Promise<{ error
   revalidatePath(`/admin/clients/${clientId}`);
   return { error: null };
 }
+
+/** Drag-and-drop reschedule of a calendar event to a new start time. */
+export async function rescheduleCalendarAction(
+  id: string,
+  startsAt: string,
+): Promise<{ error: string | null }> {
+  await requireAdmin();
+  if (!id || !startsAt) return { error: "Missing event or date." };
+  const ok = await data.rescheduleCalendarEvent(id, startsAt);
+  revalidatePath("/admin");
+  revalidatePath("/admin/calendar");
+  revalidatePath("/admin/content");
+  return { error: ok ? null : "Couldn't move that event." };
+}

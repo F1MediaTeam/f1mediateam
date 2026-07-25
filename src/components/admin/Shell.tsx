@@ -61,8 +61,11 @@ export default async function AdminShell({
             <span className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-subtle)]">
               Admin console
             </span>
-            {/* Desktop entry point for the crosshair style inspector. */}
-            <StyleInspector />
+            {/* Theme toggle beside the crosshair style-inspector entry point. */}
+            <div className="flex items-center gap-1.5">
+              <ThemeToggle />
+              <StyleInspector />
+            </div>
           </div>
         </div>
 
@@ -95,9 +98,8 @@ export default async function AdminShell({
           })}
         </nav>
 
-        <div className="mt-auto flex items-center justify-between gap-2 border-t border-[var(--color-border)] p-3">
+        <div className="mt-auto flex items-center gap-2 border-t border-[var(--color-border)] p-3">
           <span className="truncate text-[11px] text-[var(--color-text-subtle)]">{session.email}</span>
-          <ThemeToggle />
         </div>
       </aside>
 

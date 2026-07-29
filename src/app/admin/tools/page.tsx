@@ -55,7 +55,21 @@ export default async function AdminTools() {
               title="HTML previewer &amp; editor"
               subtitle="Paste HTML on the left and edit the live preview directly — text, colours, fonts, links, and images all write back to the code"
             />
-            <CardBody>
+            <CardBody className="space-y-4">
+              <p className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-4 py-3 text-[13px] leading-relaxed text-[var(--color-text-muted)]">
+                There&apos;s also a machine-readable index at{" "}
+                <a
+                  href="https://reactbits.dev/llms.txt"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-[var(--color-accent)] underline underline-offset-2 hover:opacity-80"
+                >
+                  reactbits.dev/llms.txt
+                </a>{" "}
+                listing all ~135 components across the four categories (Text Animations, Animations,
+                Components, Backgrounds) — handy if you want to enumerate what&apos;s available
+                before hitting the registry.
+              </p>
               <HtmlTools />
             </CardBody>
           </Card>

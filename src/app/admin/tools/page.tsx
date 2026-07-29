@@ -53,7 +53,7 @@ export default async function AdminTools() {
           <Card>
             <CardHeader
               title="HTML previewer &amp; editor"
-              subtitle="Paste or upload HTML, edit it straight in the live preview, and download it as a .html file"
+              subtitle="Paste HTML on the left, or turn on Edit preview and type straight into the page — every change writes back to the code"
             />
             <CardBody>
               <HtmlTools />

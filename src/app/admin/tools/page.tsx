@@ -57,18 +57,19 @@ export default async function AdminTools() {
             />
             <CardBody className="space-y-4">
               <p className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-4 py-3 text-[13px] leading-relaxed text-[var(--color-text-muted)]">
-                There&apos;s also a machine-readable index at{" "}
+                The <strong className="font-medium text-[var(--color-text)]">Blocks</strong> tab
+                holds drag-and-drop sections in the same four categories as{" "}
                 <a
                   href="https://reactbits.dev/llms.txt"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-mono text-[var(--color-accent)] underline underline-offset-2 hover:opacity-80"
                 >
-                  reactbits.dev/llms.txt
+                  reactbits.dev
                 </a>{" "}
-                listing all ~135 components across the four categories (Text Animations, Animations,
-                Components, Backgrounds) — handy if you want to enumerate what&apos;s available
-                before hitting the registry.
+                — but as self-contained HTML + CSS, so they keep working in the downloaded file.
+                ReactBits itself ships JSX built on GSAP, Framer Motion, and three.js, which needs a
+                React build step and can&apos;t run in a static page.
               </p>
               <HtmlTools />
             </CardBody>

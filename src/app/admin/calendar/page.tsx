@@ -2,29 +2,10 @@ import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
-import { isoDate } from "@/lib/utils";
+import { APP_TZ_LABEL, buildMonthGrid, tzDateKey, tzTodayKey } from "@/lib/timezone";
 import { createCalendarAction, deleteCalendarAction, rescheduleCalendarAction } from "../actions";
 import Time from "@/components/shared/Time";
 import CalendarMonth, { type CalEvent } from "@/components/shared/CalendarMonth";
-
-// Simple month grid with events. 6-row x 7-day layout.
-function buildMonth(today: Date) {
-  const first = new Date(today.getFullYear(), today.getMonth(), 1);
-  const startDay = first.getDay(); // 0 = Sunday
-  const start = new Date(first);
-  start.setDate(first.getDate() - startDay);
-  const days: string[] = [];
-  for (let i = 0; i < 42; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    days.push(isoDate(d));
-  }
-  return {
-    days,
-    monthLabel: today.toLocaleString("en-US", { month: "long", year: "numeric" }),
-    monthKey: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`,
-  };
-}
 
 const PALETTE = [
   { ring: "ring-emerald-400/50", text: "text-emerald-300", bg: "bg-emerald-500/10" },
@@ -40,7 +21,7 @@ export default async function AdminCalendar() {
     data.listClients(),
     data.listCalendar(),
   ]);
-  const { days, monthLabel, monthKey } = buildMonth(new Date());
+  const { days, monthLabel, monthKey } = buildMonthGrid();
 
   // null client_id = internal F1 Media event — fall back to the first palette
   // slot instead of indexing PALETTE[-1] and crashing on p.bg.
@@ -64,9 +45,9 @@ export default async function AdminCalendar() {
     };
   });
 
-  const today = isoDate();
+  const today = tzTodayKey();
   const upcoming = [...events]
-    .filter((e) => e.starts_at.slice(0, 10) >= today)
+    .filter((e) => tzDateKey(e.starts_at) >= today)
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
     .slice(0, 8);
 
@@ -128,7 +109,7 @@ export default async function AdminCalendar() {
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium">{e.title}</div>
                         <div className="text-xs text-[var(--color-text-muted)] flex items-center gap-2 mt-0.5">
-                          <span><Time iso={e.starts_at} /></span>
+                          <span><Time iso={e.starts_at} withZone /></span>
                           <span>·</span>
                           <span>{clientLabel}</span>
                           <Pill tone={e.type === "deadline" ? "warn" : "accent"}>
@@ -179,12 +160,17 @@ export default async function AdminCalendar() {
                   <option value="meeting">Meeting</option>
                   <option value="deadline">Deadline</option>
                 </select>
-                <input
-                  name="starts_at"
-                  type="datetime-local"
-                  required
-                  className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
-                />
+                <label className="block">
+                  <span className="mb-1.5 block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                    Starts — Phoenix time ({APP_TZ_LABEL})
+                  </span>
+                  <input
+                    name="starts_at"
+                    type="datetime-local"
+                    required
+                    className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
+                  />
+                </label>
                 <textarea
                   name="notes"
                   rows={2}

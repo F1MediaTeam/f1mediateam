@@ -15,6 +15,7 @@ import {
 } from "@/lib/auth/impersonate";
 import { notifyClient, userDisplayName } from "@/lib/email";
 import { queueEvent } from "@/lib/notify-queue";
+import { formatInTzWithZone, wallTimeToUtcIso } from "@/lib/timezone";
 
 // Admin's name for email attribution; team name when no full_name is set.
 async function adminSenderName(userId: string): Promise<string> {
@@ -79,40 +80,63 @@ export async function createCalendarAction(formData: FormData) {
   // People to assign / cc — they'll see the event in their notification bell.
   const assignee_ids = formData.getAll("assignee_ids").map(String).filter(Boolean);
   if (!raw || !title || !starts_at) return;
+  // The form posts a bare "YYYY-MM-DDTHH:mm" with no zone. Resolve it against
+  // Phoenix, not the server's UTC clock, or every event lands 7 hours early.
+  const startsAtUtc = wallTimeToUtcIso(starts_at);
+  if (!startsAtUtc) return;
   await data.createCalendarEvent({
     client_id,
     title,
     type,
-    starts_at: new Date(starts_at).toISOString(),
+    starts_at: startsAtUtc,
     notes,
     created_by: session.user_id,
     assignee_ids,
   });
+  const when = formatInTzWithZone(startsAtUtc);
+  const label = type === "deadline" ? "deadline" : "meeting";
+
   if (client_id) {
     const { persistAttachments } = await import("@/lib/attachments");
     await persistAttachments({ formData, client_id, uploaded_by: session.user_id, category: "calendar" });
-    const when = new Date(starts_at).toLocaleString("en-US", {
-      timeZone: "America/Los_Angeles",
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
     await queueEvent(
       {
         client_id,
         audience: "client",
         kind: type === "deadline" ? "calendar_deadline" : "calendar_meeting",
         title,
-        detail: `${when} (PT), added by ${await adminSenderName(session.user_id)}`,
+        detail: `${when}, added by ${await adminSenderName(session.user_id)}`,
       },
       {
         subject: type === "deadline" ? "New deadline on your calendar" : "New meeting on your calendar",
         heading: type === "deadline" ? "New deadline" : "New meeting scheduled",
-        body: `"${title}" — ${when} (PT). Details and any attachments are in your portal.`,
+        body: `"${title}" — ${when}. Details and any attachments are in your portal.`,
         ctaLabel: "View calendar",
         ctaPath: "/client",
       },
     );
     revalidatePath(`/admin/clients/${client_id}`);
+  }
+
+  // Anyone named on the event hears about it directly, whether or not it's tied
+  // to a client — internal events used to notify nobody at all. The creator is
+  // excluded; they just scheduled it.
+  if (assignee_ids.length > 0) {
+    const { notifyUsers } = await import("@/lib/email");
+    const who = (await adminSenderName(session.user_id)) || "F1 Media";
+    await notifyUsers(
+      assignee_ids,
+      {
+        subject: `You're on a ${label}: ${title}`,
+        heading: type === "deadline" ? "You've been added to a deadline" : "You've been added to a meeting",
+        body: `${who} added you to "${title}" — ${when}.`,
+        ctaLabel: "Open calendar",
+        // "/" redirects by role, so this lands admins and client users in the
+        // right portal without us having to look each recipient's role up.
+        ctaPath: "/",
+      },
+      [session.user_id],
+    );
   }
   revalidatePath("/admin");
   revalidatePath("/admin/calendar");

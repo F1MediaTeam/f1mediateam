@@ -19,6 +19,7 @@ import { generateNarrative, resolveRange, aiConfigured } from "@/lib/deck/ai-nar
 import { buildGammaBrief } from "@/lib/deck/gamma-brief";
 import { createGeneration, gammaConfigured, generationUrl } from "@/lib/connectors/gamma";
 import { todayIso } from "@/lib/utils";
+import { APP_TZ } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const today = todayIso("America/Los_Angeles");
+  const today = todayIso(APP_TZ);
   const window = resolveRange(
     field(fd, "range") || "28d",
     field(fd, "from") || null,

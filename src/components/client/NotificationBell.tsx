@@ -4,6 +4,7 @@
 
 import { data } from "@/lib/data";
 import NotificationDropdown, { type NotificationItem } from "./NotificationDropdown";
+import { formatInTzWithZone } from "@/lib/timezone";
 
 interface Props {
   clientId: string;
@@ -11,8 +12,9 @@ interface Props {
   userId?: string;
 }
 
+// Rendered on the server, where the clock is UTC — always name the zone.
 function whenLabel(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+  return formatInTzWithZone(iso);
 }
 
 export default async function NotificationBell({ clientId, userId }: Props) {

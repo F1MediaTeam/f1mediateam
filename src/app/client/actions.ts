@@ -10,6 +10,7 @@ import { createClient as createSupabase, createServiceClient } from "@/lib/supab
 import { DISCLAIMER_VERSION } from "@/lib/types";
 import { notifyAdmins, clientCompanyName } from "@/lib/email";
 import { queueEvent } from "@/lib/notify-queue";
+import { formatInTzWithZone, wallTimeToUtcIso } from "@/lib/timezone";
 
 // Trim long user text for an email body without splitting mid-word badly.
 function excerpt(s: string, max = 200): string {
@@ -235,10 +236,14 @@ export async function createClientCalendarEventAction(formData: FormData) {
   const rawNotes = String(formData.get("notes") ?? "").trim();
   const notes = composeEventNotes(url, rawNotes);
   if (!title || !starts_at) return;
+  // Bare "YYYY-MM-DDTHH:mm" from the form — resolve it against Phoenix rather
+  // than the server's UTC clock, which would store it 7 hours early.
+  const startsAtUtc = wallTimeToUtcIso(starts_at);
+  if (!startsAtUtc) return;
   const created = await data.createCalendarEvent({
     client_id: session.client_id,
     title,
-    starts_at: new Date(starts_at).toISOString(),
+    starts_at: startsAtUtc,
     ends_at: null,
     notes,
     type,
@@ -258,23 +263,19 @@ export async function createClientCalendarEventAction(formData: FormData) {
       }
     }
     const name = (await clientCompanyName(session.client_id)) || "A client";
-    const when = new Date(starts_at).toLocaleString("en-US", {
-      timeZone: "America/Los_Angeles",
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
+    const when = formatInTzWithZone(startsAtUtc);
     await queueEvent(
       {
         client_id: session.client_id,
         audience: "admin",
         kind: type === "deadline" ? "calendar_deadline" : "calendar_meeting",
         title,
-        detail: `${when} (PT)`,
+        detail: when,
       },
       {
         subject: `${name} added a ${type} to the calendar`,
         heading: type === "deadline" ? "New deadline" : "New meeting",
-        body: `${name} scheduled "${title}" — ${when} (PT).`,
+        body: `${name} scheduled "${title}" — ${when}.`,
         ctaLabel: "Open calendar",
         ctaPath: "/admin/calendar",
       },

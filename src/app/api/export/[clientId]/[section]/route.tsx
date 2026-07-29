@@ -2,7 +2,7 @@
 // PDF with a brand cover page, KPI tiles, embedded charts, and a styled
 // data table.
 //
-// GET /api/export/<clientId>/<section>?from=YYYY-MM-DD&to=YYYY-MM-DD&tz=America/Los_Angeles
+// GET /api/export/<clientId>/<section>?from=YYYY-MM-DD&to=YYYY-MM-DD&tz=America/Phoenix
 //
 // Sections: tasks, calendar, content, content_events, metrics, audit, files,
 // onboarding, admin_access. Admin-only. Date range optional.
@@ -25,6 +25,7 @@ import {
 import { DashboardCard, LineChart, BarChart, DonutChart, GaugeGrid, PALETTE } from "@/lib/chart-pdf";
 import { todayIso } from "@/lib/utils";
 import { fetchClientOrganicKeywords, type OrganicKeyword } from "@/lib/connectors/semrush";
+import { APP_TZ } from "@/lib/timezone";
 import type {
   Task,
   CalendarEvent,
@@ -99,11 +100,11 @@ export async function GET(
   const sp = request.nextUrl.searchParams;
   const from = sp.get("from") || undefined;
   const to = sp.get("to") || undefined;
-  let tz = sp.get("tz") || "America/Los_Angeles";
+  let tz = sp.get("tz") || APP_TZ;
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: tz });
   } catch {
-    tz = "America/Los_Angeles";
+    tz = APP_TZ;
   }
 
   const client = await data.getClient(clientId);

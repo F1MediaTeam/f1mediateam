@@ -5,7 +5,8 @@ import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill } from "@/components/ui";
-import { formatDate, isoDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
+import { addDaysToKey, buildMonthGrid, tzDateKey, tzTodayKey } from "@/lib/timezone";
 import {
   createTaskAction,
   toggleTaskAction,
@@ -30,23 +31,6 @@ function dayBucket(due: string | null, today: string, tomorrow: string, weekEnd:
   return "later";
 }
 
-function buildMonth(today: Date) {
-  const first = new Date(today.getFullYear(), today.getMonth(), 1);
-  const startDay = first.getDay();
-  const start = new Date(first);
-  start.setDate(first.getDate() - startDay);
-  const days: string[] = [];
-  for (let i = 0; i < 42; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    days.push(isoDate(d));
-  }
-  return {
-    days,
-    monthLabel: today.toLocaleString("en-US", { month: "long", year: "numeric" }),
-    monthKey: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`,
-  };
-}
 
 const PALETTE = [
   { ring: "ring-emerald-400/50", text: "text-emerald-300", bg: "bg-emerald-500/10" },
@@ -67,13 +51,11 @@ export default async function AdminDashboard() {
   ]);
 
   // -------- tasks ----------
-  const today = isoDate();
-  const t = new Date();
-  t.setDate(t.getDate() + 1);
-  const tomorrow = isoDate(t);
-  const w = new Date();
-  w.setDate(w.getDate() + 7);
-  const weekEnd = isoDate(w);
+  // Phoenix dates, not the server's UTC ones: after 5pm local, a UTC "today"
+  // is already tomorrow and every bucket slides by a day.
+  const today = tzTodayKey();
+  const tomorrow = addDaysToKey(today, 1);
+  const weekEnd = addDaysToKey(today, 7);
 
   const buckets = {
     overdue: [] as typeof tasks,
@@ -89,7 +71,7 @@ export default async function AdminDashboard() {
     clients.find((c) => c.id === id)?.company_name ?? "—";
 
   // -------- calendar ----------
-  const { days, monthLabel, monthKey } = buildMonth(new Date());
+  const { days, monthLabel, monthKey } = buildMonthGrid();
   const colorForClient = (id: string | null) => {
     if (!id) return INTERNAL_COLOR;
     const idx = clients.findIndex((c) => c.id === id);
@@ -108,7 +90,7 @@ export default async function AdminDashboard() {
     };
   });
   const upcoming = [...events]
-    .filter((e) => e.starts_at.slice(0, 10) >= today)
+    .filter((e) => tzDateKey(e.starts_at) >= today)
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
     .slice(0, 8);
 
@@ -200,7 +182,7 @@ export default async function AdminDashboard() {
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium truncate">{e.title}</div>
                         <div className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1.5 mt-0.5 flex-wrap">
-                          <span><Time iso={e.starts_at} /></span>
+                          <span><Time iso={e.starts_at} withZone /></span>
                           <span>·</span>
                           <span className="truncate">{clientLabel}</span>
                           <Pill tone={e.type === "deadline" ? "warn" : "accent"}>{e.type}</Pill>

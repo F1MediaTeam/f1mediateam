@@ -137,6 +137,45 @@ export async function userDisplayName(userId: string): Promise<string | null> {
   }
 }
 
+/** Notify specific people by profile id — the assignees / cc list on a calendar
+ *  event, who were named explicitly and so are notified directly rather than
+ *  through the client-wide digest. Skips opt-outs and anyone in `exclude`
+ *  (normally the person who created the thing). Never throws. */
+export async function notifyUsers(
+  userIds: string[],
+  n: NotificationEmail,
+  exclude: string[] = [],
+): Promise<void> {
+  try {
+    const skip = new Set(exclude);
+    const targets = [...new Set(userIds)].filter((id) => id && !skip.has(id));
+    if (targets.length === 0) return;
+
+    const supabase = await createServiceClient();
+    const { data: people } = await supabase
+      .from("profiles")
+      .select("id,email")
+      .in("id", targets);
+    if (!people?.length) return;
+
+    const { data: prefs } = await supabase
+      .from("email_prefs")
+      .select("user_id,opted_out")
+      .in("user_id", people.map((p) => p.id));
+    const optedOut = new Set(
+      (prefs ?? []).filter((p) => p.opted_out).map((p) => p.user_id),
+    );
+
+    await Promise.all(
+      people
+        .filter((p) => p.email && !optedOut.has(p.id))
+        .map((p) => sendEmail(p.email as string, n)),
+    );
+  } catch (err) {
+    console.error("[email] notifyUsers failed:", err);
+  }
+}
+
 /** Notify every admin account. Used for client-initiated changes (approvals,
  *  change requests, messages, submissions) so the team can act fast. Honors
  *  each admin's email_prefs opt-out. Never throws. */

@@ -4,7 +4,7 @@ import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import Time from "@/components/shared/Time";
-import { isoDate } from "@/lib/utils";
+import { buildMonthGrid } from "@/lib/timezone";
 import {
   advanceContentAction,
   createContentAction,
@@ -78,18 +78,11 @@ export default async function AdminContent({
 
   // Calendar for the current month, colored per client and filtered by the same
   // ?client= chip as the board.
-  const now = new Date();
-  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const gridStart = new Date(firstOfMonth);
-  gridStart.setDate(firstOfMonth.getDate() - firstOfMonth.getDay());
-  const calDays: string[] = [];
-  for (let i = 0; i < 42; i++) {
-    const d = new Date(gridStart);
-    d.setDate(gridStart.getDate() + i);
-    calDays.push(isoDate(d));
-  }
-  const calMonthLabel = now.toLocaleString("en-US", { month: "long", year: "numeric" });
-  const calMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const {
+    days: calDays,
+    monthLabel: calMonthLabel,
+    monthKey: calMonthKey,
+  } = buildMonthGrid();
   const calEvents: CalEvent[] = calendarEvents.map((e) => ({
     id: e.id,
     title: e.title,

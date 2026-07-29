@@ -11,6 +11,7 @@ import { data } from "@/lib/data";
 import { fieldyConfigured, fieldyMeetingsInWindow } from "@/lib/connectors/fieldy";
 import { resolveRange, meetingMatchesClient } from "@/lib/deck/ai-narrative";
 import { todayIso } from "@/lib/utils";
+import { APP_TZ } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,7 @@ export async function GET(
   // the same window the deck will pull, not all-time. Same range resolution
   // as /api/monthly-report, including anchoring "since_last" to the client's
   // previous meeting (falls back to 28d when no meeting is on record).
-  const today = todayIso("America/Los_Angeles");
+  const today = todayIso(APP_TZ);
   const sp = req.nextUrl.searchParams;
   const rawRange = sp.get("range") || "28d";
   let window;

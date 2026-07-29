@@ -4,6 +4,7 @@
 // a proper screen-centered popup over a dimmed backdrop. Closes on backdrop
 // click, the × button, Escape, or after submitting.
 
+import { APP_TZ_LABEL } from "@/lib/timezone";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
 import FileDropZone from "@/components/shared/FileDropZone";
@@ -72,7 +73,12 @@ export default function CalendarAddModal({ action }: Props) {
                 <option value="meeting">Meeting</option>
                 <option value="deadline">Deadline</option>
               </select>
-              <input name="starts_at" type="datetime-local" required className={field} />
+              <label className="block">
+                <span className="mb-1.5 block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)]">
+                  Starts — Phoenix time ({APP_TZ_LABEL})
+                </span>
+                <input name="starts_at" type="datetime-local" required className={field} />
+              </label>
               <input
                 name="url"
                 type="url"

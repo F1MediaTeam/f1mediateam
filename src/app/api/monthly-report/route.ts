@@ -21,6 +21,7 @@ import { fieldyMeetingsInWindow, fieldyConfigured } from "@/lib/connectors/field
 import { fetchClientGscPages, fetchClientGscQueries, fetchClientGscBreakdown } from "@/lib/connectors/gsc";
 import { fetchGa4Channels, fetchGa4LandingPages } from "@/lib/connectors/ga4";
 import { todayIso } from "@/lib/utils";
+import { APP_TZ, tzDateKey } from "@/lib/timezone";
 import { generateDeck, type BrandConfig, type MonthlyContent } from "@/lib/deck/f1-monthly/deck-builder";
 import { inlineWorkGalleryImages } from "@/lib/deck/f1-monthly/gallery-images";
 import { normalizeMonthlyContent } from "@/lib/deck/f1-monthly/normalize-content";
@@ -321,7 +322,7 @@ export async function POST(request: NextRequest) {
   const client = await data.getClient(clientId);
   if (!client) return new Response("Client not found", { status: 404 });
 
-  const today = todayIso("America/Los_Angeles");
+  const today = todayIso(APP_TZ);
 
   // Onboarding early: brand colors/fonts and the client profile both read it.
   const onboardingRow = await data.getOnboarding(clientId);
@@ -990,14 +991,17 @@ export async function POST(request: NextRequest) {
         .map((t) => ({ title: t.title, due: t.due_date })),
     },
     calendar: {
+      // Bucket by the Phoenix date, not the UTC one — an evening event would
+      // otherwise be reported on the following day, and at a month boundary in
+      // the following period entirely.
       thisPeriod: calendarEvents
-        .filter((e) => e.starts_at.slice(0, 10) >= window.fromIso && e.starts_at.slice(0, 10) <= window.toIso)
+        .filter((e) => tzDateKey(e.starts_at) >= window.fromIso && tzDateKey(e.starts_at) <= window.toIso)
         .slice(0, 15)
-        .map((e) => ({ title: e.title, type: e.type, date: e.starts_at.slice(0, 10) })),
+        .map((e) => ({ title: e.title, type: e.type, date: tzDateKey(e.starts_at) })),
       upcoming: calendarEvents
-        .filter((e) => e.starts_at.slice(0, 10) > today)
+        .filter((e) => tzDateKey(e.starts_at) > today)
         .slice(0, 10)
-        .map((e) => ({ title: e.title, type: e.type, date: e.starts_at.slice(0, 10) })),
+        .map((e) => ({ title: e.title, type: e.type, date: tzDateKey(e.starts_at) })),
     },
     engagement: {
       lastClientLogin: loginAudit[0]?.logged_in_at?.slice(0, 10) ?? null,

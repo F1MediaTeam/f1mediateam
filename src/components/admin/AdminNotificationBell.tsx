@@ -3,9 +3,11 @@
 
 import { data } from "@/lib/data";
 import NotificationDropdown, { type NotificationItem } from "@/components/client/NotificationDropdown";
+import { formatInTzWithZone } from "@/lib/timezone";
 
+// Rendered on the server, where the clock is UTC — always name the zone.
 function whenLabel(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+  return formatInTzWithZone(iso);
 }
 
 export default async function AdminNotificationBell({ userId }: { userId: string }) {

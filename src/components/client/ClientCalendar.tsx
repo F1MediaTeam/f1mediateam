@@ -11,7 +11,7 @@ import CalendarAddModal from "@/components/client/CalendarAddModal";
 import { rescheduleClientCalendarAction } from "@/app/client/actions";
 import CalendarMonth, { type CalEvent } from "@/components/shared/CalendarMonth";
 import { data } from "@/lib/data";
-import { isoDate } from "@/lib/utils";
+import { buildMonthGrid } from "@/lib/timezone";
 import type { CalendarEvent } from "@/lib/types";
 
 export default async function ClientCalendar({
@@ -30,18 +30,7 @@ export default async function ClientCalendar({
 
   // Month grid for the current month: 6 rows × 7 days, padded from the Sunday
   // before the 1st so the columns line up under the weekday headings.
-  const now = new Date();
-  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const gridStart = new Date(firstOfMonth);
-  gridStart.setDate(firstOfMonth.getDate() - firstOfMonth.getDay());
-  const days: string[] = [];
-  for (let i = 0; i < 42; i++) {
-    const d = new Date(gridStart);
-    d.setDate(gridStart.getDate() + i);
-    days.push(isoDate(d));
-  }
-  const monthLabel = now.toLocaleString("en-US", { month: "long", year: "numeric" });
-  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const { days, monthLabel, monthKey } = buildMonthGrid();
 
   const calEvents: CalEvent[] = events.map((e) => ({
     id: e.id,

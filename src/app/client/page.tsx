@@ -114,7 +114,7 @@ export default async function ClientHome() {
               upcomingMeetings.map((e) => (
                 <div key={e.id} className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2.5 text-sm">
                   <span>{e.title}</span>
-                  <span className="font-mono text-xs text-[var(--color-text-muted)]"><Time iso={e.starts_at} /></span>
+                  <span className="font-mono text-xs text-[var(--color-text-muted)]"><Time iso={e.starts_at} withZone /></span>
                 </div>
               ))
             )}

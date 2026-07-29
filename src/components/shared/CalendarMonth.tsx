@@ -9,14 +9,18 @@
 // - Clicking any event — in a cell or in the day list — opens a detail popup
 //   with the time, type, client, notes, link, and attachment count.
 //
-// "Today" is computed in the browser's local timezone: the server runs in UTC,
-// so a server-computed "today" can be off by a day for the viewer.
+// Every date here is a Phoenix date. Two traps this avoids:
+//   * `starts_at.slice(0, 10)` is the UTC date, so anything from 5pm Phoenix
+//     onward would be filed under tomorrow.
+//   * "Today" from the server is UTC's today, and from the browser it's the
+//     viewer's today. Both can disagree with Phoenix, so we ask for Phoenix
+//     explicitly — which also means server and client render identically.
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { X, Calendar as CalIcon, ExternalLink, Paperclip } from "lucide-react";
 import { parseEventNotes } from "@/lib/calendar-event-url";
-import { useHydrated } from "@/lib/use-hydrated";
+import { formatInTzWithZone, tzDateKey, tzTodayKey, wallTimeToUtcIso, utcIsoToWallTime } from "@/lib/timezone";
 
 export interface CalEvent {
   id: string;
@@ -36,13 +40,8 @@ export interface CalEvent {
   accentColor?: string;
 }
 
-function localIsoToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 function fmtDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
+  return formatInTzWithZone(iso, {
     weekday: "short",
     month: "long",
     day: "numeric",
@@ -88,22 +87,27 @@ export default function CalendarMonth({
   reschedule?: (id: string, newStartIso: string) => Promise<{ error: string | null }>;
 }) {
   const router = useRouter();
-  const hydrated = useHydrated();
-  const todayIso = hydrated ? localIsoToday() : "";
+  const todayIso = tzTodayKey();
   const [selected, setSelected] = useState<string | null>(null);
   const [openEvent, setOpenEvent] = useState<CalEvent | null>(null);
 
   // Local copy so a drag reschedules optimistically; re-synced when the server
   // sends fresh events after router.refresh().
   const [items, setItems] = useState(events);
-  useEffect(() => setItems(events), [events]);
+  // Re-sync during render rather than in an effect: an effect would paint the
+  // stale list first, so a reverted drag would visibly flicker back.
+  const [lastEvents, setLastEvents] = useState(events);
+  if (events !== lastEvents) {
+    setLastEvents(events);
+    setItems(events);
+  }
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
   const byDay = new Map<string, CalEvent[]>();
   for (const e of items) {
-    const key = e.starts_at.slice(0, 10);
+    const key = tzDateKey(e.starts_at);
     const arr = byDay.get(key) ?? [];
     arr.push(e);
     byDay.set(key, arr);
@@ -115,9 +119,13 @@ export default function CalendarMonth({
     setDragId(null);
     if (!id || !reschedule) return;
     const ev = items.find((e) => e.id === id);
-    if (!ev || ev.starts_at.slice(0, 10) === targetKey) return;
-    // Keep the time-of-day, swap only the date — same slice the grid groups by.
-    const newStart = `${targetKey}${ev.starts_at.slice(10)}`;
+    if (!ev || tzDateKey(ev.starts_at) === targetKey) return;
+    // Keep the Phoenix time-of-day and move only the Phoenix date, then convert
+    // back to UTC. Splicing the UTC time onto the new key would shift an
+    // evening event by a day, since its UTC date is already tomorrow.
+    const wallTime = utcIsoToWallTime(ev.starts_at).slice(11); // "HH:mm"
+    const newStart = wallTimeToUtcIso(`${targetKey}T${wallTime}`);
+    if (!newStart) return;
     const prev = items;
     setItems((list) => list.map((e) => (e.id === id ? { ...e, starts_at: newStart } : e)));
     setNote(null);

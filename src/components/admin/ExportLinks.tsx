@@ -5,6 +5,7 @@
 // generated XLSX renders in the viewer's local time.
 
 import { useMemo } from "react";
+import { APP_TZ } from "@/lib/timezone";
 
 interface Props {
   clientId: string;
@@ -21,7 +22,7 @@ export default function ExportLinks({ clientId, fromIso, toIso, spFrom, spTo, ra
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone;
     } catch {
-      return "America/Los_Angeles";
+      return APP_TZ;
     }
   }, []);
 

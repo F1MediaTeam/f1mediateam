@@ -1,28 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui";
 
-// Admin-only HTML previewer + editor + downloader. Paste, upload, or drop HTML,
-// see it render live, optionally type straight into the preview, then download
-// the result. No network or server round-trip — everything happens in-browser.
+// Admin-only HTML previewer + WYSIWYG editor + downloader. Paste, upload, or drop
+// HTML and the live preview is immediately editable — type in it, restyle it,
+// drop in images and links — and every change writes straight back to the code.
+// No network or server round-trip: everything happens in the browser.
 //
-// Two preview modes, and the sandbox differs between them on purpose:
-//
-//   "preview"  scripts run, but the frame has no same-origin access, so pasted
-//              HTML can never reach the admin app's cookies or DOM.
-//   "edit"     we need contentDocument access to turn on designMode, which means
-//              allow-same-origin — so allow-scripts is dropped. Untrusted markup
-//              gets no way to execute while it can see our origin.
-//
-// Never grant allow-scripts and allow-same-origin together here: that combination
-// lets the previewed document script the admin app itself.
-const SANDBOX = {
-  preview: "allow-scripts allow-modals allow-forms allow-popups",
-  edit: "allow-same-origin",
-} as const;
+// The preview is always editable, which forces the sandbox: designMode needs
+// contentDocument access, so the frame gets allow-same-origin. That means
+// allow-scripts must never be added — the pair would let pasted markup script
+// the admin app itself. Scripts in the previewed page therefore never run here;
+// they're still preserved in the code and in the download.
+const SANDBOX = "allow-same-origin";
 
-type Mode = keyof typeof SANDBOX;
 type Status = "idle" | "typing" | "editing" | "synced";
 
 const STATUS_TEXT: Record<Status, string> = {
@@ -32,32 +24,14 @@ const STATUS_TEXT: Record<Status, string> = {
   synced: "In sync",
 };
 
-const SWATCHES = [
-  { hex: "#16202a", label: "Near black" },
-  { hex: "#5d6e7c", label: "Grey" },
-  { hex: "#c0392b", label: "Red" },
-  { hex: "#b3541e", label: "Rust" },
-  { hex: "#3f8e84", label: "Brand teal" },
-  { hex: "#1f6fb2", label: "Blue" },
-  { hex: "#6b4fa8", label: "Violet" },
-  { hex: "#ffffff", label: "White" },
-];
-
 const BLOCKS = [
   { value: "p", label: "Paragraph" },
   { value: "h1", label: "Heading 1" },
   { value: "h2", label: "Heading 2" },
   { value: "h3", label: "Heading 3" },
+  { value: "h4", label: "Heading 4" },
   { value: "blockquote", label: "Quote" },
   { value: "pre", label: "Code block" },
-];
-
-const SIZES = [
-  { value: "1", label: "Tiny" },
-  { value: "2", label: "Small" },
-  { value: "3", label: "Normal" },
-  { value: "5", label: "Large" },
-  { value: "7", label: "Huge" },
 ];
 
 // Stacks rather than single faces, so the downloaded file still renders sanely
@@ -82,26 +56,52 @@ const STARTER = `<!DOCTYPE html>
 </head>
 <body>
   <h1>Edit me in the preview</h1>
-  <p>Turn on <b>Edit preview</b>, then click this sentence and start typing.</p>
+  <p>Click this sentence and start typing — the code on the left updates as you go.</p>
 </body>
 </html>`;
 
+// Chromium-only screen colour sampler. Feature-detected before use.
+type EyeDropperInstance = { open: () => Promise<{ sRGBHex: string }> };
+declare global {
+  interface Window {
+    EyeDropper?: new () => EyeDropperInstance;
+  }
+}
+
+function toHex(color: string, fallback: string) {
+  const m = color.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+  if (!m) return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
+  return `#${[m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, "0")).join("")}`;
+}
+
 export default function HtmlTools() {
   const [html, setHtml] = useState(STARTER);
-  // What the preview frame actually shows. Lags `html` by a debounce so typing
-  // in the code pane doesn't reload the iframe on every keystroke.
-  const [rendered, setRendered] = useState(STARTER);
+  // What the frame is seeded with. Only changes on a deliberate reseed — driving
+  // srcDoc off `html` would reload the document on every keystroke and yank the
+  // cursor out of the preview.
+  const [seed, setSeed] = useState(STARTER);
+  const [frameKey, setFrameKey] = useState(0);
   const [filename, setFilename] = useState("page.html");
-  const [mode, setMode] = useState<Mode>("preview");
   const [status, setStatus] = useState<Status>("synced");
-  const [color, setColor] = useState("#3f8e84");
+  const [fontColor, setFontColor] = useState("#16202a");
+  const [markerColor, setMarkerColor] = useState("#ffe27a");
+  const [sizePx, setSizePx] = useState(16);
   const [dropping, setDropping] = useState(false);
-  // Bumping this remounts the edit frame, reseeding it from the code pane.
-  const [editKey, setEditKey] = useState(0);
+  // Chromium-only, and absent during SSR — read it as an external value so the
+  // server and first client render agree.
+  const hasEyeDropper = useSyncExternalStore(
+    () => () => {},
+    () => typeof window.EyeDropper === "function",
+    () => false,
+  );
+  // Set while an <img> in the preview is selected, which reveals its controls.
+  const [imageWidth, setImageWidth] = useState<number | null>(null);
 
   const fileInput = useRef<HTMLInputElement>(null);
+  const imageInput = useRef<HTMLInputElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const savedRange = useRef<Range | null>(null);
+  const selectedImage = useRef<HTMLImageElement | null>(null);
   const renderTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
@@ -113,21 +113,27 @@ export default function HtmlTools() {
 
   const frameDoc = () => frame.current?.contentDocument ?? null;
 
-  // Read the edit frame back out as a complete HTML document.
+  // Read the frame back out as a complete HTML document. The selection outline we
+  // paint on a clicked image is ours, not the user's — drop it while serializing
+  // so it never reaches the code pane or the download.
   const serialize = useCallback(() => {
     const doc = frameDoc();
     if (!doc?.documentElement) return null;
+    const marked = selectedImage.current;
+    marked?.style.removeProperty("outline");
     const type = doc.doctype;
     const prefix = type
       ? `<!DOCTYPE ${type.name}${type.publicId ? ` PUBLIC "${type.publicId}"` : ""}${
           type.systemId ? `${type.publicId ? "" : " SYSTEM"} "${type.systemId}"` : ""
         }>\n`
       : "";
-    return prefix + doc.documentElement.outerHTML;
+    const out = prefix + doc.documentElement.outerHTML;
+    if (marked) marked.style.outline = "2px solid #3f8e84";
+    return out;
   }, []);
 
-  // Preview -> code. Deliberately does not touch `rendered`: rewriting the
-  // frame's own srcDoc mid-edit would reload it and drop the cursor.
+  // Preview -> code. Deliberately leaves `seed` alone so the frame isn't reloaded
+  // out from under the cursor.
   const syncFromFrame = useCallback(() => {
     const next = serialize();
     if (next === null) return;
@@ -135,86 +141,216 @@ export default function HtmlTools() {
     setStatus("synced");
   }, [serialize]);
 
+  // Track the caret so toolbar clicks (which blur the frame) can restore it, and
+  // mirror the selection's own font size / colour back into the rail.
   const rememberSelection = useCallback(() => {
-    const sel = frameDoc()?.getSelection();
-    if (sel?.rangeCount) savedRange.current = sel.getRangeAt(0).cloneRange();
+    const doc = frameDoc();
+    const sel = doc?.getSelection();
+    if (!doc || !sel?.rangeCount) return;
+    savedRange.current = sel.getRangeAt(0).cloneRange();
+
+    const node = sel.anchorNode;
+    const el = (node?.nodeType === 1 ? node : node?.parentElement) as HTMLElement | null;
+    if (!el) return;
+    const style = frame.current?.contentWindow?.getComputedStyle(el);
+    if (!style) return;
+    const px = Math.round(parseFloat(style.fontSize));
+    if (Number.isFinite(px)) setSizePx(px);
+    setFontColor((prev) => toHex(style.color, prev));
   }, []);
 
-  const markEditing = useCallback(() => setStatus("editing"), []);
+  function selectImage(img: HTMLImageElement | null) {
+    selectedImage.current?.style.removeProperty("outline");
+    selectedImage.current = img;
+    if (!img) {
+      setImageWidth(null);
+      return;
+    }
+    img.style.outline = "2px solid #3f8e84";
+    setImageWidth(Math.round(img.getBoundingClientRect().width) || null);
+  }
 
   // Wire up designMode once the seeded document has parsed.
-  function onEditFrameLoad() {
+  function onFrameLoad() {
     const doc = frameDoc();
     if (!doc) return;
     doc.designMode = "on";
     doc.execCommand("styleWithCSS", false, "true"); // inline styles, not <font> tags
-    doc.addEventListener("input", markEditing);
-    doc.addEventListener("input", syncFromFrame);
+    doc.addEventListener("input", () => {
+      setStatus("editing");
+      syncFromFrame();
+    });
     doc.addEventListener("selectionchange", rememberSelection);
     doc.addEventListener("mouseup", rememberSelection);
+    doc.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement | null;
+      selectImage(target?.tagName === "IMG" ? (target as HTMLImageElement) : null);
+    });
     frame.current?.contentWindow?.focus();
   }
 
-  // Run a formatting command against the current selection in the edit frame.
-  function exec(command: string, value?: string) {
+  // Put the caret back where it was, since clicking a control blurs the frame.
+  function focusSelection() {
     const doc = frameDoc();
-    if (!doc || mode !== "edit") return;
-
+    if (!doc) return null;
     frame.current?.contentWindow?.focus();
-    // Clicking a toolbar control blurs the frame; put the selection back first.
     const sel = doc.getSelection();
     if (savedRange.current && sel) {
       sel.removeAllRanges();
       sel.addRange(savedRange.current);
     }
+    return doc;
+  }
 
+  // Run a formatting command against the current selection.
+  function exec(command: string, value?: string) {
+    const doc = focusSelection();
+    if (!doc) return;
     doc.execCommand("styleWithCSS", false, "true");
     doc.execCommand(command, false, value);
     rememberSelection();
     syncFromFrame();
   }
 
-  // Point the preview at `next` and reseed the edit frame if it's open.
-  const reseed = useCallback((next: string, editable: boolean) => {
-    setRendered(next);
-    savedRange.current = null;
-    if (editable) setEditKey((k) => k + 1);
-    setStatus(next.trim() ? "synced" : "idle");
-  }, []);
+  // execCommand("fontSize") only speaks the legacy 1–7 scale, so ask it for
+  // <font size="7"> tags and rewrite the ones it just made into real px spans.
+  function applyFontSize(px: number) {
+    const doc = focusSelection();
+    if (!doc || !Number.isFinite(px)) return;
+    const size = Math.min(400, Math.max(1, Math.round(px)));
+    setSizePx(size); // the stepper buttons drive this, so reflect it right away
 
-  function toggleMode() {
-    if (mode === "edit") {
-      const current = serialize() ?? html; // don't lose the last keystroke
-      setHtml(current);
-      setRendered(current);
-      savedRange.current = null;
-      setMode("preview");
-      setStatus(current.trim() ? "synced" : "idle");
+    // Re-styling text we already sized: just update the span in place, so
+    // stepping the control doesn't nest a new wrapper on every click.
+    const range = savedRange.current;
+    const host = (
+      range?.commonAncestorContainer.nodeType === 1
+        ? range.commonAncestorContainer
+        : range?.commonAncestorContainer.parentElement
+    ) as HTMLElement | null;
+    const owned = host?.closest("span[data-fs]") as HTMLElement | null;
+    if (owned && range && owned.textContent === range.toString()) {
+      owned.style.fontSize = `${size}px`;
+      syncFromFrame();
       return;
     }
-    setMode("edit");
-    reseed(html, true);
+
+    const before = new Set(doc.querySelectorAll('font[size="7"]'));
+    doc.execCommand("styleWithCSS", false, "false");
+    doc.execCommand("fontSize", false, "7");
+    doc.execCommand("styleWithCSS", false, "true");
+
+    doc.querySelectorAll('font[size="7"]').forEach((node) => {
+      if (before.has(node)) return; // pre-existing markup from the pasted page
+      const span = doc.createElement("span");
+      span.dataset.fs = "";
+      span.style.fontSize = `${size}px`;
+      while (node.firstChild) span.appendChild(node.firstChild);
+      node.replaceWith(span);
+    });
+
+    rememberSelection();
+    syncFromFrame();
   }
+
+  async function pickColor(apply: (hex: string) => void) {
+    if (!window.EyeDropper) return;
+    try {
+      const { sRGBHex } = await new window.EyeDropper().open();
+      apply(sRGBHex);
+    } catch {
+      // user pressed Escape — nothing to do
+    }
+  }
+
+  function insertLink() {
+    const doc = frameDoc();
+    if (!doc) return;
+    const selected = savedRange.current?.toString() ?? "";
+    const url = window.prompt("Link URL", "https://");
+    if (!url) return;
+    const safe = /^(https?:|mailto:|tel:|#|\/)/i.test(url) ? url : `https://${url}`;
+    if (selected) exec("createLink", safe);
+    else
+      exec(
+        "insertHTML",
+        `<a href="${safe.replace(/"/g, "&quot;")}">${safe.replace(/[<>&]/g, "")}</a>`,
+      );
+  }
+
+  function insertImageUrl() {
+    const url = window.prompt("Image URL", "https://");
+    if (url) exec("insertImage", url);
+  }
+
+  async function onInsertImageFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    // Inlined as a data URI so the downloaded .html stays self-contained.
+    const dataUri = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+    exec("insertImage", dataUri);
+  }
+
+  function resizeImage(px: number) {
+    const img = selectedImage.current;
+    if (!img || !Number.isFinite(px)) return;
+    const width = Math.max(8, Math.round(px));
+    img.style.width = `${width}px`;
+    img.style.height = "auto";
+    setImageWidth(width);
+    syncFromFrame();
+  }
+
+  function alignImage(value: "left" | "center" | "right") {
+    const img = selectedImage.current;
+    if (!img) return;
+    img.style.display = value === "center" ? "block" : "inline";
+    img.style.float = value === "center" ? "none" : value;
+    img.style.margin = value === "center" ? "12px auto" : "12px";
+    syncFromFrame();
+  }
+
+  function removeImage() {
+    const img = selectedImage.current;
+    if (!img) return;
+    selectImage(null);
+    img.remove();
+    syncFromFrame();
+  }
+
+  // Point the preview at `next`, remounting the frame so designMode re-arms.
+  const reseed = useCallback((next: string) => {
+    setSeed(next);
+    savedRange.current = null;
+    selectedImage.current = null;
+    setImageWidth(null);
+    setFrameKey((k) => k + 1);
+    setStatus(next.trim() ? "synced" : "idle");
+  }, []);
 
   function onSourceChange(next: string) {
     setHtml(next);
     setStatus(next.trim() ? "typing" : "idle");
-    // Typing in the code pane wins: re-render (and reseed the editable frame)
-    // once typing settles.
+    // Typing in the code pane wins: re-render the preview once typing settles.
     if (renderTimer.current) clearTimeout(renderTimer.current);
-    const editable = mode === "edit";
-    renderTimer.current = setTimeout(() => reseed(next, editable), 220);
+    renderTimer.current = setTimeout(() => reseed(next), 300);
   }
 
   function load(next: string, name?: string) {
     if (renderTimer.current) clearTimeout(renderTimer.current);
     setHtml(next);
     if (name) setFilename(name);
-    reseed(next, mode === "edit");
+    reseed(next);
   }
 
   function download() {
-    const current = mode === "edit" ? (serialize() ?? html) : html;
+    const current = serialize() ?? html;
     const name = (filename.trim() || "page.html").replace(/[^\w.-]+/g, "-");
     const withExt = /\.html?$/i.test(name) ? name : `${name}.html`;
     const blob = new Blob([current], { type: "text/html;charset=utf-8" });
@@ -231,7 +367,7 @@ export default function HtmlTools() {
   async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) load(await file.text(), file.name);
-    e.target.value = ""; // allow re-uploading the same file
+    e.target.value = "";
   }
 
   async function onDrop(e: React.DragEvent) {
@@ -241,7 +377,6 @@ export default function HtmlTools() {
     if (file) load(await file.text(), file.name);
   }
 
-  const editing = mode === "edit";
   const empty = !html.trim();
 
   const pane =
@@ -249,11 +384,18 @@ export default function HtmlTools() {
   const bar =
     "flex min-h-[46px] flex-wrap items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2";
   const label =
-    "text-[10.5px] font-mono uppercase tracking-[0.13em] text-[var(--color-text-muted)]";
+    "font-mono text-[10.5px] uppercase tracking-[0.13em] text-[var(--color-text-muted)]";
   const tool =
-    "inline-grid h-[30px] min-w-8 place-items-center rounded-md border border-transparent px-2 text-xs leading-none text-[var(--color-text)] hover:border-[var(--color-border)] hover:bg-[var(--color-bg-hover)] disabled:opacity-40 disabled:hover:border-transparent disabled:hover:bg-transparent";
+    "inline-grid h-[30px] min-w-8 place-items-center rounded-md border border-transparent px-2 text-xs leading-none text-[var(--color-text)] hover:border-[var(--color-border)] hover:bg-[var(--color-bg-hover)]";
   const picker =
-    "h-[30px] rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-border-strong)] disabled:opacity-40";
+    "h-[30px] rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-1.5 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-border-strong)]";
+  const numeric = `${picker} w-14 text-center font-mono`;
+  const well =
+    "relative inline-grid h-[30px] w-[30px] place-items-center overflow-hidden rounded-md border border-[var(--color-border)]";
+  const wellInput =
+    "absolute -inset-2 h-[150%] w-[150%] cursor-pointer border-0 bg-transparent p-0";
+  const divider = "mx-1 h-5 w-px bg-[var(--color-border)]";
+  const stop = (e: React.MouseEvent) => e.preventDefault();
 
   return (
     <div className="flex flex-col gap-4">
@@ -309,53 +451,35 @@ export default function HtmlTools() {
         {/* ---------------- preview ---------------- */}
         <section className={`${pane} border-[var(--color-border)]`}>
           <div className={bar}>
-            <span className={`${label} mr-auto`}>Live preview</span>
-            <button
-              type="button"
-              onClick={toggleMode}
-              aria-pressed={editing}
-              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                editing
-                  ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-text)]"
-                  : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-border-strong)]"
-              }`}
-            >
-              <span
-                aria-hidden="true"
-                className={`h-2 w-2 rounded-full ${
-                  editing ? "bg-[var(--color-accent)]" : "bg-[var(--color-text-subtle)]"
-                }`}
-              />
-              Edit preview
-            </button>
+            <span className={`${label} mr-auto`}>Live preview — editable</span>
+            <span className="font-mono text-[10.5px] uppercase tracking-[0.13em] text-[var(--color-accent)]">
+              Click anywhere and type
+            </span>
           </div>
 
-          {/* Formatting rail — only meaningful while the frame is editable */}
+          {/* Formatting rail */}
           <div
             role="toolbar"
             aria-label="Formatting"
-            className={`flex flex-wrap items-center gap-1.5 border-b border-[var(--color-border)] px-3 py-2 ${
-              editing ? "" : "opacity-45"
-            }`}
+            className="flex flex-wrap items-center gap-1.5 border-b border-[var(--color-border)] px-3 py-2"
           >
-            <button type="button" className={`${tool} font-bold`} disabled={!editing} title="Bold" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("bold")}>
+            <button type="button" className={`${tool} font-bold`} title="Bold" onMouseDown={stop} onClick={() => exec("bold")}>
               B
             </button>
-            <button type="button" className={`${tool} font-serif italic`} disabled={!editing} title="Italic" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("italic")}>
+            <button type="button" className={`${tool} font-serif italic`} title="Italic" onMouseDown={stop} onClick={() => exec("italic")}>
               I
             </button>
-            <button type="button" className={`${tool} underline`} disabled={!editing} title="Underline" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("underline")}>
+            <button type="button" className={`${tool} underline`} title="Underline" onMouseDown={stop} onClick={() => exec("underline")}>
               U
             </button>
-            <button type="button" className={`${tool} line-through`} disabled={!editing} title="Strikethrough" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("strikeThrough")}>
+            <button type="button" className={`${tool} line-through`} title="Strikethrough" onMouseDown={stop} onClick={() => exec("strikeThrough")}>
               S
             </button>
 
-            <span aria-hidden="true" className="mx-1 h-5 w-px bg-[var(--color-border)]" />
+            <span aria-hidden="true" className={divider} />
 
             <select
               className={picker}
-              disabled={!editing}
               value=""
               aria-label="Text style"
               onMouseDown={rememberSelection}
@@ -374,7 +498,6 @@ export default function HtmlTools() {
 
             <select
               className={picker}
-              disabled={!editing}
               value=""
               aria-label="Font"
               onMouseDown={rememberSelection}
@@ -391,104 +514,204 @@ export default function HtmlTools() {
               ))}
             </select>
 
-            <select
-              className={picker}
-              disabled={!editing}
-              value=""
-              aria-label="Text size"
-              onMouseDown={rememberSelection}
-              onChange={(e) => {
-                if (e.target.value) exec("fontSize", e.target.value);
-                e.target.value = "";
-              }}
-            >
-              <option value="">Size…</option>
-              {SIZES.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-
-            <span aria-hidden="true" className="mx-1 h-5 w-px bg-[var(--color-border)]" />
-
-            <span className={label}>Color</span>
-            {SWATCHES.map((s) => (
-              <button
-                key={s.hex}
-                type="button"
-                title={`Text colour — ${s.label}`}
-                aria-label={`Text colour ${s.label}`}
-                disabled={!editing}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  setColor(s.hex);
-                  exec("foreColor", s.hex);
+            {/* exact px size */}
+            <span className="inline-flex items-center gap-1">
+              <button type="button" className={tool} title="Smaller" onMouseDown={stop} onClick={() => applyFontSize(sizePx - 1)}>
+                −
+              </button>
+              <input
+                type="number"
+                min={1}
+                max={400}
+                value={sizePx}
+                aria-label="Font size in pixels"
+                className={numeric}
+                onMouseDown={rememberSelection}
+                onChange={(e) => setSizePx(Number(e.target.value))}
+                onBlur={() => applyFontSize(sizePx)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    applyFontSize(sizePx);
+                  }
                 }}
-                className="h-5 w-5 rounded-full border border-[var(--color-border-strong)] disabled:opacity-40"
-                style={{ background: s.hex }}
               />
-            ))}
-            <label
-              className="relative inline-grid h-[30px] w-[30px] place-items-center overflow-hidden rounded-md border border-[var(--color-border)]"
-              title="Custom text colour"
-            >
+              <span className={label}>px</span>
+              <button type="button" className={tool} title="Larger" onMouseDown={stop} onClick={() => applyFontSize(sizePx + 1)}>
+                +
+              </button>
+            </span>
+
+            <span aria-hidden="true" className={divider} />
+
+            {/* colour: full wheel via the OS picker, plus a screen eyedropper */}
+            <label className={well} title="Text colour">
+              <span className="pointer-events-none absolute bottom-0.5 text-[9px] font-bold leading-none">
+                A
+              </span>
               <input
                 type="color"
-                value={color}
-                disabled={!editing}
+                value={fontColor}
+                aria-label="Text colour"
                 onMouseDown={(e) => e.stopPropagation()}
                 onChange={(e) => {
-                  setColor(e.target.value);
+                  setFontColor(e.target.value);
                   exec("foreColor", e.target.value);
                 }}
-                className="absolute -inset-2 h-[150%] w-[150%] cursor-pointer border-0 bg-transparent p-0 disabled:cursor-not-allowed"
+                className={wellInput}
               />
             </label>
-            <button type="button" className={tool} disabled={!editing} title="Highlight" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("hiliteColor", "#ffe27a")}>
-              ▮
+            <label className={well} title="Highlight colour">
+              <input
+                type="color"
+                value={markerColor}
+                aria-label="Highlight colour"
+                onMouseDown={(e) => e.stopPropagation()}
+                onChange={(e) => {
+                  setMarkerColor(e.target.value);
+                  exec("hiliteColor", e.target.value);
+                }}
+                className={wellInput}
+              />
+            </label>
+            <button
+              type="button"
+              className={tool}
+              title={
+                hasEyeDropper
+                  ? "Eyedropper — sample any colour on screen for the text"
+                  : "Eyedropper needs Chrome or Edge"
+              }
+              disabled={!hasEyeDropper}
+              onMouseDown={stop}
+              onClick={() =>
+                pickColor((hex) => {
+                  setFontColor(hex);
+                  exec("foreColor", hex);
+                })
+              }
+            >
+              ⌖
             </button>
 
-            <span aria-hidden="true" className="mx-1 h-5 w-px bg-[var(--color-border)]" />
+            <span aria-hidden="true" className={divider} />
 
-            <button type="button" className={tool} disabled={!editing} title="Clear formatting" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("removeFormat")}>
+            {/* insert */}
+            <button type="button" className={tool} title="Insert link" onMouseDown={stop} onClick={insertLink}>
+              🔗
+            </button>
+            <button type="button" className={tool} title="Remove link" onMouseDown={stop} onClick={() => exec("unlink")}>
+              ⛓
+            </button>
+            <button
+              type="button"
+              className={tool}
+              title="Insert image from a file (embedded in the HTML)"
+              onMouseDown={stop}
+              onClick={() => imageInput.current?.click()}
+            >
+              🖼
+            </button>
+            <input
+              ref={imageInput}
+              type="file"
+              accept="image/*"
+              onChange={onInsertImageFile}
+              className="hidden"
+            />
+            <button type="button" className={tool} title="Insert image from a URL" onMouseDown={stop} onClick={insertImageUrl}>
+              🌐
+            </button>
+            <button type="button" className={tool} title="Horizontal rule" onMouseDown={stop} onClick={() => exec("insertHorizontalRule")}>
+              ―
+            </button>
+
+            <span aria-hidden="true" className={divider} />
+
+            {/* layout */}
+            <button type="button" className={tool} title="Align left" onMouseDown={stop} onClick={() => exec("justifyLeft")}>
+              ⇤
+            </button>
+            <button type="button" className={tool} title="Align centre" onMouseDown={stop} onClick={() => exec("justifyCenter")}>
+              ↔
+            </button>
+            <button type="button" className={tool} title="Align right" onMouseDown={stop} onClick={() => exec("justifyRight")}>
+              ⇥
+            </button>
+            <button type="button" className={tool} title="Bulleted list" onMouseDown={stop} onClick={() => exec("insertUnorderedList")}>
+              •
+            </button>
+            <button type="button" className={tool} title="Numbered list" onMouseDown={stop} onClick={() => exec("insertOrderedList")}>
+              1.
+            </button>
+            <button type="button" className={tool} title="Outdent" onMouseDown={stop} onClick={() => exec("outdent")}>
+              ⇤|
+            </button>
+            <button type="button" className={tool} title="Indent" onMouseDown={stop} onClick={() => exec("indent")}>
+              |⇥
+            </button>
+
+            <span aria-hidden="true" className={divider} />
+
+            <button type="button" className={tool} title="Clear formatting" onMouseDown={stop} onClick={() => exec("removeFormat")}>
               ⌫
             </button>
-            <button type="button" className={tool} disabled={!editing} title="Undo" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("undo")}>
+            <button type="button" className={tool} title="Undo" onMouseDown={stop} onClick={() => exec("undo")}>
               ↺
             </button>
-            <button type="button" className={tool} disabled={!editing} title="Redo" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("redo")}>
+            <button type="button" className={tool} title="Redo" onMouseDown={stop} onClick={() => exec("redo")}>
               ↻
             </button>
           </div>
 
+          {/* Image rail — appears when an image in the preview is clicked */}
+          {imageWidth !== null && (
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-[var(--color-border)] bg-[var(--color-accent-soft)] px-3 py-2">
+              <span className={label}>Image</span>
+              <input
+                type="number"
+                min={8}
+                value={imageWidth}
+                aria-label="Image width in pixels"
+                className={numeric}
+                onChange={(e) => setImageWidth(Number(e.target.value))}
+                onBlur={() => resizeImage(imageWidth)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    resizeImage(imageWidth);
+                  }
+                }}
+              />
+              <span className={label}>px wide</span>
+              <button type="button" className={tool} title="Float left" onMouseDown={stop} onClick={() => alignImage("left")}>
+                ⇤
+              </button>
+              <button type="button" className={tool} title="Centre" onMouseDown={stop} onClick={() => alignImage("center")}>
+                ↔
+              </button>
+              <button type="button" className={tool} title="Float right" onMouseDown={stop} onClick={() => alignImage("right")}>
+                ⇥
+              </button>
+              <button type="button" className={`${tool} text-[#c0392b]`} title="Delete image" onMouseDown={stop} onClick={removeImage}>
+                Delete
+              </button>
+              <button type="button" className={`${tool} ml-auto`} title="Deselect" onMouseDown={stop} onClick={() => selectImage(null)}>
+                Done
+              </button>
+            </div>
+          )}
+
           <div className="relative bg-white">
-            {editing ? (
-              <iframe
-                key={`edit-${editKey}`}
-                ref={frame}
-                title="HTML preview (editable)"
-                srcDoc={rendered}
-                sandbox={SANDBOX.edit}
-                onLoad={onEditFrameLoad}
-                className="block h-[620px] w-full border-0 bg-white"
-              />
-            ) : (
-              <iframe
-                key="preview"
-                ref={frame}
-                title="HTML preview"
-                srcDoc={rendered}
-                sandbox={SANDBOX.preview}
-                className="block h-[620px] w-full border-0 bg-white"
-              />
-            )}
-            {editing && (
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_2px_var(--color-accent)]"
-              />
-            )}
+            <iframe
+              key={frameKey}
+              ref={frame}
+              title="HTML preview (editable)"
+              srcDoc={seed}
+              sandbox={SANDBOX}
+              onLoad={onFrameLoad}
+              className="block h-[620px] w-full border-0 bg-white"
+            />
             {empty && (
               <div className="pointer-events-none absolute inset-0 grid place-content-center px-6 text-center text-[13.5px] text-[#8496a3]">
                 Nothing to preview yet
@@ -497,9 +720,9 @@ export default function HtmlTools() {
           </div>
 
           <p className="border-t border-[var(--color-border)] bg-[var(--color-bg-elev)] px-4 py-2.5 text-[12.5px] leading-relaxed text-[var(--color-text-muted)]">
-            {editing
-              ? "Click any text in the preview and type — the code updates as you go. Select text first to recolour or restyle it. Scripts are disabled while editing."
-              : "Scripts in the previewed page run here. Turn on Edit preview to type directly into it."}
+            Click any text and type; select text first to restyle it. Click an image to resize,
+            align, or delete it. Scripts in the page don&apos;t run while it&apos;s editable, but
+            they stay in the code and in the download.
           </p>
         </section>
       </div>

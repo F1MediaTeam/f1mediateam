@@ -141,7 +141,12 @@ export default function MultiMetricChartCard({ title, hint, metrics }: Props) {
             }
             const displayValue = hoverValue ?? w.aggregated;
             return (
-              <div key={m.metric} className="relative">
+              <div key={m.metric} className="relative h-full">
+              {/* w-full matters: a bare <button> is inline-block and shrinks to
+                  its text, but the InfoTip below anchors to this wrapper, which
+                  fills the grid cell — so a narrow tile left the ⓘ stranded out
+                  in the gap between tiles. Filling the cell also keeps the tiles
+                  a uniform width instead of ragged. */}
               <button
                 type="button"
                 onClick={() => toggle(m.metric)}
@@ -149,11 +154,12 @@ export default function MultiMetricChartCard({ title, hint, metrics }: Props) {
                   borderColor: on ? `${m.color}66` : "var(--color-border)",
                   background: on ? `${m.color}10` : "var(--color-bg-elev)",
                 }}
-                className="text-left rounded-lg border px-3 py-2.5 sm:px-4 sm:py-3 transition hover:brightness-110"
+                className="h-full w-full text-left rounded-lg border px-3 py-2.5 sm:px-4 sm:py-3 transition hover:brightness-110"
                 aria-pressed={on}
                 title={on ? `Hide ${m.label}` : `Show ${m.label}`}
               >
-                <div className="flex items-center gap-2">
+                {/* pr-6 keeps a long label from running under the ⓘ */}
+                <div className="flex items-center gap-2 pr-6">
                   <span
                     aria-hidden
                     className="grid place-items-center w-4 h-4 rounded border"

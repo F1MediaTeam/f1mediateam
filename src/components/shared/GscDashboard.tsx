@@ -430,7 +430,9 @@ export default function GscDashboard(props: Props) {
                   checked={on}
                   onChange={() => setEnabled((e) => ({ ...e, [def.id]: !e[def.id] }))}
                 />
-                <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+                {/* pr-5 keeps a long label from running under the ⓘ pinned to
+                    the tile's top-right corner */}
+                <div className="flex items-center gap-1 sm:gap-2 min-w-0 pr-5">
                   {/* Visible checkbox */}
                   <span
                     className={

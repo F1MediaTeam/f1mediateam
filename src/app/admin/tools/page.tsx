@@ -1,13 +1,17 @@
 import { requireAdmin } from "@/lib/auth/session";
+import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader } from "@/components/ui";
 import HtmlTools from "@/components/admin/HtmlTools";
 import UtmBuilder from "@/components/admin/UtmBuilder";
 import SerpPreview from "@/components/admin/SerpPreview";
 import RedirectChecker from "@/components/admin/RedirectChecker";
+import PageSpeedCheck from "@/components/admin/PageSpeedCheck";
 
 export default async function AdminTools() {
   const session = await requireAdmin();
+  // Only needed so a run can be filed against a client.
+  const clients = await data.listClients();
 
   return (
     <AdminShell session={session} active="/admin/tools">
@@ -37,6 +41,16 @@ export default async function AdminTools() {
             />
             <CardBody>
               <SerpPreview />
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Page speed &amp; Core Web Vitals"
+              subtitle="Run Google PageSpeed on any URL — real-user vitals, lab scores, and the biggest wins, mobile and desktop"
+            />
+            <CardBody>
+              <PageSpeedCheck clients={clients.map((c) => ({ id: c.id, company_name: c.company_name }))} />
             </CardBody>
           </Card>
 

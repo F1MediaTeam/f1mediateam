@@ -15,7 +15,8 @@ import {
 } from "@/lib/auth/impersonate";
 import { notifyClient, userDisplayName } from "@/lib/email";
 import { queueEvent } from "@/lib/notify-queue";
-import { formatInTzWithZone, wallTimeToUtcIso } from "@/lib/timezone";
+import { APP_TZ, formatInTzWithZone, wallTimeToUtcIso } from "@/lib/timezone";
+import { todayIso } from "@/lib/utils";
 
 // Admin's name for email attribution; team name when no full_name is set.
 async function adminSenderName(userId: string): Promise<string> {
@@ -882,4 +883,56 @@ export async function deleteClientUserAction(formData: FormData): Promise<void> 
   if (!client_id || !user_id) return;
   await data.deleteClientUser(user_id);
   revalidatePath(`/admin/clients/${client_id}`);
+}
+
+// --- pagespeed ---
+
+/**
+ * Store a PageSpeed run against a client so speed trends alongside every other
+ * metric in the monthly report. Mobile only: it's what Google ranks on, and
+ * doubling the metric names to carry desktop would clutter the series list for
+ * a number nobody reports on.
+ *
+ * Snapshots key on (client_id, source, metric, captured_at), so re-running the
+ * same day overwrites rather than accumulating.
+ */
+export async function savePageSpeedSnapshotAction(input: {
+  clientId: string;
+  score: number | null;
+  lcp: number | null;
+  cls: number | null;
+  inp: number | null;
+}): Promise<{ error: string | null }> {
+  await requireAdmin();
+  if (!input.clientId) return { error: "Pick a client first." };
+
+  const captured_at = todayIso(APP_TZ);
+  const rows = (
+    [
+      ["psi_performance", input.score],
+      ["psi_lcp", input.lcp],
+      ["psi_cls", input.cls],
+      ["psi_inp", input.inp],
+    ] as const
+  )
+    .filter(([, value]) => typeof value === "number" && Number.isFinite(value))
+    .map(([metric, value]) => ({
+      client_id: input.clientId,
+      source: "psi",
+      metric,
+      value: value as number,
+      captured_at,
+      is_baseline: false,
+      meta: {},
+    }));
+
+  if (rows.length === 0) return { error: "Nothing to save from that run." };
+
+  try {
+    await data.writeSnapshots(rows);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't save that run." };
+  }
+  revalidatePath(`/admin/clients/${input.clientId}`);
+  return { error: null };
 }

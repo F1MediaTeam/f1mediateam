@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui";
 import { BLOCK_CATEGORIES, HTML_BLOCKS, type BlockCategory, type HtmlBlock } from "@/lib/html-blocks";
+import { APP_TZ } from "@/lib/timezone";
 
 // Admin-only visual HTML editor. Paste, upload, or drop a page; the live preview
 // is immediately editable. Type into it, restyle any element through the
@@ -37,8 +38,30 @@ const SEL_ATTR = "data-f1-selected";
 const DROP_ATTR = "data-f1-drop";
 const CHROME_CSS = `
 [${SEL_ATTR}]{outline:2px solid #3f8e84 !important;outline-offset:1px !important}
-[${DROP_ATTR}]{outline:2px dashed #3f8e84 !important;outline-offset:2px !important}
+[${DROP_ATTR}="inside"]{outline:2px dashed #3f8e84 !important;outline-offset:-3px !important;
+  background-image:linear-gradient(rgba(63,142,132,.12),rgba(63,142,132,.12)) !important}
+[${DROP_ATTR}="before"]{box-shadow:0 -3px 0 0 #3f8e84 !important}
+[${DROP_ATTR}="after"]{box-shadow:0 3px 0 0 #3f8e84 !important}
 `;
+
+// Elements that can't sensibly take children, so a drop always goes beside them.
+const LEAF_TAGS = new Set([
+  "img", "br", "hr", "input", "textarea", "select", "option", "video", "audio",
+  "iframe", "canvas", "svg", "path", "source", "track", "embed", "p", "h1",
+  "h2", "h3", "h4", "h5", "h6", "li", "a", "span", "strong", "em", "code", "pre",
+]);
+
+type DropWhere = "before" | "inside" | "after";
+
+/** Top eighth inserts above, bottom eighth below, the middle nests inside when
+ *  the element is a container. Same convention as most page builders. */
+function dropPosition(el: HTMLElement, y: number): DropWhere {
+  const r = el.getBoundingClientRect();
+  const edge = Math.min(24, r.height / 8);
+  if (y - r.top < edge) return "before";
+  if (r.bottom - y < edge) return "after";
+  return LEAF_TAGS.has(el.tagName.toLowerCase()) ? "after" : "inside";
+}
 
 type Status = "idle" | "typing" | "editing" | "synced";
 
@@ -115,6 +138,63 @@ function toHex(color: string, fallback = "#000000") {
   return `#${[m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, "0")).join("")}`;
 }
 
+const DRAFT_KEY = "f1-html-tools-draft";
+const MAX_IMAGE_EDGE = 1600;
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/**
+ * Read a picked image as a data URI, downscaling anything oversized first.
+ * Inlining keeps the downloaded .html self-contained, but base64 costs ~33% on
+ * top of the file, so a phone photo would otherwise add ~8MB to the page.
+ * WebP keeps transparency; if the browser can't encode it we keep the original.
+ */
+async function encodeImage(
+  file: File,
+): Promise<{ dataUri: string; bytes: number; scaled: boolean }> {
+  const original = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+
+  // SVGs are already small and vector — rasterising one would only hurt.
+  if (file.type === "image/svg+xml") {
+    return { dataUri: original, bytes: original.length, scaled: false };
+  }
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const longest = Math.max(bitmap.width, bitmap.height);
+    if (longest <= MAX_IMAGE_EDGE && file.size < 600_000) {
+      bitmap.close();
+      return { dataUri: original, bytes: original.length, scaled: false };
+    }
+    const ratio = Math.min(1, MAX_IMAGE_EDGE / longest);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * ratio);
+    canvas.height = Math.round(bitmap.height * ratio);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no 2d context");
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const encoded = canvas.toDataURL("image/webp", 0.86);
+    if (!encoded.startsWith("data:image/webp")) throw new Error("webp unsupported");
+    // Only take the re-encode if it actually saved something.
+    if (encoded.length >= original.length) {
+      return { dataUri: original, bytes: original.length, scaled: false };
+    }
+    return { dataUri: encoded, bytes: encoded.length, scaled: ratio < 1 };
+  } catch {
+    return { dataUri: original, bytes: original.length, scaled: false };
+  }
+}
+
 /** Index path from <html> down to a node, so a selection can be restored after
  *  the frame is reseeded and every DOM reference has been thrown away. */
 function nodePath(el: Element): number[] {
@@ -142,6 +222,9 @@ interface Box {
   /** set when the selection is a link, so its href can be edited in place */
   href: string | null;
   target: string;
+  /** set when the selection is an image — alt text matters, these go to clients */
+  alt: string | null;
+  objectFit: string;
   width: string;
   height: string;
   padding: [string, string, string, string];
@@ -182,11 +265,14 @@ function readBox(el: HTMLElement, win: Window): Box {
   // Tag check rather than instanceof: the element lives in the iframe's realm,
   // where the parent's HTMLAnchorElement constructor wouldn't match anyway.
   const link = el.tagName === "A" ? (el as HTMLAnchorElement) : null;
+  const img = el.tagName === "IMG" ? (el as HTMLImageElement) : null;
 
   return {
     tag: el.tagName.toLowerCase(),
     href: link ? link.getAttribute("href") ?? "" : null,
     target: link ? link.getAttribute("target") ?? "" : "",
+    alt: img ? img.getAttribute("alt") ?? "" : null,
+    objectFit: cs.objectFit || "fill",
     width: inline.width || "",
     height: inline.height || "",
     padding: [
@@ -232,6 +318,39 @@ export default function HtmlTools() {
   const [box, setBox] = useState<Box | null>(null);
   const [deviceWidth, setDeviceWidth] = useState(0); // 0 = fill the pane
   const [running, setRunning] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [draftDismissed, setDraftDismissed] = useState(false);
+
+  // Whatever was in the editor when the tab was last closed. Read as an external
+  // value rather than in an effect: getSnapshot returns the raw string, so its
+  // identity is stable and React won't spin.
+  const savedDraft = useSyncExternalStore(
+    () => () => {},
+    () => {
+      try {
+        return localStorage.getItem(DRAFT_KEY);
+      } catch {
+        return null;
+      }
+    },
+    () => null,
+  );
+
+  const draft = (() => {
+    if (draftDismissed || !savedDraft) return null;
+    try {
+      const parsed = JSON.parse(savedDraft) as { html?: string; at?: number };
+      if (!parsed.html || parsed.html === STARTER) return null;
+      return {
+        html: parsed.html,
+        at: parsed.at
+          ? new Date(parsed.at).toLocaleString("en-US", { timeZone: APP_TZ })
+          : "earlier",
+      };
+    } catch {
+      return null; // corrupt storage — just start clean
+    }
+  })();
 
   const hasEyeDropper = useSyncExternalStore(
     () => () => {},
@@ -271,6 +390,20 @@ export default function HtmlTools() {
     },
     [],
   );
+
+  // Keep the draft current. Debounced so a big document isn't stringified on
+  // every keystroke, and skipped while the doc is still the untouched starter.
+  useEffect(() => {
+    if (html === STARTER) return;
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ html, at: Date.now() }));
+      } catch {
+        // quota exceeded (a page full of embedded images) — not worth surfacing
+      }
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [html]);
 
   const frameDoc = () => frame.current?.contentDocument ?? null;
   const frameWin = () => frame.current?.contentWindow ?? null;
@@ -381,7 +514,7 @@ export default function HtmlTools() {
   // ---- inserting blocks -------------------------------------------------
 
   const insertBlockHtml = useCallback(
-    (markup: string, at?: HTMLElement | null) => {
+    (markup: string, at?: HTMLElement | null, where: DropWhere = "after") => {
       const doc = frameDoc();
       if (!doc?.body) return;
       const holder = doc.createElement("div");
@@ -391,7 +524,9 @@ export default function HtmlTools() {
       const first = frag.firstElementChild as HTMLElement | null;
 
       const anchor = at && at !== doc.body && at !== doc.documentElement ? at : null;
-      if (anchor?.parentNode) anchor.parentNode.insertBefore(frag, anchor.nextSibling);
+      if (anchor && where === "inside") anchor.appendChild(frag);
+      else if (anchor?.parentNode)
+        anchor.parentNode.insertBefore(frag, where === "before" ? anchor : anchor.nextSibling);
       else doc.body.appendChild(frag);
 
       if (first) {
@@ -450,12 +585,15 @@ export default function HtmlTools() {
       if (!dragBlock.current) return;
       e.preventDefault();
       const over = doc.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
-      if (over === dropTarget.current) return;
-      clearDropMark();
-      if (over && over !== doc.documentElement) {
-        over.setAttribute(DROP_ATTR, "");
-        dropTarget.current = over;
+      if (!over || over === doc.documentElement) {
+        clearDropMark();
+        return;
       }
+      const where = dropPosition(over, e.clientY);
+      if (over === dropTarget.current && over.getAttribute(DROP_ATTR) === where) return;
+      clearDropMark();
+      over.setAttribute(DROP_ATTR, where);
+      dropTarget.current = over;
     });
     doc.addEventListener("dragleave", clearDropMark);
     doc.addEventListener("drop", (e) => {
@@ -463,9 +601,10 @@ export default function HtmlTools() {
       if (!block) return;
       e.preventDefault();
       const over = doc.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      const where = over ? dropPosition(over, e.clientY) : "after";
       clearDropMark();
       dragBlock.current = null;
-      insertBlockHtml(block.html, over);
+      insertBlockHtml(block.html, over, where);
     });
 
     // Put the viewport and the selection back where they were before the reseed.
@@ -574,14 +713,12 @@ export default function HtmlTools() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    // Inlined as a data URI so the downloaded .html stays self-contained.
-    const dataUri = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
+    const { dataUri, bytes, scaled } = await encodeImage(file);
     exec("insertImage", dataUri);
+    setNote(
+      `${file.name} embedded — ${formatBytes(bytes)}${scaled ? ", downscaled to 1600px wide" : ""}.` +
+        (bytes > 2_000_000 ? " That's heavy for an email or a web page." : ""),
+    );
   }
 
   // ---- element inspector -------------------------------------------------
@@ -764,6 +901,54 @@ export default function HtmlTools() {
 
   return (
     <div className="flex flex-col gap-4">
+      {draft && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--color-accent)] bg-[var(--color-accent-soft)] px-4 py-2.5 text-[13px]">
+          <span className="text-[var(--color-text)]">
+            Unsaved work from <strong className="font-medium">{draft.at}</strong> is still here.
+          </span>
+          <div className="ml-auto flex gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              type="button"
+              onClick={() => {
+                load(draft.html);
+                setDraftDismissed(true);
+              }}
+            >
+              Restore
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              onClick={() => {
+                try {
+                  localStorage.removeItem(DRAFT_KEY);
+                } catch {}
+                setDraftDismissed(true);
+              }}
+            >
+              Discard
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {note && (
+        <div className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-4 py-2.5 text-[13px] text-[var(--color-text-muted)]">
+          <span>{note}</span>
+          <button
+            type="button"
+            onClick={() => setNote(null)}
+            aria-label="Dismiss"
+            className="ml-auto text-[var(--color-text-subtle)] hover:text-[var(--color-text)]"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
         {/* ================= left: code / blocks ================= */}
         <section
@@ -899,8 +1084,9 @@ export default function HtmlTools() {
               </div>
 
               <p className="border-t border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-2 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
-                Drag a block onto the preview to drop it after whatever you&apos;re hovering, or
-                click it to place it after the current selection. Each block is self-contained
+                Drag a block onto the preview: hover near the top or bottom edge of an element to
+                drop above or below it, or over the middle of a container to nest it inside.
+                Clicking places it after the current selection. Each block is self-contained
                 HTML + CSS, so it keeps working in the downloaded file.
               </p>
             </div>
@@ -1087,6 +1273,28 @@ export default function HtmlTools() {
                 <button type="button" className={`${tool} text-[#c0392b]`} title="Delete element" onMouseDown={stop} onClick={removeElement}>Delete</button>
                 <button type="button" className={`${tool} ml-auto`} title="Deselect" onMouseDown={stop} onClick={() => select(null)}>Done</button>
               </div>
+
+              {box.alt !== null && (
+                <Row label="Image">
+                  <input
+                    className={`${picker} min-w-0 flex-1`}
+                    value={box.alt}
+                    placeholder="Alt text — what the image shows"
+                    aria-label="Image alt text"
+                    onChange={(e) => setAttr("alt", e.target.value)}
+                  />
+                  <select
+                    className={picker}
+                    value={box.objectFit}
+                    aria-label="Object fit"
+                    onChange={(e) => setStyle("object-fit", e.target.value)}
+                  >
+                    {["fill", "contain", "cover", "none", "scale-down"].map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                </Row>
+              )}
 
               {box.href !== null && (
                 <Row label="Link">

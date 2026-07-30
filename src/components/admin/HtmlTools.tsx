@@ -16,6 +16,19 @@ import { BLOCK_CATEGORIES, HTML_BLOCKS, type BlockCategory, type HtmlBlock } fro
 // they survive untouched in the code and in the download.
 const SANDBOX = "allow-same-origin";
 
+// The other half of that trade-off: a throwaway frame for *watching* the page
+// run. It gets scripts but no same-origin access, so the markup can execute
+// without being able to touch the admin app. It is never editable — the two
+// capabilities can't safely coexist in one frame.
+const RUN_SANDBOX = "allow-scripts allow-modals allow-forms allow-popups";
+
+// Widths worth checking a client-facing page at before sending it.
+const DEVICES = [
+  { label: "Mobile", width: 390 },
+  { label: "Tablet", width: 768 },
+  { label: "Full", width: 0 },
+];
+
 // Selection outline and drop indicator live in an injected stylesheet keyed off
 // data attributes, never inline styles, so `serialize` can strip every trace of
 // the editor by removing one <style> and a couple of attributes.
@@ -126,6 +139,9 @@ function nodeAt(doc: Document, path: number[]): HTMLElement | null {
 /** Everything the inspector shows for the selected element. */
 interface Box {
   tag: string;
+  /** set when the selection is a link, so its href can be edited in place */
+  href: string | null;
+  target: string;
   width: string;
   height: string;
   padding: [string, string, string, string];
@@ -163,8 +179,14 @@ function readBox(el: HTMLElement, win: Window): Box {
   const pick = (prop: keyof CSSStyleDeclaration, computed: string) =>
     (inline[prop] as string) || computed;
 
+  // Tag check rather than instanceof: the element lives in the iframe's realm,
+  // where the parent's HTMLAnchorElement constructor wouldn't match anyway.
+  const link = el.tagName === "A" ? (el as HTMLAnchorElement) : null;
+
   return {
     tag: el.tagName.toLowerCase(),
+    href: link ? link.getAttribute("href") ?? "" : null,
+    target: link ? link.getAttribute("target") ?? "" : "",
     width: inline.width || "",
     height: inline.height || "",
     padding: [
@@ -208,6 +230,8 @@ export default function HtmlTools() {
   const [sizePx, setSizePx] = useState(16);
   const [dropping, setDropping] = useState(false);
   const [box, setBox] = useState<Box | null>(null);
+  const [deviceWidth, setDeviceWidth] = useState(0); // 0 = fill the pane
+  const [running, setRunning] = useState<string | null>(null);
 
   const hasEyeDropper = useSyncExternalStore(
     () => () => {},
@@ -571,6 +595,16 @@ export default function HtmlTools() {
     scheduleSync();
   }
 
+  /** Attribute edits (href, target, alt) rather than style edits. */
+  function setAttr(name: string, value: string) {
+    const el = selected.current;
+    if (!el) return;
+    if (value === "") el.removeAttribute(name);
+    else el.setAttribute(name, value);
+    refreshBox();
+    scheduleSync();
+  }
+
   function setSide(prop: "padding" | "margin", index: number, value: string) {
     const sides = ["top", "right", "bottom", "left"] as const;
     setStyle(`${prop}-${sides[index]}`, value === "" ? "" : `${value}px`);
@@ -877,9 +911,32 @@ export default function HtmlTools() {
         <section className={`${pane} border-[var(--color-border)]`}>
           <div className={bar}>
             <span className={`${label} mr-auto`}>Live preview — editable</span>
-            <span className="font-mono text-[10.5px] uppercase tracking-[0.13em] text-[var(--color-accent)]">
-              Click any element to style it
-            </span>
+            <div className="inline-flex rounded-lg border border-[var(--color-border)] p-0.5">
+              {DEVICES.map((d) => (
+                <button
+                  key={d.label}
+                  type="button"
+                  onClick={() => setDeviceWidth(d.width)}
+                  title={d.width ? `${d.width}px wide` : "Fill the pane"}
+                  className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                    deviceWidth === d.width
+                      ? "bg-[var(--color-accent)] text-[var(--color-on-accent)]"
+                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                  }`}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              type="button"
+              onClick={() => setRunning(serialize() ?? html)}
+              title="Open a read-only preview with scripts enabled"
+            >
+              ▶ Run scripts
+            </Button>
           </div>
 
           {/* ---- text rail ---- */}
@@ -1031,6 +1088,30 @@ export default function HtmlTools() {
                 <button type="button" className={`${tool} ml-auto`} title="Deselect" onMouseDown={stop} onClick={() => select(null)}>Done</button>
               </div>
 
+              {box.href !== null && (
+                <Row label="Link">
+                  <input
+                    className={`${picker} min-w-0 flex-1 font-mono`}
+                    value={box.href}
+                    placeholder="https://…"
+                    aria-label="Link URL"
+                    onChange={(e) => setAttr("href", e.target.value)}
+                  />
+                  <label className="inline-flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)]">
+                    <input
+                      type="checkbox"
+                      checked={box.target === "_blank"}
+                      className="accent-[var(--color-accent)]"
+                      onChange={(e) => {
+                        setAttr("target", e.target.checked ? "_blank" : "");
+                        setAttr("rel", e.target.checked ? "noopener noreferrer" : "");
+                      }}
+                    />
+                    New tab
+                  </label>
+                </Row>
+              )}
+
               {/* size */}
               <Row label="Size">
                 <input className={`${picker} w-20 font-mono`} placeholder="width" value={box.width}
@@ -1156,7 +1237,7 @@ export default function HtmlTools() {
             </div>
           )}
 
-          <div className="relative bg-white">
+          <div className="relative bg-white" style={deviceWidth ? { background: "#e8ecf2" } : undefined}>
             <iframe
               key={frameKey}
               ref={frame}
@@ -1164,7 +1245,8 @@ export default function HtmlTools() {
               srcDoc={seed}
               sandbox={SANDBOX}
               onLoad={onFrameLoad}
-              className="block h-[620px] w-full border-0 bg-white"
+              style={deviceWidth ? { width: deviceWidth, margin: "0 auto" } : undefined}
+              className={`block h-[620px] border-0 bg-white ${deviceWidth ? "shadow-lg" : "w-full"}`}
             />
             {empty && (
               <div className="pointer-events-none absolute inset-0 grid place-content-center px-6 text-center text-[13.5px] text-[#8496a3]">
@@ -1180,6 +1262,29 @@ export default function HtmlTools() {
           </p>
         </section>
       </div>
+
+      {/* ---- read-only script preview ---- */}
+      {running !== null && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black/70 p-4 backdrop-blur-sm sm:p-8">
+          <div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg-card)]">
+            <div className={bar}>
+              <span className={`${label} mr-auto`}>Running with scripts — read only</span>
+              <span className="text-[11px] text-[var(--color-text-muted)]">
+                Edits here are discarded; close to return to the editor.
+              </span>
+              <Button variant="ghost" size="sm" type="button" onClick={() => setRunning(null)}>
+                Close
+              </Button>
+            </div>
+            <iframe
+              title="HTML preview (scripts enabled, read only)"
+              srcDoc={running}
+              sandbox={RUN_SANDBOX}
+              className="min-h-0 flex-1 w-full border-0 bg-white"
+            />
+          </div>
+        </div>
+      )}
 
       {/* ================= footer ================= */}
       <div className="flex flex-wrap items-center gap-3">

@@ -102,6 +102,27 @@ function toHex(color: string, fallback = "#000000") {
   return `#${[m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, "0")).join("")}`;
 }
 
+/** Index path from <html> down to a node, so a selection can be restored after
+ *  the frame is reseeded and every DOM reference has been thrown away. */
+function nodePath(el: Element): number[] {
+  const path: number[] = [];
+  let cur: Element | null = el;
+  while (cur?.parentElement) {
+    path.unshift(Array.prototype.indexOf.call(cur.parentElement.children, cur));
+    cur = cur.parentElement;
+  }
+  return path;
+}
+
+function nodeAt(doc: Document, path: number[]): HTMLElement | null {
+  let cur: Element | undefined = doc.documentElement;
+  for (const i of path) {
+    cur = cur?.children[i];
+    if (!cur) return null;
+  }
+  return (cur as HTMLElement) ?? null;
+}
+
 /** Everything the inspector shows for the selected element. */
 interface Box {
   tag: string;
@@ -202,10 +223,27 @@ export default function HtmlTools() {
   const dragBlock = useRef<HtmlBlock | null>(null);
   const dropTarget = useRef<HTMLElement | null>(null);
   const renderTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const historyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Our own undo stack. execCommand's only covers text typed in designMode —
+  // style edits, block drops, deletes, and reorders are invisible to it, so
+  // deleting an element used to be unrecoverable. Snapshots are whole
+  // documents, which makes undo uniform across every kind of edit.
+  const history = useRef<string[]>([STARTER]);
+  const historyAt = useRef(0);
+  const restoring = useRef(false);
+  const [historyDepth, setHistoryDepth] = useState({ at: 0, len: 1 });
+
+  // Carried across a reseed so the frame comes back where you left it.
+  const pendingScroll = useRef(0);
+  const pendingPath = useRef<number[] | null>(null);
 
   useEffect(
     () => () => {
       if (renderTimer.current) clearTimeout(renderTimer.current);
+      if (syncTimer.current) clearTimeout(syncTimer.current);
+      if (historyTimer.current) clearTimeout(historyTimer.current);
     },
     [],
   );
@@ -240,12 +278,42 @@ export default function HtmlTools() {
     return out;
   }, []);
 
+  /** Record a snapshot once edits settle. Typing collapses into ~half-second
+   *  chunks rather than one entry per keystroke. */
+  const pushHistory = useCallback((snapshot: string) => {
+    if (restoring.current) return;
+    if (historyTimer.current) clearTimeout(historyTimer.current);
+    historyTimer.current = setTimeout(() => {
+      const stack = history.current;
+      if (stack[historyAt.current] === snapshot) return;
+      // A new edit after undoing discards the redo tail, as everywhere else.
+      const trimmed = stack.slice(0, historyAt.current + 1);
+      trimmed.push(snapshot);
+      // Cap the stack so a long session can't grow without bound.
+      const capped = trimmed.slice(-50);
+      history.current = capped;
+      historyAt.current = capped.length - 1;
+      setHistoryDepth({ at: historyAt.current, len: capped.length });
+    }, 500);
+  }, []);
+
   const syncFromFrame = useCallback(() => {
     const next = serialize();
     if (next === null) return;
     setHtml(next);
     setStatus("synced");
-  }, [serialize]);
+    pushHistory(next);
+  }, [serialize, pushHistory]);
+
+  /** Debounced sync for high-frequency edits. Serialising the whole document on
+   *  every keystroke re-renders a textarea holding the entire page, which drags
+   *  badly on a large file. Anything that reads the document directly (download)
+   *  serialises fresh, so nothing is lost by waiting. */
+  const scheduleSync = useCallback(() => {
+    setStatus("editing");
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(syncFromFrame, 200);
+  }, [syncFromFrame]);
 
   const refreshBox = useCallback(() => {
     const el = selected.current;
@@ -331,11 +399,21 @@ export default function HtmlTools() {
       doc.head?.appendChild(style);
     }
 
-    doc.addEventListener("input", () => {
-      setStatus("editing");
-      syncFromFrame();
-    });
+    doc.addEventListener("input", scheduleSync);
     doc.addEventListener("selectionchange", rememberSelection);
+
+    // ⌘Z / ⇧⌘Z drive our own history, not designMode's — the native stack
+    // knows nothing about style edits, drops, deletes, or reorders.
+    doc.addEventListener("keydown", (e) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        travel(e.shiftKey ? 1 : -1);
+      } else if (meta && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        travel(1);
+      }
+    });
     doc.addEventListener("mouseup", rememberSelection);
     doc.addEventListener("click", (e) => {
       const target = e.target as HTMLElement | null;
@@ -366,7 +444,16 @@ export default function HtmlTools() {
       insertBlockHtml(block.html, over);
     });
 
-    frameWin()?.focus();
+    // Put the viewport and the selection back where they were before the reseed.
+    const win = frameWin();
+    if (pendingScroll.current) win?.scrollTo(0, pendingScroll.current);
+    if (pendingPath.current) {
+      const el = nodeAt(doc, pendingPath.current);
+      if (el) select(el);
+      pendingPath.current = null;
+    }
+
+    win?.focus();
   }
 
   // ---- text formatting --------------------------------------------------
@@ -481,7 +568,7 @@ export default function HtmlTools() {
     if (value === "") el.style.removeProperty(prop);
     else el.style.setProperty(prop, value);
     refreshBox();
-    syncFromFrame();
+    scheduleSync();
   }
 
   function setSide(prop: "padding" | "margin", index: number, value: string) {
@@ -527,7 +614,17 @@ export default function HtmlTools() {
 
   // ---- document plumbing -------------------------------------------------
 
-  const reseed = useCallback((next: string) => {
+  /** Reload the frame with `next`. By default the viewport and the selected
+   *  element are carried over — reseeding on every code-pane keystroke used to
+   *  jump you back to the top of the page and drop the selection. */
+  const reseed = useCallback((next: string, keepPlace = true) => {
+    if (keepPlace) {
+      pendingScroll.current = frameWin()?.scrollY ?? 0;
+      pendingPath.current = selected.current ? nodePath(selected.current) : null;
+    } else {
+      pendingScroll.current = 0;
+      pendingPath.current = null;
+    }
     setSeed(next);
     savedRange.current = null;
     selected.current = null;
@@ -536,18 +633,44 @@ export default function HtmlTools() {
     setStatus(next.trim() ? "synced" : "idle");
   }, []);
 
+  const travel = useCallback(
+    (delta: -1 | 1) => {
+      const target = historyAt.current + delta;
+      const snapshot = history.current[target];
+      if (snapshot === undefined) return;
+      if (historyTimer.current) clearTimeout(historyTimer.current);
+      historyAt.current = target;
+      setHistoryDepth({ at: target, len: history.current.length });
+      // Guard the reseed so restoring a snapshot isn't itself recorded.
+      restoring.current = true;
+      setHtml(snapshot);
+      reseed(snapshot);
+      setTimeout(() => {
+        restoring.current = false;
+      }, 0);
+    },
+    [reseed],
+  );
+
   function onSourceChange(next: string) {
     setHtml(next);
     setStatus(next.trim() ? "typing" : "idle");
+    pushHistory(next);
     if (renderTimer.current) clearTimeout(renderTimer.current);
     renderTimer.current = setTimeout(() => reseed(next), 300);
   }
 
+  /** Load a whole new document — a fresh file starts a fresh history, and there
+   *  is no old position worth restoring. */
   function load(next: string, name?: string) {
     if (renderTimer.current) clearTimeout(renderTimer.current);
+    if (historyTimer.current) clearTimeout(historyTimer.current);
     setHtml(next);
     if (name) setFilename(name);
-    reseed(next);
+    history.current = [next];
+    historyAt.current = 0;
+    setHistoryDepth({ at: 0, len: 1 });
+    reseed(next, false);
   }
 
   function download() {
@@ -887,8 +1010,10 @@ export default function HtmlTools() {
             <span aria-hidden="true" className={divider} />
 
             <button type="button" className={tool} title="Clear formatting" onMouseDown={stop} onClick={() => exec("removeFormat")}>⌫</button>
-            <button type="button" className={tool} title="Undo" onMouseDown={stop} onClick={() => exec("undo")}>↺</button>
-            <button type="button" className={tool} title="Redo" onMouseDown={stop} onClick={() => exec("redo")}>↻</button>
+            <button type="button" className={tool} title="Undo (⌘Z) — covers styles, drops, and deletes too"
+              disabled={historyDepth.at <= 0} onMouseDown={stop} onClick={() => travel(-1)}>↺</button>
+            <button type="button" className={tool} title="Redo (⇧⌘Z)"
+              disabled={historyDepth.at >= historyDepth.len - 1} onMouseDown={stop} onClick={() => travel(1)}>↻</button>
           </div>
 
           {/* ---- element inspector ---- */}

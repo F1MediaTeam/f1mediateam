@@ -138,6 +138,15 @@ export function getClient(id: UUID): Client | null {
   return getState().clients.find((c) => c.id === id) ?? null;
 }
 
+export function setClientUiColor(id: UUID, hex: string | null): Client | null {
+  return mutate((s) => {
+    const c = s.clients.find((x) => x.id === id);
+    if (!c) return null;
+    c.ui_color = hex;
+    return c;
+  });
+}
+
 export function deleteClient(id: UUID): boolean {
   return mutate((s) => {
     const i = s.clients.findIndex((c) => c.id === id);

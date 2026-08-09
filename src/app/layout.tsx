@@ -39,16 +39,27 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      data-theme="dark"
+      data-theme="carbon"
+      data-mode="dark"
       suppressHydrationWarning
       className={`${dmSans.variable} h-full antialiased`}
     >
       <head>
-        {/* Apply the saved theme before paint to avoid a flash of the wrong theme. */}
+        {/* Apply the saved theme before paint to avoid a flash of the wrong one.
+            Kept as a hand-written string rather than importing the registry:
+            this has to run before any bundle loads. The id → mode map is the
+            only thing duplicated from src/lib/themes.ts. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark')t='dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();",
+              "(function(){try{" +
+              "var m={carbon:'dark',fog:'light',paper:'light',ink:'dark',redline:'light','redline-dark':'dark'};" +
+              "var t=localStorage.getItem('theme');" +
+              "if(t==='dark')t='carbon';if(t==='light')t='fog';" +
+              "if(!m[t])t='carbon';" +
+              "var d=document.documentElement;" +
+              "d.setAttribute('data-theme',t);d.setAttribute('data-mode',m[t]);" +
+              "}catch(e){}})();",
           }}
         />
       </head>

@@ -17,6 +17,7 @@ import { setWidgetAction, disconnectConnectorAction, refreshConnectorAction, adv
 import CreateClientUserForm from "@/components/admin/CreateClientUserForm";
 import EditClientUserForm from "@/components/admin/EditClientUserForm";
 import ReopenOnboardingButton from "@/components/admin/ReopenOnboardingButton";
+import ClientColorPicker from "@/components/admin/ClientColorPicker";
 import AdminContentAddModal from "@/components/admin/AdminContentAddModal";
 import ClientNotes from "@/components/admin/ClientNotes";
 import ClientSectionNav from "@/components/admin/ClientSectionNav";
@@ -156,6 +157,20 @@ export default async function ClientProfile({
               initialEmail={customerUser.email}
               initialTier={(client.tier === "1" || client.tier === "2" || client.tier === "3") ? client.tier : ""}
             />
+
+            {/* One designated colour, used behind this client's calendar
+                entries and anywhere they're listed across the admin. */}
+            <div className="mt-6 border-t border-[var(--color-border)] pt-5">
+              <div className="text-sm font-medium">Client colour</div>
+              <p className="mt-0.5 mb-3 text-xs text-[var(--color-text-muted)]">
+                Pick the colour that identifies {client.company_name} on the dashboard and calendars.
+              </p>
+              <ClientColorPicker
+                clientId={client.id}
+                companyName={client.company_name}
+                current={client.ui_color ?? null}
+              />
+            </div>
 
             {/* Extra portal logins — more people at the client, each with their
                 own email + password, all opening the same portal. */}

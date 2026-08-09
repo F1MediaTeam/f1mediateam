@@ -21,6 +21,7 @@ import AdminCalendarAddModal from "@/components/admin/AdminCalendarAddModal";
 import CalendarMonth, { type CalEvent } from "@/components/shared/CalendarMonth";
 import Greeting from "@/components/admin/Greeting";
 import { parseEventNotes } from "@/lib/calendar-event-url";
+import { clientColorById, INTERNAL_COLOR } from "@/lib/client-color";
 
 function dayBucket(due: string | null, today: string, tomorrow: string, weekEnd: string) {
   if (!due) return "later";
@@ -32,14 +33,6 @@ function dayBucket(due: string | null, today: string, tomorrow: string, weekEnd:
 }
 
 
-const PALETTE = [
-  { ring: "ring-emerald-400/50", text: "text-emerald-300", bg: "bg-emerald-500/10" },
-  { ring: "ring-orange-400/50",  text: "text-orange-300",  bg: "bg-orange-500/10" },
-  { ring: "ring-violet-400/50",  text: "text-violet-300",  bg: "bg-violet-500/10" },
-  { ring: "ring-sky-400/50",     text: "text-sky-300",     bg: "bg-sky-500/10" },
-  { ring: "ring-rose-400/50",    text: "text-rose-300",    bg: "bg-rose-500/10" },
-];
-const INTERNAL_COLOR = { ring: "ring-slate-400/50", text: "text-slate-300", bg: "bg-slate-500/10" };
 
 export default async function AdminDashboard() {
   const session = await requireAdmin();
@@ -72,11 +65,7 @@ export default async function AdminDashboard() {
 
   // -------- calendar ----------
   const { days, monthLabel, monthKey } = buildMonthGrid();
-  const colorForClient = (id: string | null) => {
-    if (!id) return INTERNAL_COLOR;
-    const idx = clients.findIndex((c) => c.id === id);
-    return PALETTE[(idx < 0 ? 0 : idx) % PALETTE.length];
-  };
+  const colorForClient = (id: string | null) => clientColorById(id, clients);
   const calEvents: CalEvent[] = events.map((e) => {
     const p = colorForClient(e.client_id);
     return {
@@ -86,7 +75,10 @@ export default async function AdminDashboard() {
       starts_at: e.starts_at,
       notes: e.notes,
       clientLabel: e.client_id ? clientName(e.client_id) : "F1 Media (internal)",
-      chipClass: `${p.bg} ${p.text}`,
+      // The client's own colour sits behind the text, so the calendar reads by
+      // colour before it reads by word.
+      chipStyle: { background: p.solid, color: p.onSolid, borderColor: p.hex },
+      accentColor: p.hex,
     };
   });
   const upcoming = [...events]
@@ -145,7 +137,8 @@ export default async function AdminDashboard() {
               return (
                 <span
                   key={c.id}
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${p.bg} ${p.text} border-current/30`}
+                  className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs"
+                  style={{ background: p.tint, color: p.hex, borderColor: p.border }}
                 >
                   <span className="inline-block w-2 h-2 rounded-full bg-current opacity-90" />
                   {c.company_name}
@@ -178,7 +171,7 @@ export default async function AdminDashboard() {
                       key={e.id}
                       className="flex items-start gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-3"
                     >
-                      <div className={`shrink-0 w-1.5 self-stretch rounded-full bg-current ${p.text}`} />
+                      <div className="shrink-0 w-1.5 self-stretch rounded-full" style={{ background: p.hex }} />
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium truncate">{e.title}</div>
                         <div className="text-[11px] text-[var(--color-text-muted)] flex items-center gap-1.5 mt-0.5 flex-wrap">

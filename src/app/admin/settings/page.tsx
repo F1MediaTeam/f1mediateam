@@ -6,6 +6,7 @@ import { data } from "@/lib/data";
 import Time from "@/components/shared/Time";
 import DropdownCard from "@/components/shared/DropdownCard";
 import { formatLocation } from "@/lib/utils";
+import ThemePicker from "@/components/admin/ThemePicker";
 
 export default async function AdminSettings() {
   const session = await requireAdmin();
@@ -38,6 +39,19 @@ export default async function AdminSettings() {
                 <div className="mt-1 font-medium">{session.email}</div>
               </div>
             </div>
+          </CardBody>
+        </Card>
+
+        {/* Preferences — the home for per-person settings. Themes first; more
+            will be added here as the console grows. */}
+        <Card className="mb-6">
+          <CardHeader
+            title="Preferences"
+            subtitle="How the console looks and behaves for you. Saved to this browser."
+          />
+          <CardBody>
+            <div className="mb-3 text-sm font-medium">Theme</div>
+            <ThemePicker />
           </CardBody>
         </Card>
 

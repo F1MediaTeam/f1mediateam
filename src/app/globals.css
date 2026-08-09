@@ -52,7 +52,7 @@
   --buckets-logo-img: url(/buckets-logo-dark.svg);
 }
 
-[data-theme="light"] {
+[data-mode="light"] {
   color-scheme: light;
   --logo-img: url(/logo-light.png);
   --buckets-logo-img: url(/buckets-logo-light.svg);
@@ -75,6 +75,93 @@
   --color-up: #3f8e84;
   --color-down: #dc2626;
 }
+
+/* ── The six themes ───────────────────────────────────────────────────────
+   Each block sets only what differs from its mode's base above. The emerald
+   ramp is re-pointed alongside --color-accent, because a large amount of the
+   app reaches for emerald-* utilities as "the accent colour" — leaving it
+   teal while the accent went red is the one thing that makes a theme look
+   half-applied. */
+
+/* 1 · Carbon — the original dark. Defaults from @theme; nothing to override. */
+
+/* 2 · Fog — the original light grey. Base light tokens above; nothing to add. */
+
+/* 3 · Paper — white, for bright rooms and anything being screen-shared. */
+[data-theme="paper"] {
+  --color-bg: #ffffff;
+  --color-bg-card: #ffffff;
+  --color-bg-elev: #f7f9fb;
+  --color-bg-hover: #eef2f6;
+  --color-border: #e3e8ef;
+  --color-border-strong: #c3ccd8;
+  --color-text: #0b1220;
+  --color-text-muted: #46505f;
+  --color-text-subtle: #6b7684;
+}
+
+/* 4 · Ink — true black. Highest contrast; also the cheapest on OLED. */
+[data-theme="ink"] {
+  --color-bg: #000000;
+  --color-bg-elev: #0a0a0a;
+  --color-bg-card: #101010;
+  --color-bg-hover: #191919;
+  --color-border: #262626;
+  --color-border-strong: #3a3a3a;
+  --color-text: #ffffff;
+  --color-text-muted: #a3a3a3;
+  --color-text-subtle: #6e6e6e;
+}
+
+/* 5 · Redline — F1 Media red on the light grey canvas. */
+[data-theme="redline"] {
+  --color-accent: #c20500;
+  --color-accent-dim: #8f0400;
+  --color-accent-soft: rgba(225, 6, 0, 0.12);
+  --color-on-accent: #ffffff;
+  --color-up: #c20500;
+  --color-emerald-300: #e1524d;
+  --color-emerald-400: #d21e18;
+  --color-emerald-500: #c20500;
+  --color-emerald-600: #8f0400;
+  --color-emerald-700: #660300;
+}
+
+/* 6 · Redline Dark — the same red on near-black. #e10600 is the brand red;
+   it needs lifting off a dark ground to stay legible, hence the brighter
+   base here than in Redline. */
+[data-theme="redline-dark"] {
+  --color-bg: #0a0708;
+  --color-bg-elev: #120d0f;
+  --color-bg-card: #171113;
+  --color-bg-hover: #201719;
+  --color-border: #2b2023;
+  --color-border-strong: #3b2c30;
+  --color-text: #f7f4f5;
+  --color-text-muted: #b0a2a5;
+  --color-text-subtle: #6f6265;
+  --color-accent: #e10600;
+  --color-accent-dim: #a30400;
+  --color-accent-soft: rgba(225, 6, 0, 0.18);
+  --color-on-accent: #ffffff;
+  --color-up: #e10600;
+  --color-emerald-300: #f5726d;
+  --color-emerald-400: #ec2f28;
+  --color-emerald-500: #e10600;
+  --color-emerald-600: #a30400;
+  --color-emerald-700: #6e0300;
+}
+
+/* The ambient background wash follows the accent, or the whole page reads as
+   teal-tinted no matter which theme is on. */
+[data-theme="redline"] body,
+[data-theme="redline-dark"] body {
+  background-image:
+    radial-gradient(800px 500px at 80% -10%, rgba(225, 6, 0, 0.09), transparent 60%),
+    radial-gradient(700px 400px at 0% 110%, rgba(225, 6, 0, 0.05), transparent 60%);
+}
+[data-theme="paper"] body,
+[data-theme="ink"] body { background-image: none; }
 
 html, body { background: var(--color-bg); color: var(--color-text); }
 
@@ -143,8 +230,8 @@ input, select, textarea, button { font-family: inherit; }
    (light-colored marks on dark backgrounds), `.logo-light` is its inverse. */
 .logo-dark { display: block; }
 .logo-light { display: none; }
-[data-theme="light"] .logo-dark { display: none; }
-[data-theme="light"] .logo-light { display: block; }
+[data-mode="light"] .logo-dark { display: none; }
+[data-mode="light"] .logo-light { display: block; }
 
 /* Photoshop-style transparency checker used behind message-image thumbnails.
    Neutral pattern reads well behind ANY image color (bright, dark, or partly
@@ -159,7 +246,7 @@ input, select, textarea, button { font-family: inherit; }
   background-size: 16px 16px;
   background-position: 0 0, 0 8px, 8px -8px, -8px 0;
 }
-[data-theme="light"] .checker-bg {
+[data-mode="light"] .checker-bg {
   background-color: #e5e7eb;
   background-image:
     linear-gradient(45deg,  #cbd5e1 25%, transparent 25%),
@@ -168,21 +255,21 @@ input, select, textarea, button { font-family: inherit; }
     linear-gradient(-45deg, transparent 75%, #cbd5e1 75%);
 }
 
-[data-theme="light"] body {
+[data-mode="light"] body {
   background-image:
     radial-gradient(800px 500px at 80% -10%, rgba(63, 142, 132, 0.06), transparent 60%),
     radial-gradient(700px 400px at 0% 110%, rgba(63, 142, 132, 0.035), transparent 60%);
 }
 
 ::selection { background: rgba(63, 142, 132, 0.30); color: white; }
-[data-theme="light"] ::selection { background: rgba(63, 142, 132, 0.22); color: #0f172a; }
+[data-mode="light"] ::selection { background: rgba(63, 142, 132, 0.22); color: #0f172a; }
 
 /* Amber "change requested" / "heads up" text was tuned for the dark theme;
    on the light theme the soft amber-200/300 reads as nearly invisible.
    Push these to a darker, ink-on-cream amber so the warning is legible. */
-[data-theme="light"] .text-amber-200 { color: #78350f; }   /* amber-900 */
-[data-theme="light"] .text-amber-300 { color: #92400e; }   /* amber-800 */
-[data-theme="light"] .text-amber-400 { color: #b45309; }   /* amber-700 */
+[data-mode="light"] .text-amber-200 { color: #78350f; }   /* amber-900 */
+[data-mode="light"] .text-amber-300 { color: #92400e; }   /* amber-800 */
+[data-mode="light"] .text-amber-400 { color: #b45309; }   /* amber-700 */
 
 /* Client-color palette (admin dashboard legend, Upcoming card, calendar
    event chips). The *-300 weights are tuned for the dark canvas and look
@@ -190,38 +277,38 @@ input, select, textarea, button { font-family: inherit; }
    becomes nearly invisible. Push each hue to a deeper -700/-800 on light
    and bump the chip background opacity so the pill reads as a tinted chip
    rather than near-white-on-white. */
-[data-theme="light"] .text-emerald-300 { color: #047857; }    /* emerald-700 */
-[data-theme="light"] .text-orange-300  { color: #c2410c; }    /* orange-700 */
-[data-theme="light"] .text-violet-300  { color: #6d28d9; }    /* violet-700 */
-[data-theme="light"] .text-sky-300     { color: #0369a1; }    /* sky-700 */
-[data-theme="light"] .text-rose-300    { color: #be123c; }    /* rose-700 */
-[data-theme="light"] .text-slate-300   { color: #334155; }    /* slate-700 */
-[data-theme="light"] .text-blue-300    { color: #1d4ed8; }    /* blue-700  — GSC clicks */
-[data-theme="light"] .text-purple-300  { color: #7e22ce; }    /* purple-700 — GSC impressions */
-[data-theme="light"] .text-teal-300    { color: #0f766e; }    /* teal-700  — GSC CTR */
-[data-theme="light"] .text-cyan-300    { color: #0e7490; }    /* cyan-700 */
-[data-theme="light"] .text-indigo-300  { color: #4338ca; }    /* indigo-700 */
-[data-theme="light"] .text-fuchsia-300 { color: #a21caf; }    /* fuchsia-700 */
-[data-theme="light"] .text-pink-300    { color: #be185d; }    /* pink-700 */
-[data-theme="light"] .text-lime-300    { color: #4d7c0f; }    /* lime-700 */
-[data-theme="light"] .text-yellow-300  { color: #a16207; }    /* yellow-700 */
-[data-theme="light"] .text-green-300   { color: #15803d; }    /* green-700 */
-[data-theme="light"] .text-red-300     { color: #b91c1c; }    /* red-700 — "down" deltas, delete hover */
-[data-theme="light"] .text-red-400     { color: #b91c1c; }
+[data-mode="light"] .text-emerald-300 { color: #047857; }    /* emerald-700 */
+[data-mode="light"] .text-orange-300  { color: #c2410c; }    /* orange-700 */
+[data-mode="light"] .text-violet-300  { color: #6d28d9; }    /* violet-700 */
+[data-mode="light"] .text-sky-300     { color: #0369a1; }    /* sky-700 */
+[data-mode="light"] .text-rose-300    { color: #be123c; }    /* rose-700 */
+[data-mode="light"] .text-slate-300   { color: #334155; }    /* slate-700 */
+[data-mode="light"] .text-blue-300    { color: #1d4ed8; }    /* blue-700  — GSC clicks */
+[data-mode="light"] .text-purple-300  { color: #7e22ce; }    /* purple-700 — GSC impressions */
+[data-mode="light"] .text-teal-300    { color: #0f766e; }    /* teal-700  — GSC CTR */
+[data-mode="light"] .text-cyan-300    { color: #0e7490; }    /* cyan-700 */
+[data-mode="light"] .text-indigo-300  { color: #4338ca; }    /* indigo-700 */
+[data-mode="light"] .text-fuchsia-300 { color: #a21caf; }    /* fuchsia-700 */
+[data-mode="light"] .text-pink-300    { color: #be185d; }    /* pink-700 */
+[data-mode="light"] .text-lime-300    { color: #4d7c0f; }    /* lime-700 */
+[data-mode="light"] .text-yellow-300  { color: #a16207; }    /* yellow-700 */
+[data-mode="light"] .text-green-300   { color: #15803d; }    /* green-700 */
+[data-mode="light"] .text-red-300     { color: #b91c1c; }    /* red-700 — "down" deltas, delete hover */
+[data-mode="light"] .text-red-400     { color: #b91c1c; }
 
-[data-theme="light"] .bg-emerald-500\/10 { background-color: rgba(16, 185, 129, 0.18); }
-[data-theme="light"] .bg-orange-500\/10  { background-color: rgba(249, 115, 22, 0.18); }
-[data-theme="light"] .bg-violet-500\/10  { background-color: rgba(139, 92, 246, 0.18); }
-[data-theme="light"] .bg-sky-500\/10     { background-color: rgba(14, 165, 233, 0.18); }
-[data-theme="light"] .bg-rose-500\/10    { background-color: rgba(244, 63, 94, 0.18); }
-[data-theme="light"] .bg-slate-500\/10   { background-color: rgba(100, 116, 139, 0.18); }
+[data-mode="light"] .bg-emerald-500\/10 { background-color: rgba(16, 185, 129, 0.18); }
+[data-mode="light"] .bg-orange-500\/10  { background-color: rgba(249, 115, 22, 0.18); }
+[data-mode="light"] .bg-violet-500\/10  { background-color: rgba(139, 92, 246, 0.18); }
+[data-mode="light"] .bg-sky-500\/10     { background-color: rgba(14, 165, 233, 0.18); }
+[data-mode="light"] .bg-rose-500\/10    { background-color: rgba(244, 63, 94, 0.18); }
+[data-mode="light"] .bg-slate-500\/10   { background-color: rgba(100, 116, 139, 0.18); }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #1d2430; border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: #29313f; }
 ::-webkit-scrollbar-track { background: transparent; }
-[data-theme="light"] ::-webkit-scrollbar-thumb { background: #cbd4df; }
-[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #b4bfcc; }
+[data-mode="light"] ::-webkit-scrollbar-thumb { background: #cbd4df; }
+[data-mode="light"] ::-webkit-scrollbar-thumb:hover { background: #b4bfcc; }
 
 /* ---- Deck Studio (admin/reports) motion ---- */
 @keyframes studio-rise {

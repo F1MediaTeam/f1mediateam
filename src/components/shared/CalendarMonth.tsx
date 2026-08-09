@@ -38,6 +38,10 @@ export interface CalEvent {
    *  drives a colored dot on the chip and a swatch in the detail popup so an
    *  event reads as belonging to a specific client */
   accentColor?: string;
+  /** the client's designated colour applied to the chip itself, so the block
+   *  behind the text identifies the client at a glance. Takes precedence over
+   *  chipClass when set. */
+  chipStyle?: { background: string; color: string; borderColor: string };
 }
 
 function fmtDateTime(iso: string): string {
@@ -161,14 +165,23 @@ export default function CalendarMonth({
           setOpenEvent(e);
         }}
         title={reschedule ? `${e.title} — drag to another day to reschedule` : `${e.title} — ${fmtDateTime(e.starts_at)}`}
+        style={
+          e.chipStyle
+            ? { background: e.chipStyle.background, color: e.chipStyle.color, borderLeft: `3px solid ${e.chipStyle.borderColor}` }
+            : undefined
+        }
         className={
           "block w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] transition hover:brightness-125 " +
           (reschedule ? "cursor-grab active:cursor-grabbing " : "") +
-          (e.chipClass ?? DEFAULT_CHIP)
+          (e.chipStyle ? "" : (e.chipClass ?? DEFAULT_CHIP))
         }
       >
         <span className="flex items-center gap-1 truncate">
-          {e.accentColor ? (
+          {e.chipStyle ? (
+            // The chip itself already carries the client's colour; a dot would
+            // just repeat it.
+            <span aria-hidden>{e.type === "deadline" ? "◆" : "●"}</span>
+          ) : e.accentColor ? (
             <span
               aria-hidden
               className="inline-block h-2 w-2 shrink-0 rounded-full"

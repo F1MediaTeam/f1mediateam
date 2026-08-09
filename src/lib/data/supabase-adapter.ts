@@ -217,6 +217,18 @@ export async function updateClientConfig(
   return (data as Client) ?? null;
 }
 
+/** Set (or clear, with null) a client's designated interface colour. */
+export async function setClientUiColor(id: UUID, hex: string | null): Promise<Client | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("clients")
+    .update({ ui_color: hex })
+    .eq("id", id)
+    .select()
+    .single();
+  return (data as Client) ?? null;
+}
+
 export async function deleteClient(id: UUID): Promise<boolean> {
   const supabase = await createClient();
   // FK cascades handle tasks / calendar / metric_snapshots / content / files /

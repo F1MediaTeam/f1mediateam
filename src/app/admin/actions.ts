@@ -441,6 +441,37 @@ export async function setWidgetAction(formData: FormData) {
   revalidatePath(`/admin/clients/${client_id}`);
 }
 
+/**
+ * Set a client's designated interface colour. Passing an empty value clears it,
+ * which puts the client back on the colour derived from its id rather than
+ * leaving it colourless.
+ */
+export async function setClientColorAction(input: {
+  clientId: string;
+  hex: string | null;
+}): Promise<{ error: string | null }> {
+  await requireAdmin();
+  if (!input.clientId) return { error: "No client." };
+
+  const hex = input.hex?.trim().toLowerCase() ?? "";
+  if (hex && !/^#[0-9a-f]{6}$/.test(hex)) {
+    return { error: "Use a 6-digit hex colour, like #22b8cf." };
+  }
+
+  try {
+    await data.setClientUiColor(input.clientId, hex || null);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't save that colour." };
+  }
+
+  // The colour shows on the dashboard and both calendars, not just this page.
+  revalidatePath("/admin");
+  revalidatePath("/admin/calendar");
+  revalidatePath("/admin/content");
+  revalidatePath(`/admin/clients/${input.clientId}`);
+  return { error: null };
+}
+
 // --- content board ---
 
 export async function createContentAction(formData: FormData) {

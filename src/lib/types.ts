@@ -49,6 +49,8 @@ export interface Client {
   branding: Record<string, unknown>;
   tier?: ClientTier;
   internal_notes?: string | null;
+  /** designated interface colour, #rrggbb. Null = derived from the id. */
+  ui_color?: string | null;
   created_at: ISODateTime;
   updated_at: ISODateTime;
 }

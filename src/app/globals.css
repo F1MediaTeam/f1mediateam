@@ -160,7 +160,22 @@
   --color-text-subtle: #6b7583;
 }
 
-/* 2 · Fog — light grey, the canvas the site has always used. */
+/* 2 · Chalk Panel — white page, grey panels. Same white ground as Chalk, but
+   every card, table and sidebar reads as a distinct block instead of floating
+   on an unbroken sheet. */
+[data-theme="chalk-panel"] {
+  --color-bg: #ffffff;
+  --color-bg-card: #eef1f5;
+  --color-bg-elev: #e6eaf0;
+  --color-bg-hover: #dbe1e9;
+  --color-border: #c3cbd6;
+  --color-border-strong: #97a2b0;
+  --color-text: #080c11;
+  --color-text-muted: #3b444f;
+  --color-text-subtle: #5c6672;
+}
+
+/* 3 · Fog — light grey, the canvas the site has always used. */
 [data-theme="fog"] {
   --color-bg: #e8ecf2;
   --color-bg-card: #f6f8fb;
@@ -173,21 +188,56 @@
   --color-text-subtle: #5a6573;
 }
 
-/* 3 · Graphite — mid grey. Dark family, but noticeably lighter than
-   charcoal; the one to use when black feels heavy. */
-[data-theme="graphite"] {
-  --color-bg: #33383f;
-  --color-bg-elev: #3b4149;
-  --color-bg-card: #424951;
-  --color-bg-hover: #4c545d;
-  --color-border: #565f69;
-  --color-border-strong: #6d7681;
-  --color-text: #f4f6f8;
-  --color-text-muted: #c0c7cf;
-  --color-text-subtle: #99a1ab;
+/* ── The Graphite family ──────────────────────────────────────────────────
+   Three takes on mid grey, differing in where the contrast comes from.
+
+   Graphite Panel is the odd one out and deliberately so: it is a LIGHT-mode
+   theme. A white card on a grey page needs dark text on that card, and the
+   token system has one --color-text for the whole page — so "grey background,
+   white panels" can only be built as light-mode with a darker-than-usual
+   canvas, not as a dark theme with light panels. That's the version that
+   gives the sharpest separation between a panel and the page behind it. */
+
+/* 4 · Graphite Panel — mid grey page, white panels, dark text. */
+[data-theme="graphite-panel"] {
+  --color-bg: #b9c1ca;
+  --color-bg-card: #ffffff;
+  --color-bg-elev: #d2d8de;
+  --color-bg-hover: #a9b3bd;
+  --color-border: #98a3ae;
+  --color-border-strong: #7a8592;
+  --color-text: #0f141a;
+  --color-text-muted: #38414c;
+  --color-text-subtle: #57616d;
 }
 
-/* 4 · Charcoal — the default. Warm-neutral dark, softer than true black. */
+/* 5 · Graphite — mid grey, with panels lifted well clear of the page. */
+[data-theme="graphite"] {
+  --color-bg: #2b3037;
+  --color-bg-elev: #353b43;
+  --color-bg-card: #414851;
+  --color-bg-hover: #4b535d;
+  --color-border: #59626d;
+  --color-border-strong: #717b87;
+  --color-text: #f5f7f9;
+  --color-text-muted: #c5ccd4;
+  --color-text-subtle: #9aa3ad;
+}
+
+/* 6 · Graphite Deep — the same idea, pitched darker. */
+[data-theme="graphite-deep"] {
+  --color-bg: #1f2429;
+  --color-bg-elev: #272d33;
+  --color-bg-card: #323942;
+  --color-bg-hover: #3c444e;
+  --color-border: #49525c;
+  --color-border-strong: #616b76;
+  --color-text: #f3f5f8;
+  --color-text-muted: #bcc4cd;
+  --color-text-subtle: #8d97a1;
+}
+
+/* 7 · Charcoal — deep neutral. The default. */
 [data-theme="charcoal"] {
   --color-bg: #16181c;
   --color-bg-elev: #1c1f24;
@@ -200,7 +250,24 @@
   --color-text-subtle: #79818c;
 }
 
-/* 5 · Obsidian — true black. Highest contrast, cheapest on OLED. */
+/* 8 · Obsidian Panel — true black page, grey panels. The panels are lifted far
+   enough off the ground to read as separate objects, which plain Obsidian
+   deliberately doesn't do. White text still clears them comfortably; a panel
+   any lighter than this would need dark text, and the page ground behind it
+   couldn't take dark text — which is what Graphite Panel is for. */
+[data-theme="obsidian-panel"] {
+  --color-bg: #000000;
+  --color-bg-elev: #1c1c1c;
+  --color-bg-card: #2b2b2b;
+  --color-bg-hover: #383838;
+  --color-border: #454545;
+  --color-border-strong: #5e5e5e;
+  --color-text: #ffffff;
+  --color-text-muted: #bdbdbd;
+  --color-text-subtle: #8a8a8a;
+}
+
+/* 9 · Obsidian — true black throughout. Cheapest on OLED. */
 [data-theme="obsidian"] {
   --color-bg: #000000;
   --color-bg-elev: #0a0a0a;
@@ -213,35 +280,9 @@
   --color-text-subtle: #737373;
 }
 
-/* 6 · Redline — red-forward. The ground itself carries a red cast so the
-   theme reads as F1 rather than "dark grey with red buttons". */
-[data-theme="redline"] {
-  --color-bg: #120809;
-  --color-bg-elev: #1a0d0f;
-  --color-bg-card: #211215;
-  --color-bg-hover: #2c181b;
-  --color-border: #3a2125;
-  --color-border-strong: #522d33;
-  --color-text: #fdf5f6;
-  --color-text-muted: #c4a9ad;
-  --color-text-subtle: #8d777b;
-  --color-accent: #ff2d3f;
-  --color-accent-dim: #c40f22;
-  --color-accent-soft: rgba(255, 45, 63, 0.18);
-}
-
-/* Ambient wash: red for Redline, nothing for the flat neutrals — a tint on a
-   theme chosen for being neutral defeats the point. */
-[data-theme="redline"] body {
-  background-image:
-    radial-gradient(800px 500px at 80% -10%, rgba(255, 45, 63, 0.10), transparent 60%),
-    radial-gradient(700px 400px at 0% 110%, rgba(255, 45, 63, 0.05), transparent 60%);
-}
-[data-theme="chalk"] body,
-[data-theme="fog"] body,
-[data-theme="graphite"] body,
-[data-theme="charcoal"] body,
-[data-theme="obsidian"] body { background-image: none; }
+/* No ambient wash on any of them: a coloured tint on a set chosen for being
+   neutral defeats the point, and it was washing out the panel edges. */
+body { background-image: none; }
 
 /* Selection follows the accent. */
 ::selection { background: rgba(255, 45, 63, 0.28); color: #ffffff; }

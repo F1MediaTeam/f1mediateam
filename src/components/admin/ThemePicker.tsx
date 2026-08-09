@@ -29,9 +29,34 @@ export default function ThemePicker() {
   const active = useSyncExternalStore(subscribe, read, () => "carbon");
   const mounted = useHydrated();
 
+  // Grouped by family: nine tiles in one undifferentiated grid is a wall, and
+  // the light/dark split is the first choice anyone actually makes.
+  return (
+    <div className="space-y-5">
+      {(["light", "dark"] as const).map((mode) => (
+        <div key={mode}>
+          <div className="mb-2 text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
+            {mode === "light" ? "Light" : "Dark"}
+          </div>
+          <ThemeGrid themes={THEMES.filter((t) => t.mode === mode)} active={active} mounted={mounted} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ThemeGrid({
+  themes,
+  active,
+  mounted,
+}: {
+  themes: typeof THEMES;
+  active: string;
+  mounted: boolean;
+}) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {THEMES.map((t) => {
+      {themes.map((t) => {
         const selected = mounted && t.id === active;
         return (
           <button

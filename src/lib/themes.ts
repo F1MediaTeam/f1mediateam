@@ -25,6 +25,13 @@ export const THEMES: Theme[] = [
     swatch: { bg: "#ffffff", card: "#f5f7f9", accent: "#c8102e" },
   },
   {
+    id: "chalk-panel",
+    name: "Chalk Panel",
+    blurb: "White page, grey panels. Every block reads as its own object.",
+    mode: "light",
+    swatch: { bg: "#ffffff", card: "#eef1f5", accent: "#c8102e" },
+  },
+  {
     id: "fog",
     name: "Fog",
     blurb: "Light grey — the canvas the site has always used.",
@@ -32,11 +39,25 @@ export const THEMES: Theme[] = [
     swatch: { bg: "#e8ecf2", card: "#f6f8fb", accent: "#c8102e" },
   },
   {
+    id: "graphite-panel",
+    name: "Graphite Panel",
+    blurb: "Grey page, white panels. The sharpest separation of the three.",
+    mode: "light",
+    swatch: { bg: "#b9c1ca", card: "#ffffff", accent: "#c8102e" },
+  },
+  {
     id: "graphite",
     name: "Graphite",
-    blurb: "Mid grey. Dark, without the weight of black.",
+    blurb: "Mid grey, with panels lifted well clear of the page.",
     mode: "dark",
-    swatch: { bg: "#33383f", card: "#424951", accent: "#ff2d3f" },
+    swatch: { bg: "#2b3037", card: "#414851", accent: "#ff2d3f" },
+  },
+  {
+    id: "graphite-deep",
+    name: "Graphite Deep",
+    blurb: "The same idea, pitched darker.",
+    mode: "dark",
+    swatch: { bg: "#1f2429", card: "#323942", accent: "#ff2d3f" },
   },
   {
     id: "charcoal",
@@ -46,18 +67,18 @@ export const THEMES: Theme[] = [
     swatch: { bg: "#16181c", card: "#22262c", accent: "#ff2d3f" },
   },
   {
-    id: "obsidian",
-    name: "Obsidian",
-    blurb: "True black, maximum contrast.",
+    id: "obsidian-panel",
+    name: "Obsidian Panel",
+    blurb: "Black page, grey panels lifted clear of it.",
     mode: "dark",
-    swatch: { bg: "#000000", card: "#101010", accent: "#ff2d3f" },
+    swatch: { bg: "#000000", card: "#2b2b2b", accent: "#ff2d3f" },
   },
   {
-    id: "redline",
-    name: "Redline",
-    blurb: "F1 red, carried into the background itself.",
+    id: "obsidian",
+    name: "Obsidian",
+    blurb: "True black throughout. Cheapest on OLED.",
     mode: "dark",
-    swatch: { bg: "#120809", card: "#211215", accent: "#ff2d3f" },
+    swatch: { bg: "#000000", card: "#101010", accent: "#ff2d3f" },
   },
 ];
 
@@ -70,11 +91,14 @@ export const DEFAULT_THEME = "charcoal";
  */
 export const THEME_COUNTERPART: Record<string, string> = {
   chalk: "charcoal",
-  fog: "graphite",
-  graphite: "fog",
+  "chalk-panel": "obsidian-panel",
+  fog: "graphite-deep",
+  "graphite-panel": "graphite",
+  graphite: "graphite-panel",
+  "graphite-deep": "fog",
   charcoal: "chalk",
+  "obsidian-panel": "chalk-panel",
   obsidian: "chalk",
-  redline: "fog",
 };
 
 /** Read the theme currently on <html>. Safe to call only in the browser. */
@@ -110,7 +134,10 @@ const LEGACY: Record<string, string> = {
   carbon: "charcoal",
   paper: "chalk",
   ink: "obsidian",
-  "redline-dark": "redline",
+  // Redline was dropped; anyone on it lands on the default rather than a
+  // blank attribute that would fall through to no theme at all.
+  redline: "charcoal",
+  "redline-dark": "charcoal",
 };
 
 export function resolveTheme(stored: string | null | undefined): Theme {

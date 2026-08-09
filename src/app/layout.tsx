@@ -53,8 +53,8 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html:
               "(function(){try{" +
-              "var m={chalk:'light',fog:'light',graphite:'dark',charcoal:'dark',obsidian:'dark',redline:'dark'};" +
-              "var g={dark:'charcoal',light:'fog',carbon:'charcoal',paper:'chalk',ink:'obsidian','redline-dark':'redline'};" +
+              "var m={chalk:'light','chalk-panel':'light',fog:'light','graphite-panel':'light',graphite:'dark','graphite-deep':'dark',charcoal:'dark','obsidian-panel':'dark',obsidian:'dark'};" +
+              "var g={dark:'charcoal',light:'fog',carbon:'charcoal',paper:'chalk',ink:'obsidian',redline:'charcoal','redline-dark':'charcoal'};" +
               "var t=localStorage.getItem('theme');t=g[t]||t;" +
               "if(!m[t])t='charcoal';" +
               "var d=document.documentElement;" +

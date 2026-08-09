@@ -47,7 +47,7 @@ export default async function AdminTools() {
           <Card>
             <CardHeader
               title="Page speed &amp; Core Web Vitals"
-              subtitle="Run Google PageSpeed on any URL — real-user vitals, lab scores, and the biggest wins, mobile and desktop"
+              subtitle="Check any URL — load times, page weight, and the specific files slowing it down"
             />
             <CardBody>
               <PageSpeedCheck clients={clients.map((c) => ({ id: c.id, company_name: c.company_name }))} />

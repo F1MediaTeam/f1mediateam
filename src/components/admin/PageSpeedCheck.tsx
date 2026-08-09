@@ -1,15 +1,16 @@
 "use client";
 
-// Core Web Vitals check for a client URL, on demand.
+// Speed check for any URL, on demand.
 //
-// Mobile and desktop run in parallel because they're separate Lighthouse runs
-// and each takes a while — sequentially this would feel broken. Results are
-// kept side by side rather than behind a toggle, since the interesting thing is
-// usually the gap between them.
+// The direct audit always renders — it's measured by fetching the page, so it
+// needs no API key and always has something to say. Google's Lighthouse and
+// real-user Core Web Vitals panels appear underneath only when the server has
+// PAGESPEED_API_KEY configured, since PSI cannot be called without one.
 
 import { useState } from "react";
 import { Button } from "@/components/ui";
-import type { PageSpeedReport, Strategy, Verdict } from "@/lib/pagespeed";
+import type { PageSpeedReport, Verdict } from "@/lib/pagespeed";
+import type { AuditMetric, Finding, ResourceRow, SpeedAudit } from "@/lib/speed-audit";
 import { savePageSpeedSnapshotAction } from "@/app/admin/actions";
 
 interface ClientOption {
@@ -37,6 +38,27 @@ const TONE: Record<Verdict, { text: string; bg: string; ring: string; label: str
     label: "Poor",
   },
 };
+
+const SEVERITY: Record<Finding["severity"], { dot: string; text: string }> = {
+  critical: { dot: "bg-red-500", text: "text-red-600 dark:text-red-300" },
+  warning: { dot: "bg-amber-500", text: "text-amber-600 dark:text-amber-300" },
+  ok: { dot: "bg-[var(--color-border-strong)]", text: "text-[var(--color-text-muted)]" },
+};
+
+const KIND_LABEL: Record<string, string> = {
+  html: "HTML",
+  script: "JavaScript",
+  style: "CSS",
+  image: "Images",
+  font: "Fonts",
+  other: "Other",
+};
+
+function formatBytes(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)} MB`;
+  if (n >= 1000) return `${Math.round(n / 1000)} KB`;
+  return `${n} B`;
+}
 
 function scoreVerdict(score: number): Verdict {
   if (score >= 90) return "good";
@@ -73,14 +95,16 @@ function MetricPill({
   label,
   display,
   verdict,
+  hint,
 }: {
   label: string;
   display: string;
   verdict: Verdict;
+  hint?: string;
 }) {
   const tone = TONE[verdict];
   return (
-    <div className={`rounded-lg px-3 py-2 ring-1 ${tone.bg} ${tone.ring}`}>
+    <div className={`rounded-lg px-3 py-2 ring-1 ${tone.bg} ${tone.ring}`} title={hint}>
       <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
         {label}
       </div>
@@ -89,15 +113,193 @@ function MetricPill({
   );
 }
 
-function ReportPanel({ report }: { report: PageSpeedReport }) {
+function WeightBar({ audit }: { audit: SpeedAudit }) {
+  const palette: Record<string, string> = {
+    image: "bg-sky-500",
+    script: "bg-violet-500",
+    style: "bg-emerald-500",
+    html: "bg-amber-500",
+    font: "bg-rose-500",
+    other: "bg-slate-400",
+  };
+  return (
+    <div>
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-[var(--color-bg)]">
+        {audit.groups.map((g) => (
+          <div
+            key={g.kind}
+            className={palette[g.kind] ?? palette.other}
+            style={{ width: `${(g.bytes / Math.max(1, audit.totalBytes)) * 100}%` }}
+            title={`${KIND_LABEL[g.kind] ?? g.kind}: ${formatBytes(g.bytes)}`}
+          />
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+        {audit.groups.map((g) => (
+          <span key={g.kind} className="flex items-center gap-1.5 text-[11px]">
+            <span className={`h-2 w-2 rounded-full ${palette[g.kind] ?? palette.other}`} />
+            <span className="text-[var(--color-text-muted)]">
+              {KIND_LABEL[g.kind] ?? g.kind} · {g.count} · {formatBytes(g.bytes)}
+            </span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FindingRow({ finding }: { finding: Finding }) {
+  const tone = SEVERITY[finding.severity];
+  return (
+    <li className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2.5">
+      <div className="flex items-start gap-2">
+        <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} />
+        <div className="min-w-0">
+          <div className={`text-xs font-semibold ${tone.text}`}>{finding.title}</div>
+          <p className="mt-1 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
+            {finding.detail}
+          </p>
+          {finding.items && finding.items.length > 0 ? (
+            <ul className="mt-1.5 space-y-0.5">
+              {finding.items.map((item) => (
+                <li
+                  key={item}
+                  className="truncate font-mono text-[10px] text-[var(--color-text-muted)]"
+                >
+                  {item}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function LargestTable({ rows }: { rows: ResourceRow[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[420px] text-left text-[11px]">
+        <thead>
+          <tr className="text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+            <th className="pb-1.5 font-normal">File</th>
+            <th className="pb-1.5 font-normal">Type</th>
+            <th className="pb-1.5 text-right font-normal">Size</th>
+            <th className="pb-1.5 text-right font-normal">Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            let name = r.url;
+            try {
+              const u = new URL(r.url);
+              name = u.pathname.split("/").filter(Boolean).pop() ?? u.hostname;
+            } catch {
+              /* keep the raw string */
+            }
+            return (
+              <tr key={r.url} className="border-t border-[var(--color-border)]">
+                <td className="max-w-[220px] truncate py-1.5 pr-2 font-mono" title={r.url}>
+                  {name}
+                </td>
+                <td className="py-1.5 pr-2 text-[var(--color-text-muted)]">
+                  {KIND_LABEL[r.kind] ?? r.kind}
+                  {r.encoding ? "" : r.kind === "script" || r.kind === "style" ? " · raw" : ""}
+                </td>
+                <td className="py-1.5 pr-2 text-right tabular-nums">{formatBytes(r.bytes)}</td>
+                <td className="py-1.5 text-right tabular-nums text-[var(--color-text-muted)]">
+                  {Math.round(r.ms)} ms
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AuditPanel({ audit }: { audit: SpeedAudit }) {
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-4">
+      <div className="mb-4 flex items-center gap-4">
+        <ScoreDial score={audit.score} />
+        <div className="min-w-0">
+          <div className="text-sm font-semibold">Measured directly</div>
+          <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
+            We fetched this page and everything it loads, and timed and weighed it. Not a
+            Lighthouse score — a weighted read of the five numbers below.
+          </p>
+          {audit.redirects.length > 0 ? (
+            <p className="mt-1 truncate text-[11px] text-amber-600 dark:text-amber-300">
+              Redirected to {audit.finalUrl}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {audit.metrics.map((m: AuditMetric) => (
+          <MetricPill
+            key={m.id}
+            label={m.label}
+            display={m.display}
+            verdict={m.verdict}
+            hint={m.hint}
+          />
+        ))}
+      </div>
+
+      <div className="mb-1.5 text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+        What the {formatBytes(audit.totalBytes)} is made of
+      </div>
+      <div className="mb-4">
+        <WeightBar audit={audit} />
+      </div>
+
+      {audit.findings.length > 0 ? (
+        <>
+          <div className="mb-1.5 text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+            Biggest wins
+          </div>
+          <ul className="mb-4 space-y-1.5">
+            {audit.findings.map((f) => (
+              <FindingRow key={f.id} finding={f} />
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="mb-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-600 dark:text-emerald-300">
+          Nothing obviously wrong — compression, image sizes, caching and render-blocking all look
+          reasonable.
+        </p>
+      )}
+
+      <div className="mb-1.5 text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
+        Heaviest files
+      </div>
+      <LargestTable rows={audit.largest} />
+
+      {audit.truncated ? (
+        <p className="mt-3 text-[11px] text-[var(--color-text-muted)]">
+          This page loads more files than one run checks; the 45 largest-priority ones were
+          measured, so real page weight is higher than shown.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function PsiPanel({ report }: { report: PageSpeedReport }) {
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-4">
       <div className="mb-4 flex items-center gap-4">
         {report.score !== null ? <ScoreDial score={report.score} /> : null}
         <div className="min-w-0">
-          <div className="text-sm font-semibold capitalize">{report.strategy}</div>
+          <div className="text-sm font-semibold capitalize">Lighthouse · {report.strategy}</div>
           <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
-            Performance score from a simulated load. 90+ is good, under 50 is poor.
+            Google&apos;s simulated load. 90+ is good, under 50 is poor.
           </p>
         </div>
       </div>
@@ -124,8 +326,8 @@ function ReportPanel({ report }: { report: PageSpeedReport }) {
         </>
       ) : (
         <p className="mb-4 rounded-lg border border-[var(--color-border)] px-3 py-2 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
-          No real-user data for this URL — Chrome needs enough traffic before it
-          reports Core Web Vitals. The lab numbers below still apply.
+          No real-user data for this URL — Chrome needs enough traffic before it reports Core Web
+          Vitals. The lab numbers below still apply.
         </p>
       )}
 
@@ -141,7 +343,7 @@ function ReportPanel({ report }: { report: PageSpeedReport }) {
       {report.opportunities.length > 0 ? (
         <>
           <div className="mb-1.5 mt-4 text-[10px] uppercase tracking-widest text-[var(--color-text-muted)]">
-            Biggest wins
+            Lighthouse opportunities
           </div>
           <ul className="space-y-1.5">
             {report.opportunities.map((o) => (
@@ -173,46 +375,52 @@ export default function PageSpeedCheck({ clients = [] }: { clients?: ClientOptio
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [reports, setReports] = useState<PageSpeedReport[]>([]);
+  const [audit, setAudit] = useState<SpeedAudit | null>(null);
+  const [psi, setPsi] = useState<PageSpeedReport[]>([]);
 
   async function run() {
     if (!url.trim()) return;
     setBusy(true);
     setError(null);
     setNote(null);
-    setReports([]);
+    setAudit(null);
+    setPsi([]);
     try {
-      const fetchOne = async (strategy: Strategy) => {
-        const res = await fetch(
-          `/api/pagespeed?url=${encodeURIComponent(url.trim())}&strategy=${strategy}`,
-        );
-        const json = (await res.json()) as { report?: PageSpeedReport; error?: string };
-        if (!res.ok || !json.report) throw new Error(json.error ?? "PageSpeed check failed.");
-        return json.report;
+      const res = await fetch(`/api/pagespeed?url=${encodeURIComponent(url.trim())}`);
+      const json = (await res.json()) as {
+        audit?: SpeedAudit;
+        psi?: PageSpeedReport[];
+        error?: string;
       };
-      // Both strategies at once — each is a full Lighthouse run.
-      const [mobile, desktop] = await Promise.all([fetchOne("mobile"), fetchOne("desktop")]);
-      setReports([mobile, desktop]);
+      if (!res.ok || !json.audit) throw new Error(json.error ?? "Speed check failed.");
+      setAudit(json.audit);
+      setPsi(json.psi ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "PageSpeed check failed.");
+      setError(err instanceof Error ? err.message : "Speed check failed.");
     } finally {
       setBusy(false);
     }
   }
 
   async function save() {
-    const mobile = reports.find((r) => r.strategy === "mobile");
-    if (!mobile || !clientId) return;
+    if (!audit || !clientId) return;
+    const mobile = psi.find((r) => r.strategy === "mobile");
     const pick = (id: string) =>
-      mobile.field?.find((m) => m.id === id)?.value ??
-      mobile.lab.find((m) => m.id === id)?.value ??
+      mobile?.field?.find((m) => m.id === id)?.value ??
+      mobile?.lab.find((m) => m.id === id)?.value ??
       null;
+    const ttfb = audit.metrics.find((m) => m.id === "TTFB")?.value ?? 0;
     const res = await savePageSpeedSnapshotAction({
       clientId,
-      score: mobile.score,
-      lcp: pick("LCP"),
-      cls: pick("CLS"),
-      inp: pick("INP"),
+      audit: {
+        score: audit.score,
+        ttfbMs: Math.round(ttfb),
+        totalBytes: audit.totalBytes,
+        totalRequests: audit.totalRequests,
+      },
+      psi: mobile
+        ? { score: mobile.score, lcp: pick("LCP"), cls: pick("CLS"), inp: pick("INP") }
+        : null,
     });
     setNote(res.error ?? "Saved — it'll trend with the client's other metrics.");
   }
@@ -240,7 +448,7 @@ export default function PageSpeedCheck({ clients = [] }: { clients?: ClientOptio
 
       {busy ? (
         <p className="text-xs text-[var(--color-text-muted)]">
-          Running mobile and desktop — a cold Lighthouse run takes 20–40 seconds.
+          Loading the page and everything on it — usually a few seconds.
         </p>
       ) : null}
 
@@ -250,18 +458,22 @@ export default function PageSpeedCheck({ clients = [] }: { clients?: ClientOptio
         </p>
       ) : null}
 
-      {reports.length > 0 ? (
+      {audit ? (
         <>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {reports.map((r) => (
-              <ReportPanel key={r.strategy} report={r} />
-            ))}
-          </div>
+          <AuditPanel audit={audit} />
+
+          {psi.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {psi.map((r) => (
+                <PsiPanel key={r.strategy} report={r} />
+              ))}
+            </div>
+          ) : null}
 
           {clients.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border)] pt-3">
               <span className="text-[11px] uppercase tracking-widest text-[var(--color-text-muted)]">
-                Save mobile result to
+                Save result to
               </span>
               <select
                 value={clientId}
@@ -276,13 +488,7 @@ export default function PageSpeedCheck({ clients = [] }: { clients?: ClientOptio
                   </option>
                 ))}
               </select>
-              <Button
-                variant="secondary"
-                size="sm"
-                type="button"
-                onClick={save}
-                disabled={!clientId}
-              >
+              <Button variant="secondary" size="sm" type="button" onClick={save} disabled={!clientId}>
                 Save snapshot
               </Button>
               {note ? (

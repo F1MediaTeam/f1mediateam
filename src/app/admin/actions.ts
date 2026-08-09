@@ -898,27 +898,43 @@ export async function deleteClientUserAction(formData: FormData): Promise<void> 
  */
 export async function savePageSpeedSnapshotAction(input: {
   clientId: string;
-  score: number | null;
-  lcp: number | null;
-  cls: number | null;
-  inp: number | null;
+  /** direct measurement — always available */
+  audit: {
+    score: number;
+    ttfbMs: number;
+    totalBytes: number;
+    totalRequests: number;
+  } | null;
+  /** Lighthouse + real-user vitals, only when PAGESPEED_API_KEY is configured */
+  psi: {
+    score: number | null;
+    lcp: number | null;
+    cls: number | null;
+    inp: number | null;
+  } | null;
 }): Promise<{ error: string | null }> {
   await requireAdmin();
   if (!input.clientId) return { error: "Pick a client first." };
 
   const captured_at = todayIso(APP_TZ);
-  const rows = (
-    [
-      ["psi_performance", input.score],
-      ["psi_lcp", input.lcp],
-      ["psi_cls", input.cls],
-      ["psi_inp", input.inp],
-    ] as const
-  )
-    .filter(([, value]) => typeof value === "number" && Number.isFinite(value))
-    .map(([metric, value]) => ({
+  // Two sources on purpose: our own transfer-level measurement and Google's
+  // Lighthouse run are different numbers and must not be averaged together.
+  const pairs: Array<[string, string, number | null]> = [
+    ["audit", "speed_score", input.audit?.score ?? null],
+    ["audit", "speed_ttfb", input.audit?.ttfbMs ?? null],
+    ["audit", "speed_bytes", input.audit?.totalBytes ?? null],
+    ["audit", "speed_requests", input.audit?.totalRequests ?? null],
+    ["psi", "psi_performance", input.psi?.score ?? null],
+    ["psi", "psi_lcp", input.psi?.lcp ?? null],
+    ["psi", "psi_cls", input.psi?.cls ?? null],
+    ["psi", "psi_inp", input.psi?.inp ?? null],
+  ];
+
+  const rows = pairs
+    .filter(([, , value]) => typeof value === "number" && Number.isFinite(value))
+    .map(([source, metric, value]) => ({
       client_id: input.clientId,
-      source: "psi",
+      source,
       metric,
       value: value as number,
       captured_at,

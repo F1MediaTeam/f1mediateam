@@ -4,21 +4,14 @@ import MobileNavMenu from "@/components/shared/MobileNavMenu";
 import ThemeToggle from "@/components/shared/ThemeToggle";
 import StyleInspector from "@/components/admin/StyleInspector";
 import AdminNotificationBell from "@/components/admin/AdminNotificationBell";
+import AdminNav from "@/components/admin/AdminNav";
 import { data } from "@/lib/data";
 import type { Session } from "@/lib/data";
 
-const NAV = [
-  { href: "/admin",           label: "Dashboard" },
-  { href: "/admin/command-center", label: "Command Center" },
-  { href: "/admin/clients",   label: "Clients" },
-  { href: "/admin/content",   label: "Content" },
-  { href: "/admin/messages",  label: "Messages" },
-  { href: "/admin/reports",   label: "Reports" },
-  { href: "/admin/documents", label: "Documents" },
-  { href: "/admin/audit",     label: "Activity" },
-  { href: "/admin/tools",     label: "Tools" },
-  { href: "/admin/settings",  label: "Settings" },
-];
+// The sidebar's own order and nesting are editable per person and live in
+// localStorage (src/lib/nav-layout.ts). This flat list is the shipped default
+// and what the mobile menu shows.
+import { DEFAULT_NAV as NAV } from "@/lib/nav-layout";
 
 export default async function AdminShell({
   session,
@@ -72,34 +65,7 @@ export default async function AdminShell({
           </div>
         </div>
 
-        <nav data-style-id="admin-nav" className="flex flex-col gap-0.5 px-2 mt-2">
-          {NAV.map((item) => {
-            const isActive = active === item.href;
-            const showBadge = item.href === "/admin/messages" && totalUnread > 0;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                // Stable target for the style inspector's "just this one"
-                // scope — survives re-renders and content changes.
-                data-style-id={`nav-${item.label.toLowerCase()}`}
-                className={
-                  "flex items-center justify-between px-3 py-2 rounded-lg text-sm transition " +
-                  (isActive
-                    ? "bg-[var(--color-bg-hover)] text-[var(--color-text)]"
-                    : "text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)]")
-                }
-              >
-                <span>{item.label}</span>
-                {showBadge ? (
-                  <span className="min-w-[20px] h-[20px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center tabular-nums">
-                    {totalUnread > 99 ? "99+" : totalUnread}
-                  </span>
-                ) : null}
-              </Link>
-            );
-          })}
-        </nav>
+        <AdminNav active={active} totalUnread={totalUnread} />
 
         <div className="mt-auto flex items-center gap-2 border-t border-[var(--color-border)] p-3">
           <span className="truncate text-[11px] text-[var(--color-text-subtle)]">{session.email}</span>

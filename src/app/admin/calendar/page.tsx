@@ -59,8 +59,8 @@ export default async function AdminCalendar() {
               return (
                 <span
                   key={c.id}
-                  className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs"
-                  style={{ background: p.tint, color: p.hex, borderColor: p.border }}
+                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
+                  style={{ background: p.solid, color: p.onSolid }}
                 >
                   <span className={`inline-block w-2 h-2 rounded-full bg-current opacity-90`} />
                   {c.company_name}

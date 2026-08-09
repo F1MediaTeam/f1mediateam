@@ -18,63 +18,63 @@ export interface Theme {
 
 export const THEMES: Theme[] = [
   {
-    id: "carbon",
-    name: "Carbon",
-    blurb: "The original dark. Teal accent on near-black.",
-    mode: "dark",
-    swatch: { bg: "#07090c", card: "#11161d", accent: "#3f8e84" },
+    id: "chalk",
+    name: "Chalk",
+    blurb: "Pure white. Best for bright rooms and screen-sharing.",
+    mode: "light",
+    swatch: { bg: "#ffffff", card: "#f5f7f9", accent: "#c8102e" },
   },
   {
     id: "fog",
     name: "Fog",
-    blurb: "The light grey canvas the site has used until now.",
+    blurb: "Light grey — the canvas the site has always used.",
     mode: "light",
-    swatch: { bg: "#e8ecf2", card: "#f6f8fb", accent: "#3f8e84" },
+    swatch: { bg: "#e8ecf2", card: "#f6f8fb", accent: "#c8102e" },
   },
   {
-    id: "paper",
-    name: "Paper",
-    blurb: "Clean white. Best for screen-sharing and bright rooms.",
-    mode: "light",
-    swatch: { bg: "#ffffff", card: "#f7f9fb", accent: "#3f8e84" },
+    id: "graphite",
+    name: "Graphite",
+    blurb: "Mid grey. Dark, without the weight of black.",
+    mode: "dark",
+    swatch: { bg: "#33383f", card: "#424951", accent: "#ff2d3f" },
   },
   {
-    id: "ink",
-    name: "Ink",
+    id: "charcoal",
+    name: "Charcoal",
+    blurb: "Deep neutral grey. The default.",
+    mode: "dark",
+    swatch: { bg: "#16181c", card: "#22262c", accent: "#ff2d3f" },
+  },
+  {
+    id: "obsidian",
+    name: "Obsidian",
     blurb: "True black, maximum contrast.",
     mode: "dark",
-    swatch: { bg: "#000000", card: "#101010", accent: "#3f8e84" },
+    swatch: { bg: "#000000", card: "#101010", accent: "#ff2d3f" },
   },
   {
     id: "redline",
     name: "Redline",
-    blurb: "F1 Media red on the light grey canvas.",
-    mode: "light",
-    swatch: { bg: "#e8ecf2", card: "#f6f8fb", accent: "#c20500" },
-  },
-  {
-    id: "redline-dark",
-    name: "Redline Dark",
-    blurb: "F1 Media red on near-black.",
+    blurb: "F1 red, carried into the background itself.",
     mode: "dark",
-    swatch: { bg: "#0a0708", card: "#171113", accent: "#e10600" },
+    swatch: { bg: "#120809", card: "#211215", accent: "#ff2d3f" },
   },
 ];
 
-export const DEFAULT_THEME = "carbon";
+export const DEFAULT_THEME = "charcoal";
 
 /**
  * The light/dark counterpart of each theme, used by the sun/moon toggle. Paired
- * by character rather than jumping everyone back to Carbon: someone working in
- * Redline Dark wants Redline in daylight, not the teal default.
+ * by weight rather than jumping everyone back to one default — Fog's dark twin
+ * is the similarly mid-toned Graphite, not black.
  */
 export const THEME_COUNTERPART: Record<string, string> = {
-  carbon: "fog",
-  fog: "carbon",
-  ink: "paper",
-  paper: "ink",
-  redline: "redline-dark",
-  "redline-dark": "redline",
+  chalk: "charcoal",
+  fog: "graphite",
+  graphite: "fog",
+  charcoal: "chalk",
+  obsidian: "chalk",
+  redline: "fog",
 };
 
 /** Read the theme currently on <html>. Safe to call only in the browser. */
@@ -100,12 +100,20 @@ export function applyTheme(id: string): Theme {
 }
 
 /**
- * Accepts what's in localStorage and returns a real theme. Handles the two
- * legacy values ("dark" / "light") that predate named themes, so nobody's
- * saved preference resets when this ships.
+ * Accepts whatever is in localStorage and returns a real theme. Maps the two
+ * pre-named-theme values ("dark" / "light") and the first-pass names, so no
+ * saved preference resets when the set changes.
  */
+const LEGACY: Record<string, string> = {
+  dark: "charcoal",
+  light: "fog",
+  carbon: "charcoal",
+  paper: "chalk",
+  ink: "obsidian",
+  "redline-dark": "redline",
+};
+
 export function resolveTheme(stored: string | null | undefined): Theme {
-  if (stored === "dark") return THEMES[0];
-  if (stored === "light") return THEMES[1];
-  return THEMES.find((t) => t.id === stored) ?? THEMES[0];
+  const id = stored ? (LEGACY[stored] ?? stored) : DEFAULT_THEME;
+  return THEMES.find((t) => t.id === id) ?? THEMES.find((t) => t.id === DEFAULT_THEME)!;
 }

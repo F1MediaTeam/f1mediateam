@@ -24,23 +24,24 @@ export interface ClientColor {
 }
 
 /**
- * Twelve hues, evenly spread and distinguishable at the size of a calendar
- * chip. Mid-tone on purpose: each has to stay legible against the dark
- * (#07090c) and light (#e8ecf2) canvases without a per-theme variant.
+ * Twelve true, saturated hues — no pastels. These are always painted as a
+ * solid fill with black or white text on top, so they need to be strong enough
+ * to identify a client at a glance from across a calendar, and they must read
+ * the same on every theme from white through to black.
  */
 export const CLIENT_PALETTE = [
-  "#22b8cf", // cyan
-  "#e5484d", // red
-  "#f59e0b", // amber
-  "#8b5cf6", // violet
-  "#10b981", // emerald
-  "#3b82f6", // blue
-  "#ec4899", // pink
-  "#84cc16", // lime
+  "#00b5d8", // cyan
+  "#e11d2e", // red
+  "#16a34a", // green
+  "#0b74e5", // blue
   "#f97316", // orange
-  "#14b8a6", // teal
-  "#a855f7", // purple
-  "#64748b", // slate
+  "#7c3aed", // violet
+  "#db2777", // magenta
+  "#eab308", // yellow
+  "#0d9488", // teal
+  "#65a30d", // lime
+  "#9333ea", // purple
+  "#475569", // slate
 ] as const;
 
 /** F1 Media's own internal events — deliberately neutral, never a client hue. */

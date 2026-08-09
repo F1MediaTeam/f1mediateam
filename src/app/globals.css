@@ -77,91 +77,175 @@
 }
 
 /* ── The six themes ───────────────────────────────────────────────────────
-   Each block sets only what differs from its mode's base above. The emerald
-   ramp is re-pointed alongside --color-accent, because a large amount of the
-   app reaches for emerald-* utilities as "the accent colour" — leaving it
-   teal while the accent went red is the one thing that makes a theme look
-   half-applied. */
+   A neutral ladder — white, light grey, mid grey, charcoal, black — plus one
+   red-forward theme. The ground is the only thing that really changes; the
+   accent is F1 red throughout, because the brand shouldn't shift when someone
+   picks a different background.
 
-/* 1 · Carbon — the original dark. Defaults from @theme; nothing to override. */
+   Status colour is deliberately NOT the accent. Red / amber / green have to
+   read as a stoplight from across the room, so they're set as their own
+   tokens per mode and pushed to a vivid, saturated register rather than the
+   muted brand palette. --color-ok / --color-warn / --color-bad are the ones
+   to reach for in new code. */
 
-/* 2 · Fog — the original light grey. Base light tokens above; nothing to add. */
-
-/* 3 · Paper — white, for bright rooms and anything being screen-shared. */
-[data-theme="paper"] {
-  --color-bg: #ffffff;
-  --color-bg-card: #ffffff;
-  --color-bg-elev: #f7f9fb;
-  --color-bg-hover: #eef2f6;
-  --color-border: #e3e8ef;
-  --color-border-strong: #c3ccd8;
-  --color-text: #0b1220;
-  --color-text-muted: #46505f;
-  --color-text-subtle: #6b7684;
+/* Light family: vivid but dark enough to hold on white. */
+[data-mode="light"] {
+  --color-ok:   #15a34a;
+  --color-warn: #d97706;
+  --color-bad:  #dc2626;
+  --color-ok-soft:   rgba(21, 163, 74, 0.14);
+  --color-warn-soft: rgba(217, 119, 6, 0.15);
+  --color-bad-soft:  rgba(220, 38, 38, 0.13);
 }
 
-/* 4 · Ink — true black. Highest contrast; also the cheapest on OLED. */
-[data-theme="ink"] {
+/* Dark family: lifted so they glow against a dark ground. */
+[data-mode="dark"] {
+  --color-ok:   #22e07a;
+  --color-warn: #ffb020;
+  --color-bad:  #ff4d4d;
+  --color-ok-soft:   rgba(34, 224, 122, 0.16);
+  --color-warn-soft: rgba(255, 176, 32, 0.16);
+  --color-bad-soft:  rgba(255, 77, 77, 0.16);
+}
+
+/* The accent, shared by every theme. Two shades: one that holds on light
+   grounds, a brighter one that survives a dark ground. */
+[data-mode="light"] {
+  --color-accent: #c8102e;
+  --color-accent-dim: #96001f;
+  --color-accent-soft: rgba(200, 16, 46, 0.11);
+  --color-on-accent: #ffffff;
+}
+[data-mode="dark"] {
+  --color-accent: #ff2d3f;
+  --color-accent-dim: #c40f22;
+  --color-accent-soft: rgba(255, 45, 63, 0.16);
+  --color-on-accent: #ffffff;
+}
+
+/* "Up" is good news, so it tracks the green, not the accent. */
+[data-mode="light"], [data-mode="dark"] {
+  --color-up: var(--color-ok);
+  --color-down: var(--color-bad);
+}
+
+/* Much of the app reaches for emerald-* utilities to mean "good". Re-point
+   the ramp at the real green so success reads green and the accent stays red
+   — previously both were the same teal, which is why nothing popped. */
+[data-mode="light"] {
+  --color-emerald-300: #15803d;
+  --color-emerald-400: #16a34a;
+  --color-emerald-500: #15a34a;
+  --color-emerald-600: #15803d;
+  --color-emerald-700: #14532d;
+}
+[data-mode="dark"] {
+  --color-emerald-300: #4ae98d;
+  --color-emerald-400: #2fe07f;
+  --color-emerald-500: #22e07a;
+  --color-emerald-600: #16a34a;
+  --color-emerald-700: #14532d;
+}
+
+/* 1 · Chalk — pure white. */
+[data-theme="chalk"] {
+  --color-bg: #ffffff;
+  --color-bg-card: #ffffff;
+  --color-bg-elev: #f5f7f9;
+  --color-bg-hover: #eceff3;
+  --color-border: #e1e6ec;
+  --color-border-strong: #bcc5d0;
+  --color-text: #0b1017;
+  --color-text-muted: #454f5c;
+  --color-text-subtle: #6b7583;
+}
+
+/* 2 · Fog — light grey, the canvas the site has always used. */
+[data-theme="fog"] {
+  --color-bg: #e8ecf2;
+  --color-bg-card: #f6f8fb;
+  --color-bg-elev: #e8ecf2;
+  --color-bg-hover: #d8dde5;
+  --color-border: #cdd5e0;
+  --color-border-strong: #aab4c2;
+  --color-text: #0f172a;
+  --color-text-muted: #3f4a57;
+  --color-text-subtle: #5a6573;
+}
+
+/* 3 · Graphite — mid grey. Dark family, but noticeably lighter than
+   charcoal; the one to use when black feels heavy. */
+[data-theme="graphite"] {
+  --color-bg: #33383f;
+  --color-bg-elev: #3b4149;
+  --color-bg-card: #424951;
+  --color-bg-hover: #4c545d;
+  --color-border: #565f69;
+  --color-border-strong: #6d7681;
+  --color-text: #f4f6f8;
+  --color-text-muted: #c0c7cf;
+  --color-text-subtle: #99a1ab;
+}
+
+/* 4 · Charcoal — the default. Warm-neutral dark, softer than true black. */
+[data-theme="charcoal"] {
+  --color-bg: #16181c;
+  --color-bg-elev: #1c1f24;
+  --color-bg-card: #22262c;
+  --color-bg-hover: #2b3037;
+  --color-border: #343a42;
+  --color-border-strong: #474e58;
+  --color-text: #f2f4f7;
+  --color-text-muted: #a8b0ba;
+  --color-text-subtle: #79818c;
+}
+
+/* 5 · Obsidian — true black. Highest contrast, cheapest on OLED. */
+[data-theme="obsidian"] {
   --color-bg: #000000;
   --color-bg-elev: #0a0a0a;
   --color-bg-card: #101010;
-  --color-bg-hover: #191919;
-  --color-border: #262626;
-  --color-border-strong: #3a3a3a;
+  --color-bg-hover: #1a1a1a;
+  --color-border: #292929;
+  --color-border-strong: #3d3d3d;
   --color-text: #ffffff;
-  --color-text-muted: #a3a3a3;
-  --color-text-subtle: #6e6e6e;
+  --color-text-muted: #a8a8a8;
+  --color-text-subtle: #737373;
 }
 
-/* 5 · Redline — F1 Media red on the light grey canvas. */
+/* 6 · Redline — red-forward. The ground itself carries a red cast so the
+   theme reads as F1 rather than "dark grey with red buttons". */
 [data-theme="redline"] {
-  --color-accent: #c20500;
-  --color-accent-dim: #8f0400;
-  --color-accent-soft: rgba(225, 6, 0, 0.12);
-  --color-on-accent: #ffffff;
-  --color-up: #c20500;
-  --color-emerald-300: #e1524d;
-  --color-emerald-400: #d21e18;
-  --color-emerald-500: #c20500;
-  --color-emerald-600: #8f0400;
-  --color-emerald-700: #660300;
+  --color-bg: #120809;
+  --color-bg-elev: #1a0d0f;
+  --color-bg-card: #211215;
+  --color-bg-hover: #2c181b;
+  --color-border: #3a2125;
+  --color-border-strong: #522d33;
+  --color-text: #fdf5f6;
+  --color-text-muted: #c4a9ad;
+  --color-text-subtle: #8d777b;
+  --color-accent: #ff2d3f;
+  --color-accent-dim: #c40f22;
+  --color-accent-soft: rgba(255, 45, 63, 0.18);
 }
 
-/* 6 · Redline Dark — the same red on near-black. #e10600 is the brand red;
-   it needs lifting off a dark ground to stay legible, hence the brighter
-   base here than in Redline. */
-[data-theme="redline-dark"] {
-  --color-bg: #0a0708;
-  --color-bg-elev: #120d0f;
-  --color-bg-card: #171113;
-  --color-bg-hover: #201719;
-  --color-border: #2b2023;
-  --color-border-strong: #3b2c30;
-  --color-text: #f7f4f5;
-  --color-text-muted: #b0a2a5;
-  --color-text-subtle: #6f6265;
-  --color-accent: #e10600;
-  --color-accent-dim: #a30400;
-  --color-accent-soft: rgba(225, 6, 0, 0.18);
-  --color-on-accent: #ffffff;
-  --color-up: #e10600;
-  --color-emerald-300: #f5726d;
-  --color-emerald-400: #ec2f28;
-  --color-emerald-500: #e10600;
-  --color-emerald-600: #a30400;
-  --color-emerald-700: #6e0300;
-}
-
-/* The ambient background wash follows the accent, or the whole page reads as
-   teal-tinted no matter which theme is on. */
-[data-theme="redline"] body,
-[data-theme="redline-dark"] body {
+/* Ambient wash: red for Redline, nothing for the flat neutrals — a tint on a
+   theme chosen for being neutral defeats the point. */
+[data-theme="redline"] body {
   background-image:
-    radial-gradient(800px 500px at 80% -10%, rgba(225, 6, 0, 0.09), transparent 60%),
-    radial-gradient(700px 400px at 0% 110%, rgba(225, 6, 0, 0.05), transparent 60%);
+    radial-gradient(800px 500px at 80% -10%, rgba(255, 45, 63, 0.10), transparent 60%),
+    radial-gradient(700px 400px at 0% 110%, rgba(255, 45, 63, 0.05), transparent 60%);
 }
-[data-theme="paper"] body,
-[data-theme="ink"] body { background-image: none; }
+[data-theme="chalk"] body,
+[data-theme="fog"] body,
+[data-theme="graphite"] body,
+[data-theme="charcoal"] body,
+[data-theme="obsidian"] body { background-image: none; }
+
+/* Selection follows the accent. */
+::selection { background: rgba(255, 45, 63, 0.28); color: #ffffff; }
+[data-mode="light"] ::selection { background: rgba(200, 16, 46, 0.20); color: #0b1017; }
 
 html, body { background: var(--color-bg); color: var(--color-text); }
 

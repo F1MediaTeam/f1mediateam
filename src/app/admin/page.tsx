@@ -137,16 +137,19 @@ export default async function AdminDashboard() {
               return (
                 <span
                   key={c.id}
-                  className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs"
-                  style={{ background: p.tint, color: p.hex, borderColor: p.border }}
+                  className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
+                  style={{ background: p.solid, color: p.onSolid }}
                 >
-                  <span className="inline-block w-2 h-2 rounded-full bg-current opacity-90" />
+                  <span className="inline-block w-2 h-2 rounded-full bg-current opacity-70" />
                   {c.company_name}
                 </span>
               );
             })}
-            <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs bg-slate-500/10 text-slate-300 border-current/30">
-              <span className="inline-block w-2 h-2 rounded-full bg-current opacity-90" />
+            <span
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ background: INTERNAL_COLOR.solid, color: INTERNAL_COLOR.onSolid }}
+            >
+              <span className="inline-block w-2 h-2 rounded-full bg-current opacity-70" />
               F1 Media
             </span>
           </div>

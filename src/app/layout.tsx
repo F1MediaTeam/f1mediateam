@@ -39,7 +39,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      data-theme="carbon"
+      data-theme="charcoal"
       data-mode="dark"
       suppressHydrationWarning
       className={`${dmSans.variable} h-full antialiased`}
@@ -53,10 +53,10 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html:
               "(function(){try{" +
-              "var m={carbon:'dark',fog:'light',paper:'light',ink:'dark',redline:'light','redline-dark':'dark'};" +
-              "var t=localStorage.getItem('theme');" +
-              "if(t==='dark')t='carbon';if(t==='light')t='fog';" +
-              "if(!m[t])t='carbon';" +
+              "var m={chalk:'light',fog:'light',graphite:'dark',charcoal:'dark',obsidian:'dark',redline:'dark'};" +
+              "var g={dark:'charcoal',light:'fog',carbon:'charcoal',paper:'chalk',ink:'obsidian','redline-dark':'redline'};" +
+              "var t=localStorage.getItem('theme');t=g[t]||t;" +
+              "if(!m[t])t='charcoal';" +
               "var d=document.documentElement;" +
               "d.setAttribute('data-theme',t);d.setAttribute('data-mode',m[t]);" +
               "}catch(e){}})();",

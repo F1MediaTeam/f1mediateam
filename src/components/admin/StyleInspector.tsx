@@ -14,13 +14,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Crosshair, X, RotateCcw, Check, BookmarkCheck, Move } from "lucide-react";
+import { Crosshair, X, RotateCcw, Check, BookmarkCheck, Move, Pipette } from "lucide-react";
 import {
   buildOverrideCss,
   THEME_TOKENS,
   type OverrideScope,
   type UiOverride,
 } from "@/lib/ui-overrides";
+import { sitePalette } from "@/lib/site-palette";
 import {
   saveStyleOverrideAction,
   setStyleDefaultAction,
@@ -744,6 +745,11 @@ function ColorField({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const [showPalette, setShowPalette] = useState(false);
+  // Read on open, not on mount: the values change with the theme and with any
+  // override saved since this panel appeared.
+  const groups = useMemo(() => (showPalette ? sitePalette() : []), [showPalette]);
+
   return (
     <Field label={label}>
       <div className="flex items-center gap-2">
@@ -760,6 +766,20 @@ function ColorField({
           onChange={(e) => onChange(e.target.value)}
           className="min-w-0 flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-2 py-1.5 font-mono text-xs"
         />
+        <button
+          type="button"
+          onClick={() => setShowPalette((v) => !v)}
+          title="Pick a colour already used on the site"
+          aria-expanded={showPalette}
+          className={
+            "shrink-0 rounded border px-1.5 py-1 text-[10px] uppercase tracking-wider transition " +
+            (showPalette
+              ? "border-[var(--color-accent)] text-[var(--color-accent)]"
+              : "border-[var(--color-border)] text-[var(--color-text-subtle)] hover:text-[var(--color-text)]")
+          }
+        >
+          <Pipette size={12} />
+        </button>
         {value ? (
           <button
             type="button"
@@ -771,6 +791,40 @@ function ColorField({
           </button>
         ) : null}
       </div>
+
+      {/* The colours already on the page. Picking one guarantees an exact
+          match instead of a near-miss that has to be chased down later. */}
+      {showPalette ? (
+        <div className="mt-2 space-y-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-2">
+          {groups.map((g) => (
+            <div key={g.title}>
+              <div className="mb-1 text-[9px] uppercase tracking-widest text-[var(--color-text-subtle)]">
+                {g.title}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {g.swatches.map((sw) => (
+                  <button
+                    key={g.title + sw.hex + sw.label}
+                    type="button"
+                    title={`${sw.label} — ${sw.hex}`}
+                    onClick={() => {
+                      onChange(sw.hex);
+                      setShowPalette(false);
+                    }}
+                    className={
+                      "h-6 w-6 rounded border transition hover:scale-110 " +
+                      (value.toLowerCase() === sw.hex
+                        ? "border-[var(--color-text)]"
+                        : "border-[var(--color-border-strong)]")
+                    }
+                    style={{ background: sw.hex }}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </Field>
   );
 }

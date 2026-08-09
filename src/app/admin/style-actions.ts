@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { data } from "@/lib/data";
 import { requireAdmin } from "@/lib/auth/session";
 import { sanitizeOverride } from "@/lib/ui-overrides";
+import { setDefaultTheme } from "@/lib/app-settings";
 
 // The override <style> block renders from the admin layout, so the whole
 // /admin subtree has to revalidate for a change to show everywhere.
@@ -68,5 +69,27 @@ export async function restoreOriginalStylesAction(): Promise<{ error: string | n
   await requireAdmin();
   await data.clearUiOverrides();
   revalidateAdmin();
+  return { error: null };
+}
+
+/**
+ * Make a theme the install-wide default.
+ *
+ * The theme each person is looking at lives in their own browser, so this
+ * can't reach out and change it for them. What it sets is the starting point:
+ * any browser that hasn't picked a theme lands here, including the login page
+ * and every new machine. Pressing it again with a different theme selected
+ * moves the default — that's the "reinstate it as the new default" case.
+ */
+export async function setDefaultThemeAction(themeId: string): Promise<{ error: string | null }> {
+  const session = await requireAdmin();
+  if (!/^[a-z0-9-]{1,32}$/.test(themeId)) return { error: "Unknown theme." };
+  try {
+    await setDefaultTheme(themeId, session.user_id);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't save the default." };
+  }
+  // The default is read in the root layout, so everything has to revalidate.
+  revalidatePath("/", "layout");
   return { error: null };
 }

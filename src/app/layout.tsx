@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { getDefaultTheme } from "@/lib/app-settings";
 import { DM_Sans } from "next/font/google";
 import "./globals.css";
 
@@ -31,11 +32,17 @@ export const viewport: Viewport = {
   userScalable: true,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // The install-wide default, set from Settings → Preferences. Only used when
+  // this browser has no theme of its own; a personal choice always wins.
+  // getAppSetting swallows its own failures, so a missing table or an
+  // unreachable database renders the built-in default rather than a 500.
+  const fallback = await getDefaultTheme();
+
   return (
     <html
       lang="en"
@@ -56,6 +63,7 @@ export default function RootLayout({
               "var m={chalk:'light','chalk-panel':'light',fog:'light','graphite-panel':'light',graphite:'dark','graphite-deep':'dark',charcoal:'dark','obsidian-panel':'dark',obsidian:'dark'};" +
               "var g={dark:'charcoal',light:'fog',carbon:'charcoal',paper:'chalk',ink:'obsidian',redline:'charcoal','redline-dark':'charcoal'};" +
               "var t=localStorage.getItem('theme');t=g[t]||t;" +
+              "if(!m[t])t=" + JSON.stringify(fallback) + ";" +
               "if(!m[t])t='charcoal';" +
               "var d=document.documentElement;" +
               "d.setAttribute('data-theme',t);d.setAttribute('data-mode',m[t]);" +

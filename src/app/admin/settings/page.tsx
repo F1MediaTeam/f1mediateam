@@ -7,10 +7,12 @@ import Time from "@/components/shared/Time";
 import DropdownCard from "@/components/shared/DropdownCard";
 import { formatLocation } from "@/lib/utils";
 import ThemePicker from "@/components/admin/ThemePicker";
+import { getDefaultTheme } from "@/lib/app-settings";
 
 export default async function AdminSettings() {
   const session = await requireAdmin();
   const audit = await data.listAudit({ userId: session.user_id, limit: 12 });
+  const defaultTheme = await getDefaultTheme();
 
   return (
     <AdminShell session={session} active="/admin/settings">
@@ -51,7 +53,7 @@ export default async function AdminSettings() {
           />
           <CardBody>
             <div className="mb-3 text-sm font-medium">Theme</div>
-            <ThemePicker />
+            <ThemePicker defaultTheme={defaultTheme} />
           </CardBody>
         </Card>
 

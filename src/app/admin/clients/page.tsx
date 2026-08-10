@@ -4,6 +4,7 @@ import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { createClientAction } from "../actions";
 import Time from "@/components/shared/Time";
+import { clientColor } from "@/lib/client-color";
 import DeleteClientButton from "@/components/admin/DeleteClientButton";
 import AdminClientAddModal from "@/components/admin/AdminClientAddModal";
 import { getClientBrandLogoUrlsByClients, type ClientLogoUrls } from "@/lib/client-logo";
@@ -49,9 +50,15 @@ function ClientCard({ client: c, logos }: { client: Client; logos: ClientLogoUrl
 
   const website = c.websites[0] ?? "";
   const websiteLabel = website.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  // The client's own colour, drawn as the card's border so the grid is
+  // identifiable by colour before any logo or name is read.
+  const colour = clientColor(c);
 
   return (
-    <div className="group relative rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-hover)] transition shadow-lg shadow-black/20">
+    <div
+      className="group relative rounded-2xl bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-hover)] transition shadow-lg shadow-black/20"
+      style={{ border: `3px solid ${colour.hex}` }}
+    >
       <Link href={`/admin/clients/${c.id}`} className="block px-5 py-4 sm:px-6 sm:py-5">
         <div className="flex items-start justify-between gap-3">
           <div className="text-xs text-[var(--color-text-muted)]">

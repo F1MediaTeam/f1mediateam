@@ -18,6 +18,7 @@ import CreateClientUserForm from "@/components/admin/CreateClientUserForm";
 import EditClientUserForm from "@/components/admin/EditClientUserForm";
 import ReopenOnboardingButton from "@/components/admin/ReopenOnboardingButton";
 import ClientColorPicker from "@/components/admin/ClientColorPicker";
+import { clientColor } from "@/lib/client-color";
 import AdminContentAddModal from "@/components/admin/AdminContentAddModal";
 import ClientNotes from "@/components/admin/ClientNotes";
 import ClientSectionNav from "@/components/admin/ClientSectionNav";
@@ -93,7 +94,27 @@ export default async function ClientProfile({
         </Link>
         <div className="mt-2 mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
-            <h1 className="text-3xl font-semibold tracking-tight">{client.company_name}</h1>
+            {/* The client's colour, stated where you can't miss it — and a jump
+                straight to the picker that sets it. */}
+            <div className="mb-2 flex items-center gap-2">
+              <span
+                aria-hidden
+                className="inline-block h-4 w-4 rounded ring-1 ring-black/20"
+                style={{ background: clientColor(client).hex }}
+              />
+              <a
+                href="#section-account"
+                className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)] hover:text-[var(--color-text)]"
+              >
+                {client.ui_color ? "Client colour" : "Client colour — not set"}
+              </a>
+            </div>
+            <h1
+              className="text-3xl font-semibold tracking-tight"
+              style={{ borderBottom: `3px solid ${clientColor(client).hex}`, paddingBottom: "6px" }}
+            >
+              {client.company_name}
+            </h1>
             <div className="mt-1 text-sm text-[var(--color-text-muted)] flex flex-wrap items-center gap-x-3 gap-y-1">
               <span>Joined <Time iso={client.join_date} dateOnly /></span>
               {client.websites.map((w) => (

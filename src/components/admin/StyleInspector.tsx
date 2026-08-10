@@ -946,15 +946,39 @@ function Nudge({ label, onClick }: { label: string; onClick: () => void }) {
 
 /** Number input that stores a px string, blank meaning "leave alone". */
 function UnitInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  // Typed text is held locally and only normalised on blur.
+  //
+  // This used to append "px" on every keystroke: typing "2" immediately became
+  // "2px", and the next character landed after it, producing "2px2". That is
+  // not valid CSS, so the browser dropped the declaration and the border never
+  // appeared — the change looked like it had failed to save when in fact it
+  // had saved a value that could never render.
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? value;
+
+  function commit() {
+    const raw = (draft ?? "").trim();
+    setDraft(null);
+    if (draft === null) return;
+    if (!raw) return onChange("");
+    // A bare number means pixels. Anything carrying its own unit is left be.
+    if (/^\d+(\.\d+)?$/.test(raw)) return onChange(`${raw}px`);
+    if (/^\d+(\.\d+)?(px|rem|em|%|vh|vw)$/.test(raw)) return onChange(raw);
+    // Unparseable — strip to the leading number rather than saving something
+    // that silently does nothing.
+    const salvaged = /^(\d+(?:\.\d+)?)/.exec(raw);
+    onChange(salvaged ? `${salvaged[1]}px` : "");
+  }
+
   return (
     <input
       type="text"
-      value={value}
+      value={shown}
       placeholder="unchanged"
-      onChange={(e) => {
-        const raw = e.target.value.trim();
-        if (!raw) return onChange("");
-        onChange(/^\d+(\.\d+)?$/.test(raw) ? `${raw}px` : raw);
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
       }}
       className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-2 py-1.5 text-xs"
     />

@@ -76,6 +76,20 @@
   --color-down: #dc2626;
 }
 
+/* ── Sidebar ──────────────────────────────────────────────────────────────
+   The sidebar was painted straight from --color-bg-elev, which meant it could
+   never differ from the raised surfaces inside the page — a black rail beside
+   white cards was simply not expressible. These default to the old behaviour,
+   so themes that don't set them look exactly as before. */
+:root {
+  --color-sidebar-bg: var(--color-bg-elev);
+  --color-sidebar-text: var(--color-text);
+  --color-sidebar-muted: var(--color-text-muted);
+  --color-sidebar-active-bg: var(--color-bg-hover);
+  --color-sidebar-active-text: var(--color-text);
+  --color-sidebar-border: var(--color-border);
+}
+
 /* ── The six themes ───────────────────────────────────────────────────────
    A neutral ladder — white, light grey, mid grey, charcoal, black — plus one
    red-forward theme. The ground is the only thing that really changes; the
@@ -278,6 +292,35 @@
   --color-text: #ffffff;
   --color-text-muted: #a8a8a8;
   --color-text-subtle: #737373;
+}
+
+/* 10 · Studio — the house look. Grey page, white panels, black text, black
+   sidebar, F1 red for anything actionable. Built from the colours the design
+   was prototyped with in the style inspector, promoted to real tokens so it
+   holds on every page instead of only where each element happened to be
+   clicked. */
+[data-theme="studio"] {
+  --color-bg: #bcc5d0;
+  --color-bg-card: #ffffff;
+  --color-bg-elev: #ffffff;
+  --color-bg-hover: #eceff3;
+  --color-border: #d2d8df;
+  --color-border-strong: #a4aeb9;
+  --color-text: #0b1017;
+  --color-text-muted: #3f4a57;
+  --color-text-subtle: #5c6672;
+
+  --color-accent: #e11d2e;
+  --color-accent-dim: #b0111f;
+  --color-accent-soft: rgba(225, 29, 46, 0.12);
+  --color-on-accent: #ffffff;
+
+  --color-sidebar-bg: #000000;
+  --color-sidebar-text: #ffffff;
+  --color-sidebar-muted: #8b929b;
+  --color-sidebar-active-bg: #e6eaf0;
+  --color-sidebar-active-text: #0b1017;
+  --color-sidebar-border: #e11d2e;
 }
 
 /* No ambient wash on any of them: a coloured tint on a set chosen for being

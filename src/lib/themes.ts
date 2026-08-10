@@ -18,6 +18,13 @@ export interface Theme {
 
 export const THEMES: Theme[] = [
   {
+    id: "studio",
+    name: "Studio",
+    blurb: "The house look — grey page, white panels, black rail, F1 red.",
+    mode: "light",
+    swatch: { bg: "#bcc5d0", card: "#ffffff", accent: "#e11d2e" },
+  },
+  {
     id: "chalk",
     name: "Chalk",
     blurb: "Pure white. Best for bright rooms and screen-sharing.",
@@ -82,7 +89,7 @@ export const THEMES: Theme[] = [
   },
 ];
 
-export const DEFAULT_THEME = "charcoal";
+export const DEFAULT_THEME = "studio";
 
 /**
  * The light/dark counterpart of each theme, used by the sun/moon toggle. Paired
@@ -90,6 +97,7 @@ export const DEFAULT_THEME = "charcoal";
  * is the similarly mid-toned Graphite, not black.
  */
 export const THEME_COUNTERPART: Record<string, string> = {
+  studio: "obsidian-panel",
   chalk: "charcoal",
   "chalk-panel": "obsidian-panel",
   fog: "graphite-deep",

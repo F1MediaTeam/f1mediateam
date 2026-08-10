@@ -41,8 +41,25 @@ function rowClass(active: string | undefined, href: string, child: boolean): str
     "flex items-center justify-between rounded-lg px-3 py-2 text-sm transition " +
     (child ? "ml-3 text-[13px] " : "") +
     (active === href
-      ? "bg-[var(--color-bg-hover)] text-[var(--color-text)]"
-      : "text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)]")
+      ? "bg-[var(--color-sidebar-active-bg)] text-[var(--color-sidebar-active-text)]"
+      : "text-[var(--color-sidebar-muted)] hover:bg-[var(--color-sidebar-active-bg)] hover:text-[var(--color-sidebar-active-text)]")
+  );
+}
+
+/** The clients' own colours, shown on the Clients row so the palette is
+ *  visible from anywhere in the console rather than only on the calendar. */
+function ClientDots({ colors }: { colors: string[] }) {
+  if (colors.length === 0) return null;
+  return (
+    <span className="flex shrink-0 items-center gap-1" aria-hidden>
+      {colors.slice(0, 6).map((hex) => (
+        <span
+          key={hex}
+          className="h-2.5 w-2.5 rounded-full ring-1 ring-black/20"
+          style={{ background: hex }}
+        />
+      ))}
+    </span>
   );
 }
 
@@ -92,6 +109,7 @@ function Row({
   active,
   editing,
   unread,
+  clientColors,
   drag,
   setDrag,
   onNest,
@@ -102,12 +120,14 @@ function Row({
   active?: string;
   editing: boolean;
   unread: number;
+  clientColors: string[];
   drag: DragState;
   setDrag: (d: DragState) => void;
   onNest: (draggedHref: string, targetHref: string) => void;
   onUnnest: (href: string) => void;
 }) {
   const badgeCount = node.href === "/admin/messages" ? unread : 0;
+  const dots = node.href === "/admin/clients" ? clientColors : [];
 
   if (!editing) {
     return (
@@ -120,7 +140,7 @@ function Row({
           {child ? <CornerDownRight size={12} className="shrink-0 opacity-50" aria-hidden /> : null}
           <span className="truncate">{node.label}</span>
         </span>
-        <Badge count={badgeCount} />
+        {dots.length > 0 ? <ClientDots colors={dots} /> : <Badge count={badgeCount} />}
       </Link>
     );
   }
@@ -174,9 +194,11 @@ function Row({
 export default function AdminNav({
   active,
   totalUnread,
+  clientColors = [],
 }: {
   active?: string;
   totalUnread: number;
+  clientColors?: string[];
 }) {
   const hydrated = useHydrated();
   // The saved arrangement can only be read in the browser. Until then render
@@ -214,13 +236,14 @@ export default function AdminNav({
             active={active}
             editing={editing}
             unread={totalUnread}
+            clientColors={clientColors}
             drag={drag}
             setDrag={setDrag}
             onNest={(d, t) => commit(nestUnder(tree, d, t))}
             onUnnest={(h) => commit(unnest(tree, h))}
           />
           {node.children.length > 0 ? (
-            <div className="mt-0.5 flex flex-col gap-0.5 border-l border-[var(--color-border)] pl-1">
+            <div className="mt-0.5 flex flex-col gap-0.5 border-l border-[var(--color-sidebar-border)] pl-1">
               {node.children.map((c) => (
                 <Row
                   key={c.href}
@@ -229,6 +252,7 @@ export default function AdminNav({
                   active={active}
                   editing={editing}
                   unread={totalUnread}
+                  clientColors={clientColors}
                   drag={drag}
                   setDrag={setDrag}
                   onNest={(d, t) => commit(nestUnder(tree, d, t))}
@@ -248,14 +272,14 @@ export default function AdminNav({
         />
       ) : null}
 
-      <div className="mt-3 flex items-center gap-2 border-t border-[var(--color-border)] pt-2">
+      <div className="mt-3 flex items-center gap-2 border-t border-[var(--color-sidebar-border)] pt-2">
         <button
           type="button"
           onClick={() => {
             setEditing((v) => !v);
             setDrag(NO_DRAG);
           }}
-          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] uppercase tracking-wider text-[var(--color-text-subtle)] transition hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)]"
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] uppercase tracking-wider text-[var(--color-sidebar-muted)] transition hover:bg-[var(--color-sidebar-active-bg)] hover:text-[var(--color-sidebar-active-text)]"
         >
           {editing ? <Check size={12} /> : <Pencil size={12} />}
           {editing ? "Done" : "Edit menu"}
@@ -265,7 +289,7 @@ export default function AdminNav({
             type="button"
             onClick={() => commit(DEFAULT_TREE)}
             title="Put the menu back the way it shipped"
-            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] uppercase tracking-wider text-[var(--color-text-subtle)] transition hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)]"
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] uppercase tracking-wider text-[var(--color-sidebar-muted)] transition hover:bg-[var(--color-sidebar-active-bg)] hover:text-[var(--color-sidebar-active-text)]"
           >
             <RotateCcw size={12} />
             Reset
@@ -274,7 +298,7 @@ export default function AdminNav({
       </div>
 
       {editing ? (
-        <p className="px-2 pt-1.5 text-[10px] leading-relaxed text-[var(--color-text-subtle)]">
+        <p className="px-2 pt-1.5 text-[10px] leading-relaxed text-[var(--color-sidebar-muted)]">
           Drag between items to reorder. Drop onto an item to file it underneath.
         </p>
       ) : null}

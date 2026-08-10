@@ -6,6 +6,7 @@ import StyleInspector from "@/components/admin/StyleInspector";
 import AdminNotificationBell from "@/components/admin/AdminNotificationBell";
 import AdminNav from "@/components/admin/AdminNav";
 import { data } from "@/lib/data";
+import { clientColor } from "@/lib/client-color";
 import type { Session } from "@/lib/data";
 
 // The sidebar's own order and nesting are editable per person and live in
@@ -24,6 +25,14 @@ export default async function AdminShell({
 }) {
   // One aggregate query per admin page for the Messages badge. Falls back to
   // zero if the migration hasn't landed yet so the shell doesn't crash.
+  // The clients' assigned colours, shown as dots on the Clients row.
+  let clientColors: string[] = [];
+  try {
+    clientColors = (await data.listClients()).map((c) => clientColor(c).hex);
+  } catch {
+    clientColors = [];
+  }
+
   let totalUnread = 0;
   try {
     const counts = await data.listUnreadCountsByClient();
@@ -47,13 +56,13 @@ export default async function AdminShell({
       </header>
 
       {/* Desktop sidebar — hidden on mobile. */}
-      <aside data-style-id="admin-sidebar" className="hidden md:flex w-60 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-bg-elev)]/80">
+      <aside data-style-id="admin-sidebar" className="hidden md:flex w-60 shrink-0 flex-col border-r border-[var(--color-sidebar-border)] bg-[var(--color-sidebar-bg)] text-[var(--color-sidebar-text)]">
         <div className="px-4 py-5">
           <Link href="/admin" className="block">
             <Logo compact width={200} height={56} />
           </Link>
           <div className="mt-2 flex items-center justify-between px-1">
-            <span className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-subtle)]">
+            <span className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-sidebar-muted)]">
               Admin console
             </span>
             {/* Notification bell + theme toggle beside the crosshair inspector. */}
@@ -65,10 +74,10 @@ export default async function AdminShell({
           </div>
         </div>
 
-        <AdminNav active={active} totalUnread={totalUnread} />
+        <AdminNav active={active} totalUnread={totalUnread} clientColors={clientColors} />
 
-        <div className="mt-auto flex items-center gap-2 border-t border-[var(--color-border)] p-3">
-          <span className="truncate text-[11px] text-[var(--color-text-subtle)]">{session.email}</span>
+        <div className="mt-auto flex items-center gap-2 border-t border-[var(--color-sidebar-border)] p-3">
+          <span className="truncate text-[11px] text-[var(--color-sidebar-muted)]">{session.email}</span>
         </div>
       </aside>
 

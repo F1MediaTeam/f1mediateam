@@ -14,7 +14,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Crosshair, X, RotateCcw, Check, BookmarkCheck, Move, Pipette } from "lucide-react";
+import { Crosshair, X, RotateCcw, Check, BookmarkCheck, Move, Pipette, CornerLeftUp } from "lucide-react";
 import {
   buildOverrideCss,
   THEME_TOKENS,
@@ -121,6 +121,17 @@ function contrastRatio(fg: string, bg: string): number | null {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
+/**
+ * Black or white, whichever is readable on `bg`. Chosen by luminance rather
+ * than by eye, because the borderline cases — amber, lime, mid greys — are
+ * exactly the ones guessing gets wrong.
+ */
+function readableOn(bg: string | undefined): string {
+  const rgb = bg ? parseColor(bg) : null;
+  if (!rgb) return "#ffffff";
+  return luminance(rgb) > 0.45 ? "#000000" : "#ffffff";
+}
+
 /** Normalise a computed colour to hex so <input type="color"> accepts it. */
 function toHex(input: string): string {
   const rgb = parseColor(input);
@@ -207,6 +218,35 @@ export default function StyleInspector() {
   const [baseRect, setBaseRect] = useState<DOMRect | null>(null);
   const dragFrom = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
 
+  /** Point the panel at one element and read its current styles in. */
+  const selectElement = useCallback((el: HTMLElement) => {
+    const resolved = resolveTarget(el);
+    setTarget(resolved);
+    setToken(resolved.tokenGuess);
+    setScope("element");
+    const computed = getComputedStyle(el);
+    setStyles({
+      color: toHex(computed.color),
+      backgroundColor: toHex(computed.backgroundColor),
+    });
+    const current = readOffset(el);
+    setOffset(current);
+    setBaseOffset(current);
+    setBaseRect(el.getBoundingClientRect());
+  }, []);
+
+  /**
+   * Walk up one level. Clicking lands on the innermost element under the
+   * cursor, which is usually a label or a header — not the panel it sits in.
+   * This is how you get from "the Account heading" to "the Account card" and
+   * style the whole box as one thing.
+   */
+  const selectParent = useCallback(() => {
+    const parent = target?.element.parentElement;
+    if (!parent || parent === document.body || parent.closest("[data-inspector]")) return;
+    selectElement(parent);
+  }, [target, selectElement]);
+
   const stop = useCallback(() => {
     setPicking(false);
     setHoverRect(null);
@@ -238,19 +278,7 @@ export default function StyleInspector() {
       if (!el || el.closest("[data-inspector]")) return;
       e.preventDefault();
       e.stopPropagation();
-      const resolved = resolveTarget(el);
-      setTarget(resolved);
-      setToken(resolved.tokenGuess);
-      setScope("element");
-      const computed = getComputedStyle(el);
-      setStyles({
-        color: toHex(computed.color),
-        backgroundColor: toHex(computed.backgroundColor),
-      });
-      const current = readOffset(el);
-      setOffset(current);
-      setBaseOffset(current);
-      setBaseRect(el.getBoundingClientRect());
+      selectElement(el);
       stop();
     }
 
@@ -268,7 +296,7 @@ export default function StyleInspector() {
       document.removeEventListener("keydown", onKey, true);
       document.body.style.cursor = "";
     };
-  }, [picking, stop]);
+  }, [picking, stop, selectElement]);
 
   // The override being edited right now, or null when it isn't targetable.
   const draft = useMemo<UiOverride | null>(() => {
@@ -486,6 +514,17 @@ export default function StyleInspector() {
               </div>
               <div className="truncate text-sm font-medium">{target.label}</div>
             </div>
+            {/* Clicking lands on the innermost thing under the cursor — a
+                heading, a label. This walks out to the panel containing it so
+                a whole card can be styled as one object. */}
+            <button
+              type="button"
+              onClick={selectParent}
+              title="Select the box this sits inside — press again to keep going out"
+              className="mr-1 inline-flex shrink-0 items-center gap-1 rounded border border-[var(--color-border)] px-1.5 py-1 text-[9px] uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            >
+              <CornerLeftUp size={11} /> Whole box
+            </button>
             <button
               type="button"
               onClick={close}
@@ -596,14 +635,25 @@ export default function StyleInspector() {
                 {ratio !== null ? (
                   <div
                     className={
-                      "rounded-lg px-2 py-1.5 text-[10px] " +
+                      "flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-[10px] " +
                       (ratio >= 4.5
                         ? "bg-[var(--color-accent-soft)] text-[var(--color-accent)]"
-                        : "bg-red-500/10 text-red-400")
+                        : "bg-[var(--color-bad-soft)] text-[var(--color-bad)]")
                     }
                   >
-                    Contrast {ratio.toFixed(1)}:1 —{" "}
-                    {ratio >= 4.5 ? "readable" : "too low, hard to read"}
+                    <span>
+                      Contrast {ratio.toFixed(1)}:1 —{" "}
+                      {ratio >= 4.5 ? "readable" : "too low, hard to read"}
+                    </span>
+                    {ratio < 4.5 ? (
+                      <button
+                        type="button"
+                        onClick={() => set("color", readableOn(styles.backgroundColor))}
+                        className="shrink-0 rounded border border-current px-1.5 py-0.5 font-semibold uppercase tracking-wider"
+                      >
+                        Fix text
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
 

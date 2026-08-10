@@ -32,7 +32,14 @@ export function CardHeader({
   right?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 px-4 pt-5 pb-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-6">
+    // rounded-t-2xl matches Card's radius. Without it, a background applied to
+    // the header — by the style inspector or otherwise — renders as a square
+    // block whose top corners hang outside the card's rounded ones. No effect
+    // until something actually paints a background here.
+    <div
+      data-style-id="card-header"
+      className="flex flex-col gap-3 rounded-t-2xl px-4 pt-5 pb-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-6"
+    >
       <div className="min-w-0">
         <div className="text-base font-semibold tracking-tight">{title}</div>
         {subtitle ? (

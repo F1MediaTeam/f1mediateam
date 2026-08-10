@@ -9,7 +9,7 @@
 
 import { useState, useTransition } from "react";
 import { Check } from "lucide-react";
-import { STAFF_ROLES, seesAllClients, staffRoleOf, type StaffRole } from "@/lib/permissions";
+import { STAFF_ROLES, seesAllClients, staffRoleOf } from "@/lib/permissions";
 import { clientColor } from "@/lib/client-color";
 import { setAssignmentAction, setStaffRoleAction } from "@/app/admin/actions";
 

@@ -341,6 +341,57 @@
   --color-sidebar-border: #e11d2e;
 }
 
+/* ── Studio, beyond the tokens ────────────────────────────────────────────
+   The look was prototyped as per-element overrides on the dashboard. Those
+   selectors are positional — div:nth-of-type(6) — so they only ever matched
+   that one page's structure, and re-ordering the dashboard pointed them at the
+   wrong elements entirely. Everything repeated across them is expressed here
+   instead, keyed on the data-style-ids the components own, so the same look
+   lands on every page.
+
+   Scoped to [data-theme="studio"] throughout: no other theme is touched. */
+
+/* Red outline on every panel. --color-border is what cards, tiles and the
+   calendar grid all draw from, so pointing it at the brand red is what makes
+   the outline appear site-wide rather than only where a box was clicked. */
+[data-theme="studio"] {
+  --color-border: #e11d2e;
+  /* Inputs and small dividers keep a neutral edge — a red outline on every
+     text field reads as an error state. */
+  --color-border-strong: #a4aeb9;
+}
+[data-theme="studio"] input,
+[data-theme="studio"] select,
+[data-theme="studio"] textarea {
+  border-color: #cfd6dd;
+}
+
+/* Card headers: slate band, white text. The subtitle and any muted text
+   inside have to be re-pointed too, or they stay dark grey on dark grey. */
+[data-theme="studio"] [data-style-id="card-header"] {
+  background: #5c6672;
+  color: #ffffff;
+}
+[data-theme="studio"] [data-style-id="card-header"] .text-\[var\(--color-text-muted\)\] {
+  color: #e6eaf0;
+}
+
+/* The headline figure in a stat tile, and the count on a task column. */
+[data-theme="studio"] [data-style-id="stat-tile"] > div:last-child,
+[data-theme="studio"] [data-style-id="task-column"] > div:first-child > span:last-child {
+  color: #e11d2e;
+}
+
+/* Small uppercase labels sit on a soft grey chip rather than bare on white —
+   the "shadow behind the text" in the prototype. */
+[data-theme="studio"] [data-style-id="stat-tile"] > div:first-child,
+[data-theme="studio"] [data-style-id="task-column"] > div:first-child > span:first-child {
+  background: #eceff3;
+  color: #0b1017;
+  border-radius: 6px;
+  padding: 3px 6px;
+}
+
 /* No ambient wash on any of them: a coloured tint on a set chosen for being
    neutral defeats the point, and it was washing out the panel edges. */
 body { background-image: none; }

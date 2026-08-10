@@ -243,6 +243,16 @@ export default async function AdminDashboard() {
 // narrow viewport), then becomes a fixed-height card on tablet+ so the
 // number stays close to the label instead of floating at the bottom of a
 // 350px-tall empty box.
+// The dashboard's panel surface. Both the stat tiles and the task columns use
+// it, so the two rows read as one system — they had drifted to rounded-xl with
+// no shadow versus Card's rounded-2xl with a heavy one.
+//
+// data-style-id gives the style inspector a stable handle on the whole panel.
+// Without it, clicking landed on whatever inner label was under the cursor and
+// the outer shape could not be selected at all.
+const PANEL =
+  "rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-3 sm:p-4";
+
 function SquareStat({
   label,
   value,
@@ -254,7 +264,10 @@ function SquareStat({
 }) {
   const accent = tone === "danger" ? "text-[var(--color-down)]" : "text-[var(--color-text)]";
   return (
-    <div className="aspect-square sm:aspect-auto sm:h-28 lg:h-32 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-3 sm:p-4 flex flex-col justify-between">
+    <div
+      data-style-id="stat-tile"
+      className={`aspect-square sm:aspect-auto sm:h-28 lg:h-32 flex flex-col justify-between ${PANEL}`}
+    >
       <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] leading-tight">
         {label}
       </div>
@@ -273,23 +286,23 @@ function TaskColumn({
   clientName: (id: string) => string;
 }) {
   return (
-    <Card className="flex flex-col h-full">
-      <CardHeader
-        title={
-          <span className="flex items-baseline justify-between gap-2 min-w-0">
-            <span className="truncate">{title}</span>
-            <span
-              className={
-                "shrink-0 tabular-nums text-lg font-semibold " +
-                (bucket.length > 0 ? "text-[var(--color-accent)]" : "text-[var(--color-text-subtle)]")
-              }
-            >
-              {bucket.length}
-            </span>
-          </span>
-        }
-      />
-      <CardBody className="space-y-2 flex-1">
+    <div data-style-id="task-column" className={`flex flex-col h-full ${PANEL}`}>
+      {/* Label styled like the stat tiles above: same size, case and tracking,
+          so the two rows sit as one grid rather than two designs. */}
+      <div className="mb-3 flex items-baseline justify-between gap-2 min-w-0">
+        <span className="truncate text-[10px] sm:text-[11px] uppercase tracking-wider text-[var(--color-text-muted)]">
+          {title}
+        </span>
+        <span
+          className={
+            "shrink-0 tabular-nums text-2xl font-semibold " +
+            (bucket.length > 0 ? "text-[var(--color-text)]" : "text-[var(--color-text-subtle)]")
+          }
+        >
+          {bucket.length}
+        </span>
+      </div>
+      <div className="space-y-2 flex-1">
         {bucket.length === 0 ? (
           <div className="text-xs text-[var(--color-text-subtle)] py-4 text-center">
             Nothing here — clean queue.
@@ -338,7 +351,7 @@ function TaskColumn({
               </div>
             ))
         )}
-      </CardBody>
-    </Card>
+      </div>
+    </div>
   );
 }

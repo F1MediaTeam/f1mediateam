@@ -8,6 +8,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
+import { clientColor } from "@/lib/client-color";
 
 function initials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -77,11 +78,13 @@ export default async function AdminMessagesInbox() {
               const unread = unreadByClient.get(c.id) ?? 0;
               const last = latestByClient.get(c.id);
               const hasUnread = unread > 0;
+              const colour = clientColor(c);
               return (
                 <li key={c.id}>
                   <Link
                     href={`/admin/messages/${c.id}`}
                     data-panel=""
+                    style={{ "--panel-outline": colour.hex } as React.CSSProperties}
                     className="group flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-3 py-1 transition-colors hover:bg-[var(--color-bg-hover)] active:bg-[var(--color-bg-hover)]"
                   >
                     {/* Unread dot column — fixed width so read rows stay aligned */}
@@ -92,7 +95,13 @@ export default async function AdminMessagesInbox() {
                     </span>
 
                     {/* Avatar */}
-                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-b from-[#4a5568] to-[#2b3442] text-[15px] font-semibold text-white/90">
+                    {/* The avatar carries the client's colour, with black or
+                        white initials chosen by luminance so they stay legible
+                        on cyan and on navy alike. */}
+                    <span
+                      className="grid h-12 w-12 shrink-0 place-items-center rounded-full text-[15px] font-semibold"
+                      style={{ background: colour.solid, color: colour.onSolid }}
+                    >
                       {initials(c.company_name)}
                     </span>
 

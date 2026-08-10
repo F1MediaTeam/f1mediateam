@@ -348,7 +348,10 @@
    divider, dropdown edge and input border, so it turned nearly every line in
    the app red rather than outlining boxes. */
 [data-theme="studio"] [data-panel] {
-  border-color: #e11d2e;
+  /* Brand red by default; any container that belongs to one client sets
+     --panel-outline to that client's colour, and every panel inside it
+     follows. */
+  border-color: var(--panel-outline, #e11d2e);
 }
 
 /* No ambient wash on any of them: a coloured tint on a set chosen for being

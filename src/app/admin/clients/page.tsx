@@ -57,8 +57,10 @@ function ClientCard({ client: c, logos }: { client: Client; logos: ClientLogoUrl
   return (
     <div
       data-panel=""
-      className="group relative rounded-2xl bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-hover)] transition shadow-lg shadow-black/20"
-      style={{ border: `3px solid ${colour.hex}` }}
+      className="group relative rounded-2xl border-[3px] bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-hover)] transition shadow-lg shadow-black/20"
+      // borderColor as well as the variable: the variable is only read under
+      // Studio, and a client card should carry its colour on every theme.
+      style={{ "--panel-outline": colour.hex, borderColor: colour.hex } as React.CSSProperties}
     >
       <Link href={`/admin/clients/${c.id}`} className="block px-5 py-4 sm:px-6 sm:py-5">
         <div className="flex items-start justify-between gap-3">

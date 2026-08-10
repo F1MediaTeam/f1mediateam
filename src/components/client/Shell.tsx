@@ -32,7 +32,10 @@ export default async function ClientShell({
   const onboardingLogos = await getClientBrandLogoUrls(client.id, client.company_name);
   const hasOnboardingLogo = Boolean(onboardingLogos.dark || onboardingLogos.light);
   return (
-    <div className="min-h-screen">
+    <div
+      className="min-h-screen"
+      style={{ "--panel-outline": clientColor(client).hex } as React.CSSProperties}
+    >
       {session.is_impersonating ? <ImpersonationBanner clientName={client.company_name} /> : null}
       {/* The portal's chrome, drawn from the same tokens as the admin rail so
           the two halves of the product read as one. The client's own colour

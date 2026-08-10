@@ -88,7 +88,12 @@ export default async function ClientProfile({
   return (
     <AdminShell session={session} active="/admin/clients">
       <LiveSyncTrigger clientId={id} />
-      <div className="px-8 py-8 max-w-[1600px]">
+      {/* Everything on this page is about one client, so its panels take that
+          client's colour rather than the house red. */}
+      <div
+        className="px-8 py-8 max-w-[1600px]"
+        style={{ "--panel-outline": clientColor(client).hex } as React.CSSProperties}
+      >
         <Link href="/admin/clients" className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
           ← All clients
         </Link>

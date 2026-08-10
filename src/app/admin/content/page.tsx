@@ -2,7 +2,6 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
-import { clientColorById } from "@/lib/client-color";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import Time from "@/components/shared/Time";
 import { buildMonthGrid } from "@/lib/timezone";
@@ -31,16 +30,24 @@ const STAGES: { stage: ContentStage; label: string; tone: "warn" | "accent" | "o
   { stage: "posted",   label: "Posted",   tone: "ok" },
 ];
 
-// This page used to derive its own colours: a hue hashed from the client id,
-// plus hard-coded overrides matched on company name — a CMYK strip for Buckets
-// Of Ink, light blue for Precision Graphics. That was a third independent
-// colour system, so the same client could read cyan on the calendar, light
-// blue here, and something else again on the dashboard.
-//
-// It now uses the one designated colour from the client record, like
-// everywhere else.
-function companyAccent(clients: Array<{ id: string; ui_color?: string | null }>, clientId: string): string {
-  return clientColorById(clientId, clients).hex;
+// Stable per-company color so cards are attributable at a glance (esp. ones a
+// client submitted themselves). Hash the client id → a fixed hue.
+function companyColor(clientId: string): string {
+  let h = 0;
+  for (let i = 0; i < clientId.length; i++) h = (h * 31 + clientId.charCodeAt(i)) % 360;
+  return `hsl(${h} 65% 58%)`;
+}
+
+// Brand-color overrides by company name (user-supplied palettes); anyone not
+// listed falls back to the hashed hue. Returns a CSS background used for the
+// card's left bar and the filter chip dot. Buckets Of Ink = their print-shop
+// CMYK strip (cyan/magenta/yellow/white); Precision Graphics = light blue.
+const BOI_STRIP =
+  "linear-gradient(180deg,#3ba7dc 0%,#3ba7dc 25%,#e23d8b 25%,#e23d8b 50%,#efc53f 50%,#efc53f 75%,#000000 75%,#000000 100%)";
+function companyAccent(clientId: string, name: string): string {
+  if (/buckets\s*of\s*ink/i.test(name)) return BOI_STRIP;
+  if (/precision\s*graphics/i.test(name)) return "#6ec3f2";
+  return companyColor(clientId);
 }
 
 export default async function AdminContent({
@@ -87,23 +94,14 @@ export default async function AdminContent({
     // same companyAccent that colors the filter chips above.
     chipClass: "bg-[var(--color-bg-hover)] text-[var(--color-text)]",
     accentColor: e.client_id
-      ? companyAccent(clients, e.client_id)
+      ? companyAccent(e.client_id, clientNameOf(e.client_id))
       : undefined,
   }));
   const filteredClientName = clientFilter ? clientNameOf(clientFilter) : null;
 
   return (
     <AdminShell session={session} active="/admin/content">
-      {/* Filtering to one client scopes the whole page to them, so its panels
-          take that client's colour instead of the house red. */}
-      <div
-        className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-[1600px] mx-auto"
-        style={
-          clientFilter
-            ? ({ "--panel-outline": clientColorById(clientFilter, clients).hex } as React.CSSProperties)
-            : undefined
-        }
-      >
+      <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-[1600px] mx-auto">
         <div className="flex items-end justify-between mb-8 gap-3 flex-wrap">
           <div>
             <div className="text-xs uppercase tracking-widest text-[var(--color-text-muted)]">
@@ -145,7 +143,7 @@ export default async function AdminContent({
                     <span
                       aria-hidden
                       className="h-2 w-2 rounded-full shrink-0"
-                      style={{ background: companyAccent(clients, c.id) }}
+                      style={{ background: companyAccent(c.id, c.company_name) }}
                     />
                     {c.company_name}
                   </Link>
@@ -228,7 +226,7 @@ export default async function AdminContent({
                           <span
                             aria-hidden
                             className="absolute inset-y-0 left-0 w-1"
-                            style={{ background: companyAccent(clients, card.client_id) }}
+                            style={{ background: companyAccent(card.client_id, clientNameOf(card.client_id)) }}
                           />
                           {/* 3-dot menu absolutely positioned in top-right */}
                           <div className="absolute top-2 right-2">

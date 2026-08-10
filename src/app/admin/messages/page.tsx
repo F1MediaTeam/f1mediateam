@@ -68,7 +68,11 @@ export default async function AdminMessagesInbox() {
             No clients yet — threads appear here as soon as a client account exists.
           </div>
         ) : (
-          <ul>
+          // Each thread is its own panel with space between, matching the
+          // panels everywhere else. It was one continuous list divided by
+          // hairlines, which under the red border token read as lines cutting
+          // through the rows rather than separating them.
+          <ul className="flex flex-col gap-3">
             {sorted.map((c) => {
               const unread = unreadByClient.get(c.id) ?? 0;
               const last = latestByClient.get(c.id);
@@ -77,7 +81,7 @@ export default async function AdminMessagesInbox() {
                 <li key={c.id}>
                   <Link
                     href={`/admin/messages/${c.id}`}
-                    className="group flex items-center gap-3 rounded-xl px-2 transition-colors hover:bg-[var(--color-bg-hover)] active:bg-[var(--color-bg-hover)]"
+                    className="group flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-3 py-1 transition-colors hover:bg-[var(--color-bg-hover)] active:bg-[var(--color-bg-hover)]"
                   >
                     {/* Unread dot column — fixed width so read rows stay aligned */}
                     <span className="w-2.5 shrink-0" aria-hidden>
@@ -92,7 +96,7 @@ export default async function AdminMessagesInbox() {
                     </span>
 
                     {/* Text block — carries the inset hairline like iMessage */}
-                    <span className="min-w-0 flex-1 border-b border-[var(--color-border)] py-3 group-hover:border-transparent">
+                    <span className="min-w-0 flex-1 py-3">
                       <span className="flex items-center gap-2">
                         <span className={"min-w-0 flex-1 truncate text-[15px] " + (hasUnread ? "font-bold" : "font-semibold")}>
                           {c.company_name}

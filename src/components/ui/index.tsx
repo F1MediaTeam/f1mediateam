@@ -12,6 +12,7 @@ export function Card({
 }) {
   return (
     <div
+      data-panel=""
       className={cn(
         "rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] shadow-lg shadow-black/20",
         className,
@@ -73,7 +74,7 @@ export function Stat({
   trend?: { direction: "up" | "down" | "flat"; label: string };
 }) {
   return (
-    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-5 py-4">
+    <div data-panel="" className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-5 py-4">
       <div className="text-[11px] uppercase tracking-wider text-[var(--color-text-muted)]">
         {label}
       </div>

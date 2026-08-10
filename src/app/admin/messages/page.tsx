@@ -81,6 +81,7 @@ export default async function AdminMessagesInbox() {
                 <li key={c.id}>
                   <Link
                     href={`/admin/messages/${c.id}`}
+                    data-panel=""
                     className="group flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-3 py-1 transition-colors hover:bg-[var(--color-bg-hover)] active:bg-[var(--color-bg-hover)]"
                   >
                     {/* Unread dot column — fixed width so read rows stay aligned */}

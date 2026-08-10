@@ -266,6 +266,7 @@ function SquareStat({
   return (
     <div
       data-style-id="stat-tile"
+      data-panel=""
       className={`aspect-square sm:aspect-auto sm:h-28 lg:h-32 flex flex-col justify-between ${PANEL}`}
     >
       <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] leading-tight">
@@ -286,7 +287,7 @@ function TaskColumn({
   clientName: (id: string) => string;
 }) {
   return (
-    <div data-style-id="task-column" className={`flex flex-col h-full ${PANEL}`}>
+    <div data-style-id="task-column" data-panel="" className={`flex flex-col h-full ${PANEL}`}>
       {/* Label styled like the stat tiles above: same size, case and tracking,
           so the two rows sit as one grid rather than two designs. */}
       <div className="mb-3 flex items-baseline justify-between gap-2 min-w-0">

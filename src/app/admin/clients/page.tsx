@@ -56,6 +56,7 @@ function ClientCard({ client: c, logos }: { client: Client; logos: ClientLogoUrl
 
   return (
     <div
+      data-panel=""
       className="group relative rounded-2xl bg-[var(--color-bg-card)] hover:bg-[var(--color-bg-hover)] transition shadow-lg shadow-black/20"
       style={{ border: `3px solid ${colour.hex}` }}
     >

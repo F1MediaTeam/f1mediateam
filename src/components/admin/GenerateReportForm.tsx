@@ -485,10 +485,6 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
       {/* data-panel is kept: it is what makes this card follow the selected
           client's colour, which is a separate ask from the page's palette. */}
       <section data-panel="" className="animate-studio-rise relative rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-5 sm:p-6 shadow-2xl shadow-black/30">
-        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
-          <div className="absolute -top-32 -right-24 h-72 w-72 rounded-full bg-[var(--color-accent)]/15 blur-3xl" />
-          <div className="absolute -bottom-40 -left-24 h-72 w-72 rounded-full bg-emerald-400/[0.07] blur-3xl" />
-        </div>
 
         {/* flex-wrap + a hard min width on the client column: the meeting
             tab row grew a sixth option, and without these the client select
@@ -627,7 +623,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
                 disabled={busy !== "idle"}
                 className={cn(
                   btnBase,
-                  "h-10 px-6 text-sm bg-gradient-to-r from-[var(--color-accent)] to-emerald-400 text-[var(--color-on-accent)] shadow-[0_0_35px_-8px_var(--color-accent)] hover:brightness-110",
+                  "h-10 px-6 text-sm bg-[var(--color-accent)] text-white hover:brightness-110",
                 )}
               >
                 <Download size={16} />

@@ -33,6 +33,7 @@ import MonthlyContentEditor from "@/components/admin/MonthlyContentEditor";
 import type { MonthlyContent } from "@/lib/deck/f1-monthly/deck-builder";
 import { normalizeMonthlyContent } from "@/lib/deck/f1-monthly/normalize-content";
 import type { Client } from "@/lib/types";
+import { clientColor } from "@/lib/client-color";
 
 interface Props {
   clients: Client[];
@@ -458,8 +459,16 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
   const ghostBtn =
     "rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)] transition disabled:opacity-50 disabled:pointer-events-none";
 
+  // Follows the dropdown rather than the page load: switching client repaints
+  // every panel in the builder in that client's colour.
+  const selectedColour = clientColor(clients.find((c) => c.id === clientId) ?? null);
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-6"
+      style={{ "--panel-outline": selectedColour.hex } as React.CSSProperties}
+    >
       <input type="hidden" name="range" value="custom" />
       <input type="hidden" name="report_type" value="custom" />
       {/* Style overrides only ride along while the deck they were chosen for
@@ -473,7 +482,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
       {/* ---------- BUILDER ---------- */}
       {/* overflow-hidden must live on an inner glow layer, NOT the card —
           the date-range picker's popover has to escape the card's bounds. */}
-      <section className="animate-studio-rise relative rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-5 sm:p-6 shadow-2xl shadow-black/30">
+      <section data-panel="" className="animate-studio-rise relative rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-5 sm:p-6 shadow-2xl shadow-black/30">
         {/* flex-wrap + a hard min width on the client column: the meeting
             tab row grew a sixth option, and without these the client select
             (flex-1 min-w-0) collapses to zero width on narrower screens. */}
@@ -713,7 +722,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-4 py-3">
+          <div data-panel="" className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-4 py-3">
             <span className="text-[11px] uppercase tracking-widest text-[var(--color-text-muted)]">
               Deck style
             </span>

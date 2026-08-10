@@ -42,7 +42,7 @@ function rowClass(active: string | undefined, href: string, child: boolean): str
     (child ? "ml-3 text-[13px] " : "") +
     (active === href
       ? "bg-[var(--color-sidebar-active-bg)] text-[var(--color-sidebar-active-text)]"
-      : "bg-[var(--color-sidebar-item-bg)] text-[var(--color-sidebar-item-text)] hover:bg-[var(--color-sidebar-active-bg)] hover:text-[var(--color-sidebar-active-text)]")
+      : "bg-[var(--color-sidebar-item-bg)] text-[var(--color-sidebar-item-text)] hover:bg-[var(--color-sidebar-hover-bg)] hover:text-[var(--color-sidebar-active-text)]")
   );
 }
 
@@ -279,7 +279,7 @@ export default function AdminNav({
             setEditing((v) => !v);
             setDrag(NO_DRAG);
           }}
-          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] uppercase tracking-wider text-[var(--color-sidebar-muted)] transition hover:bg-[var(--color-sidebar-active-bg)] hover:text-[var(--color-sidebar-active-text)]"
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] uppercase tracking-wider text-[var(--color-sidebar-muted)] transition hover:bg-[var(--color-sidebar-hover-bg)] hover:text-[var(--color-sidebar-active-text)]"
         >
           {editing ? <Check size={12} /> : <Pencil size={12} />}
           {editing ? "Done" : "Edit menu"}
@@ -289,7 +289,7 @@ export default function AdminNav({
             type="button"
             onClick={() => commit(DEFAULT_TREE)}
             title="Put the menu back the way it shipped"
-            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] uppercase tracking-wider text-[var(--color-sidebar-muted)] transition hover:bg-[var(--color-sidebar-active-bg)] hover:text-[var(--color-sidebar-active-text)]"
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] uppercase tracking-wider text-[var(--color-sidebar-muted)] transition hover:bg-[var(--color-sidebar-hover-bg)] hover:text-[var(--color-sidebar-active-text)]"
           >
             <RotateCcw size={12} />
             Reset

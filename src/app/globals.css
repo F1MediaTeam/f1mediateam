@@ -93,6 +93,10 @@
      while the menu itself is full strength. */
   --color-sidebar-item-text: var(--color-sidebar-muted);
   --color-sidebar-active-bg: var(--color-bg-hover);
+  /* Hover is its own token so the active row can change without dragging the
+     hover state along with it. Defaults to the active colour, which is how it
+     behaved before. */
+  --color-sidebar-hover-bg: var(--color-sidebar-active-bg);
   --color-sidebar-active-text: var(--color-text);
   --color-sidebar-border: var(--color-border);
 }
@@ -329,8 +333,11 @@
      active one is the light one rather than the only one. */
   --color-sidebar-item-bg: #262b31;
   --color-sidebar-item-text: #ffffff;
-  --color-sidebar-active-bg: #e6eaf0;
-  --color-sidebar-active-text: #0b1017;
+  /* Active row: white on black text. Hover stays on the softer grey so only
+     the active state changed. */
+  --color-sidebar-active-bg: #ffffff;
+  --color-sidebar-active-text: #000000;
+  --color-sidebar-hover-bg: #e6eaf0;
   --color-sidebar-border: #e11d2e;
 }
 

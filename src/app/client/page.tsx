@@ -125,7 +125,7 @@ export default async function ClientHome() {
       {(widgets.rankings || widgets.traffic) ? (
         <section className="mb-10">
           {widgets.rankings ? (
-            <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] mb-6">
+            <div data-panel="" className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] mb-6">
               <div className="px-5 py-4 text-center border-b border-[var(--color-border)]">
                 <h2 className="text-2xl font-semibold tracking-tight">SEO insights</h2>
               </div>

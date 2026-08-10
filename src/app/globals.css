@@ -432,9 +432,15 @@ input, select, textarea, button { font-family: inherit; }
 /* Studio puts a black rail inside a light-mode theme, so the logo has to be
    picked per surface rather than per mode: the light-ink mark belongs on the
    sidebar, the dark-ink one everywhere else. */
-[data-theme="studio"] [data-style-id="admin-sidebar"] {
+[data-theme="studio"] [data-style-id="admin-sidebar"],
+[data-theme="studio"] [data-style-id="client-header"] {
   --logo-img: url(/logo.png);
 }
+
+/* The client's own brand mark on that dark header wants its light-ink
+   variant too, which mode alone picks wrongly here. */
+[data-theme="studio"] [data-style-id="client-header"] .logo-dark { display: block; }
+[data-theme="studio"] [data-style-id="client-header"] .logo-light { display: none; }
 
 /* Photoshop-style transparency checker used behind message-image thumbnails.
    Neutral pattern reads well behind ANY image color (bright, dark, or partly

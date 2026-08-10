@@ -15,7 +15,7 @@ export default function DisclaimerGate({
   const [pending, start] = useTransition();
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-xl rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-8 shadow-2xl shadow-black/50">
+      <div data-panel="" className="w-full max-w-xl rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-8 shadow-2xl shadow-black/50">
         <div className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-muted)]">
           F1 Media — Portal terms · {version}
         </div>

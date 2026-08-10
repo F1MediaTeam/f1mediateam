@@ -7,6 +7,7 @@ import ImpersonationBanner from "@/components/client/ImpersonationBanner";
 import NotificationBell from "@/components/client/NotificationBell";
 import MessagesButton from "@/components/client/MessagesButton";
 import { getClientBrandLogoUrls } from "@/lib/client-logo";
+import { clientColor } from "@/lib/client-color";
 import type { Session } from "@/lib/data";
 import type { Client } from "@/lib/types";
 
@@ -33,13 +34,19 @@ export default async function ClientShell({
   return (
     <div className="min-h-screen">
       {session.is_impersonating ? <ImpersonationBanner clientName={client.company_name} /> : null}
-      <header className="border-b border-[var(--color-border)] bg-[var(--color-bg-elev)]/70 backdrop-blur sticky top-0 z-10">
+      {/* The portal's chrome, drawn from the same tokens as the admin rail so
+          the two halves of the product read as one. The client's own colour
+          runs beneath it, so a customer's portal is identifiably theirs. */}
+      <header
+        data-style-id="client-header"
+        className="sticky top-0 z-10 border-b border-[var(--color-sidebar-border)] bg-[var(--color-sidebar-bg)] text-[var(--color-sidebar-text)] backdrop-blur"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between md:grid md:grid-cols-[1fr_auto_1fr] gap-3 sm:gap-6">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 md:justify-self-start">
             <Link href="/client" aria-label="F1 Media Team — home" className="shrink-0">
               <Logo compact width={110} height={32} />
             </Link>
-            <span className="text-[var(--color-border-strong)] hidden sm:inline">/</span>
+            <span className="hidden text-[var(--color-sidebar-muted)] sm:inline">/</span>
             {hasOnboardingLogo ? (
               <span className="hidden sm:flex shrink-0 items-center" style={{ width: 110, height: 32 }}>
                 {onboardingLogos.dark ? (
@@ -68,7 +75,7 @@ export default async function ClientShell({
                 ) : null}
               </span>
             ) : (
-              <span className="text-sm font-medium truncate hidden sm:inline">{client.company_name}</span>
+              <span className="hidden truncate text-sm font-medium sm:inline">{client.company_name}</span>
             )}
           </div>
           {/* Desktop nav — centered in the header */}
@@ -80,8 +87,8 @@ export default async function ClientShell({
                 className={
                   "px-3 py-1.5 rounded-lg text-sm transition " +
                   (active === item.href
-                    ? "bg-[var(--color-bg-hover)] text-[var(--color-text)]"
-                    : "text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)]")
+                    ? "bg-[var(--color-sidebar-active-bg)] text-[var(--color-sidebar-active-text)]"
+                    : "bg-[var(--color-sidebar-item-bg)] text-[var(--color-sidebar-item-text)] hover:bg-[var(--color-sidebar-hover-bg)] hover:text-[var(--color-sidebar-active-text)]")
                 }
               >
                 {item.label}
@@ -101,6 +108,8 @@ export default async function ClientShell({
           </div>
         </div>
       </header>
+      <div aria-hidden className="h-1 w-full" style={{ background: clientColor(client).hex }} />
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10 overflow-x-clip">{children}</main>
     </div>
   );

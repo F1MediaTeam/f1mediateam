@@ -42,7 +42,7 @@ function rowClass(active: string | undefined, href: string, child: boolean): str
     (child ? "ml-3 text-[13px] " : "") +
     (active === href
       ? "bg-[var(--color-sidebar-active-bg)] text-[var(--color-sidebar-active-text)]"
-      : "text-[var(--color-sidebar-muted)] hover:bg-[var(--color-sidebar-active-bg)] hover:text-[var(--color-sidebar-active-text)]")
+      : "bg-[var(--color-sidebar-item-bg)] text-[var(--color-sidebar-item-text)] hover:bg-[var(--color-sidebar-active-bg)] hover:text-[var(--color-sidebar-active-text)]")
   );
 }
 

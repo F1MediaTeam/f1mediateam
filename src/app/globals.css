@@ -85,6 +85,13 @@
   --color-sidebar-bg: var(--color-bg-elev);
   --color-sidebar-text: var(--color-text);
   --color-sidebar-muted: var(--color-text-muted);
+  /* Resting background for a menu row. Transparent by default so the themes
+     that predate this look exactly as they did. */
+  --color-sidebar-item-bg: transparent;
+  /* Resting label colour for a menu row, separate from --color-sidebar-muted
+     so the small labels (Admin console, the signed-in email) can stay quiet
+     while the menu itself is full strength. */
+  --color-sidebar-item-text: var(--color-sidebar-muted);
   --color-sidebar-active-bg: var(--color-bg-hover);
   --color-sidebar-active-text: var(--color-text);
   --color-sidebar-border: var(--color-border);
@@ -317,7 +324,11 @@
 
   --color-sidebar-bg: #000000;
   --color-sidebar-text: #ffffff;
-  --color-sidebar-muted: #8b929b;
+  --color-sidebar-muted: #b9bfc7;
+  /* Charcoal pill on the black rail: every item reads as a button, and the
+     active one is the light one rather than the only one. */
+  --color-sidebar-item-bg: #262b31;
+  --color-sidebar-item-text: #ffffff;
   --color-sidebar-active-bg: #e6eaf0;
   --color-sidebar-active-text: #0b1017;
   --color-sidebar-border: #e11d2e;
@@ -400,6 +411,13 @@ input, select, textarea, button { font-family: inherit; }
 .logo-light { display: none; }
 [data-mode="light"] .logo-dark { display: none; }
 [data-mode="light"] .logo-light { display: block; }
+
+/* Studio puts a black rail inside a light-mode theme, so the logo has to be
+   picked per surface rather than per mode: the light-ink mark belongs on the
+   sidebar, the dark-ink one everywhere else. */
+[data-theme="studio"] [data-style-id="admin-sidebar"] {
+  --logo-img: url(/logo.png);
+}
 
 /* Photoshop-style transparency checker used behind message-image thumbnails.
    Neutral pattern reads well behind ANY image color (bright, dark, or partly

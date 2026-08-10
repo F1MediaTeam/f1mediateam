@@ -72,13 +72,29 @@ function luminance(hex: string): number {
   return 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
 }
 
+/**
+ * Black or white on this colour — whichever genuinely contrasts more.
+ *
+ * This was a brightness threshold, which put white text on every mid-tone.
+ * On the neutral grey used for internal events that came out around 2.6:1 and
+ * the titles were hard to read. Comparing the two WCAG ratios instead picks
+ * black for mid and light colours — cyan, green, grey — and keeps white only
+ * where black would genuinely be worse, like the deep brand red.
+ */
+function textOn(hex: string): string {
+  const l = luminance(hex);
+  const onWhite = 1.05 / (l + 0.05);
+  const onBlack = (l + 0.05) / 0.05;
+  return onBlack >= onWhite ? "#0b0f14" : "#ffffff";
+}
+
 export function colorFromHex(hex: string): ClientColor {
   const clean = hex.trim().toLowerCase();
   const [r, g, b] = channels(clean);
   return {
     hex: clean,
     solid: clean,
-    onSolid: luminance(clean) > 0.45 ? "#0b0f14" : "#ffffff",
+    onSolid: textOn(clean),
     tint: `rgba(${r}, ${g}, ${b}, 0.16)`,
     border: `rgba(${r}, ${g}, ${b}, 0.45)`,
   };

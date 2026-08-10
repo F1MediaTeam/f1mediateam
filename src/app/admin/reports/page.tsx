@@ -41,9 +41,10 @@ export default async function AdminReports({
           </div>
           <h1 className="mt-3 text-3xl sm:text-4xl font-semibold tracking-tight leading-[1.05]">
             Meeting decks that{" "}
-            <span className="bg-gradient-to-r from-[var(--color-accent)] via-emerald-300 to-[var(--color-accent)] bg-clip-text text-transparent">
-              write themselves
-            </span>
+            {/* One accent colour rather than a three-stop gradient through
+                emerald — the gradient predated the brand being red, so it read
+                as a rainbow wipe across the headline. */}
+            <span className="text-[var(--color-accent)]">write themselves</span>
           </h1>
         </div>
 

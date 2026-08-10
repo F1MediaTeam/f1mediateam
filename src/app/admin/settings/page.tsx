@@ -8,12 +8,20 @@ import DropdownCard from "@/components/shared/DropdownCard";
 import { formatLocation } from "@/lib/utils";
 import ThemePicker from "@/components/admin/ThemePicker";
 import DefaultLookCard from "@/components/admin/DefaultLookCard";
+import StaffTable from "@/components/admin/StaffTable";
+import { canManageStaff, staffRoleOf } from "@/lib/permissions";
 import { getDefaultTheme } from "@/lib/app-settings";
 
 export default async function AdminSettings() {
   const session = await requireAdmin();
   const audit = await data.listAudit({ userId: session.user_id, limit: 12 });
   const defaultTheme = await getDefaultTheme();
+  const [staff, clients, assignments, meProfile] = await Promise.all([
+    data.listStaff(),
+    data.listClients(),
+    data.listAllAssignments(),
+    data.getProfile(session.user_id),
+  ]);
   // saved_at drives the "Restore" button's enabled state, so a look can't be
   // restored before one has been saved.
   let savedLookAt: string | null = null;
@@ -68,6 +76,32 @@ export default async function AdminSettings() {
               <div className="mb-1 text-sm font-medium">Saved look</div>
               <DefaultLookCard savedAt={savedLookAt} />
             </div>
+          </CardBody>
+        </Card>
+
+        {/* Employees — who works here and what each of them can see. */}
+        <Card className="mb-6">
+          <CardHeader
+            title="Employees"
+            subtitle="Roles, and which clients each person can see"
+          />
+          <CardBody>
+            <StaffTable
+              staff={staff.map((p) => ({
+                id: p.id,
+                email: p.email,
+                full_name: p.full_name,
+                staff_role: p.staff_role ?? null,
+              }))}
+              clients={clients.map((c) => ({
+                id: c.id,
+                company_name: c.company_name,
+                ui_color: c.ui_color ?? null,
+              }))}
+              assignments={assignments}
+              canManage={canManageStaff(staffRoleOf(meProfile))}
+              currentUserId={session.user_id}
+            />
           </CardBody>
         </Card>
 

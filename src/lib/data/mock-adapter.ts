@@ -138,6 +138,36 @@ export function getClient(id: UUID): Client | null {
   return getState().clients.find((c) => c.id === id) ?? null;
 }
 
+const ASSIGNMENTS: Array<{ profile_id: UUID; client_id: UUID }> = [];
+
+export function listStaff(): Profile[] {
+  return getState().profiles.filter((p) => p.role === "admin");
+}
+
+export function setStaffRole(profileId: UUID, staffRole: string | null): boolean {
+  return mutate((s) => {
+    const p = s.profiles.find((x) => x.id === profileId) as (Profile & { staff_role?: string | null }) | undefined;
+    if (!p) return false;
+    p.staff_role = staffRole;
+    return true;
+  });
+}
+
+export function listAssignedClientIds(profileId: UUID): string[] {
+  return ASSIGNMENTS.filter((a) => a.profile_id === profileId).map((a) => a.client_id);
+}
+
+export function listAllAssignments(): Array<{ profile_id: string; client_id: string }> {
+  return ASSIGNMENTS.slice();
+}
+
+export function setAssignment(profileId: UUID, clientId: UUID, assigned: boolean, _actorId: UUID): boolean {
+  const i = ASSIGNMENTS.findIndex((a) => a.profile_id === profileId && a.client_id === clientId);
+  if (assigned && i === -1) ASSIGNMENTS.push({ profile_id: profileId, client_id: clientId });
+  if (!assigned && i >= 0) ASSIGNMENTS.splice(i, 1);
+  return true;
+}
+
 export function setClientUiColor(id: UUID, hex: string | null): Client | null {
   return mutate((s) => {
     const c = s.clients.find((x) => x.id === id);

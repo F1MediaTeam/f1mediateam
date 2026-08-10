@@ -8,6 +8,8 @@ export type ISODateTime = string;   // ISO 8601
 export type UserRole = "admin" | "client";
 
 export interface Profile {
+  /** owner | manager | specialist | contractor. Null = owner. Admins only. */
+  staff_role?: string | null;
   id: UUID;
   role: UserRole;
   client_id: UUID | null;

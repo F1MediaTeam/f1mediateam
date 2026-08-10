@@ -17,6 +17,7 @@ import { notifyClient, userDisplayName } from "@/lib/email";
 import { queueEvent } from "@/lib/notify-queue";
 import { APP_TZ, formatInTzWithZone, wallTimeToUtcIso } from "@/lib/timezone";
 import { todayIso } from "@/lib/utils";
+import { canManageStaff, staffRoleOf, STAFF_ROLES } from "@/lib/permissions";
 
 // Admin's name for email attribution; team name when no full_name is set.
 async function adminSenderName(userId: string): Promise<string> {
@@ -996,4 +997,56 @@ export async function savePageSpeedSnapshotAction(input: {
   }
   revalidatePath(`/admin/clients/${input.clientId}`);
   return { error: null };
+}
+
+// --- staff roles + client assignment ---
+
+/**
+ * Change what an F1 Media person can see. Owner-only: the ability to widen
+ * your own access is the one permission that can't be delegated safely.
+ */
+export async function setStaffRoleAction(input: {
+  profileId: string;
+  staffRole: string | null;
+}): Promise<{ error: string | null }> {
+  const session = await requireAdmin();
+  const actor = await data.getProfile(session.user_id);
+  if (!canManageStaff(staffRoleOf(actor))) return { error: "Only an owner can change roles." };
+
+  const valid = input.staffRole === null || STAFF_ROLES.some((r) => r.id === input.staffRole);
+  if (!valid) return { error: "Unknown role." };
+
+  // Refuse to remove the last owner, or the console becomes unadministrable
+  // and the only fix is a database edit.
+  if (input.staffRole !== "owner") {
+    const staff = await data.listStaff();
+    const owners = staff.filter((p) => staffRoleOf(p) === "owner");
+    if (owners.length <= 1 && owners.some((p) => p.id === input.profileId)) {
+      return { error: "That's the last owner — promote someone else first." };
+    }
+  }
+
+  const ok = await data.setStaffRole(input.profileId, input.staffRole);
+  revalidatePath("/admin/settings");
+  return { error: ok ? null : "Couldn't change that role." };
+}
+
+export async function setAssignmentAction(input: {
+  profileId: string;
+  clientId: string;
+  assigned: boolean;
+}): Promise<{ error: string | null }> {
+  const session = await requireAdmin();
+  const actor = await data.getProfile(session.user_id);
+  if (!canManageStaff(staffRoleOf(actor))) return { error: "Only an owner can assign clients." };
+
+  const ok = await data.setAssignment(
+    input.profileId,
+    input.clientId,
+    input.assigned,
+    session.user_id,
+  );
+  // Assignment changes what this person sees on nearly every page.
+  revalidatePath("/admin", "layout");
+  return { error: ok ? null : "Couldn't save that assignment." };
 }

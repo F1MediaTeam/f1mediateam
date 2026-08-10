@@ -23,6 +23,8 @@ import CalendarMonth, { type CalEvent } from "@/components/shared/CalendarMonth"
 import Greeting from "@/components/admin/Greeting";
 import { parseEventNotes } from "@/lib/calendar-event-url";
 import { clientColorById, INTERNAL_COLOR } from "@/lib/client-color";
+import { filterClients } from "@/lib/permissions";
+import { visibleClientIds } from "@/lib/permissions.server";
 
 function dayBucket(due: string | null, today: string, tomorrow: string, weekEnd: string) {
   if (!due) return "later";
@@ -37,12 +39,24 @@ function dayBucket(due: string | null, today: string, tomorrow: string, weekEnd:
 
 export default async function AdminDashboard() {
   const session = await requireAdmin();
-  const [clients, tasks, events, people] = await Promise.all([
+  const [allClients, allTasks, allEvents, people] = await Promise.all([
     data.listClients(),
     data.listTasks({ status: "open" }),
     data.listCalendar(),
     data.listAssignablePeople(),
   ]);
+
+  // Everything on this page is scoped to the clients this person may see. A
+  // specialist assigned to one account gets one account's tasks and calendar,
+  // not the whole company's. Internal events (no client) stay visible to
+  // everyone — they are F1 Media's own work, not a customer's.
+  const allowed = await visibleClientIds(session);
+  const clients = filterClients(allClients, allowed);
+  const canSee = allowed === null ? null : new Set(allowed);
+  const tasks = canSee ? allTasks.filter((t) => canSee.has(t.client_id)) : allTasks;
+  const events = canSee
+    ? allEvents.filter((e) => !e.client_id || canSee.has(e.client_id))
+    : allEvents;
 
   // -------- tasks ----------
   // Phoenix dates, not the server's UTC ones: after 5pm local, a UTC "today"

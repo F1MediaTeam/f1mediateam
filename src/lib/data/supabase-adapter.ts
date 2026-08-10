@@ -217,6 +217,69 @@ export async function updateClientConfig(
   return (data as Client) ?? null;
 }
 
+// ---------------- staff roles + client assignment ----------------
+
+/** Every F1 Media person who can open the admin console. */
+export async function listStaff(): Promise<Array<Profile & { staff_role: string | null }>> {
+  const supabase = await createServiceClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("role", "admin")
+    .order("email", { ascending: true });
+  return (data as Array<Profile & { staff_role: string | null }>) ?? [];
+}
+
+export async function setStaffRole(profileId: UUID, staffRole: string | null): Promise<boolean> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ staff_role: staffRole })
+    .eq("id", profileId);
+  return !error;
+}
+
+/** Client ids one staff member is assigned to. */
+export async function listAssignedClientIds(profileId: UUID): Promise<string[]> {
+  const supabase = await createServiceClient();
+  const { data } = await supabase
+    .from("client_assignments")
+    .select("client_id")
+    .eq("profile_id", profileId);
+  return ((data as Array<{ client_id: string }>) ?? []).map((r) => r.client_id);
+}
+
+/** Every assignment, for the staff admin screen. */
+export async function listAllAssignments(): Promise<Array<{ profile_id: string; client_id: string }>> {
+  const supabase = await createServiceClient();
+  const { data } = await supabase.from("client_assignments").select("profile_id, client_id");
+  return (data as Array<{ profile_id: string; client_id: string }>) ?? [];
+}
+
+export async function setAssignment(
+  profileId: UUID,
+  clientId: UUID,
+  assigned: boolean,
+  actorId: UUID,
+): Promise<boolean> {
+  const supabase = await createClient();
+  if (!assigned) {
+    const { error } = await supabase
+      .from("client_assignments")
+      .delete()
+      .eq("profile_id", profileId)
+      .eq("client_id", clientId);
+    return !error;
+  }
+  const { error } = await supabase
+    .from("client_assignments")
+    .upsert(
+      { profile_id: profileId, client_id: clientId, assigned_by: actorId },
+      { onConflict: "client_id,profile_id" },
+    );
+  return !error;
+}
+
 /** Set (or clear, with null) a client's designated interface colour. */
 export async function setClientUiColor(id: UUID, hex: string | null): Promise<Client | null> {
   const supabase = await createClient();

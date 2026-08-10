@@ -5,6 +5,8 @@ import AdminShell from "@/components/admin/Shell";
 import { createClientAction } from "../actions";
 import Time from "@/components/shared/Time";
 import { clientColor } from "@/lib/client-color";
+import { filterClients } from "@/lib/permissions";
+import { visibleClientIds } from "@/lib/permissions.server";
 import DeleteClientButton from "@/components/admin/DeleteClientButton";
 import AdminClientAddModal from "@/components/admin/AdminClientAddModal";
 import { getClientBrandLogoUrlsByClients, type ClientLogoUrls } from "@/lib/client-logo";
@@ -12,7 +14,10 @@ import type { Client } from "@/lib/types";
 
 export default async function AdminClients() {
   const session = await requireAdmin();
-  const clients = await data.listClients();
+  // Specialists and contractors see only the clients they're assigned to;
+  // owners and managers get null back and skip the filter entirely.
+  const allClients = await data.listClients();
+  const clients = filterClients(allClients, await visibleClientIds(session));
   // Batched: one files query for every client logo instead of N parallel
   // per-card queries. Signed URLs still happen per file but in parallel.
   const logosByClient = await getClientBrandLogoUrlsByClients(

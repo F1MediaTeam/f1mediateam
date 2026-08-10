@@ -127,7 +127,7 @@ function ProgressPanel({
   const activeIdx = stages.reduce((acc, s, i) => (elapsed >= s.at ? i : acc), 0);
 
   return (
-    <div className="animate-studio-rise rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-5">
+    <div className="animate-studio-rise rounded-2xl border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/[0.06] p-5">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--color-accent)]/15 animate-studio-pulse-ring">
@@ -482,7 +482,14 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
       {/* ---------- BUILDER ---------- */}
       {/* overflow-hidden must live on an inner glow layer, NOT the card —
           the date-range picker's popover has to escape the card's bounds. */}
+      {/* data-panel is kept: it is what makes this card follow the selected
+          client's colour, which is a separate ask from the page's palette. */}
       <section data-panel="" className="animate-studio-rise relative rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-5 sm:p-6 shadow-2xl shadow-black/30">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+          <div className="absolute -top-32 -right-24 h-72 w-72 rounded-full bg-[var(--color-accent)]/15 blur-3xl" />
+          <div className="absolute -bottom-40 -left-24 h-72 w-72 rounded-full bg-emerald-400/[0.07] blur-3xl" />
+        </div>
+
         {/* flex-wrap + a hard min width on the client column: the meeting
             tab row grew a sixth option, and without these the client select
             (flex-1 min-w-0) collapses to zero width on narrower screens. */}
@@ -559,7 +566,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
                     className={cn(
                       "rounded-lg border px-2.5 py-2 transition",
                       s.ok
-                        ? "border-[var(--color-border-strong)] bg-[var(--color-bg-elev)]"
+                        ? "border-[var(--color-accent)]/25 bg-[var(--color-accent)]/[0.06]"
                         : "border-[var(--color-border)] opacity-60",
                     )}
                   >
@@ -606,7 +613,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
                 disabled={busy !== "idle"}
                 className={cn(
                   btnBase,
-                  "h-10 px-6 text-sm bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:brightness-110",
+                  "h-10 px-6 text-sm bg-gradient-to-r from-[var(--color-accent)] to-emerald-400 text-[var(--color-on-accent)] shadow-[0_0_35px_-8px_var(--color-accent)] hover:brightness-110",
                 )}
               >
                 <Download size={16} />
@@ -620,7 +627,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
                 disabled={busy !== "idle"}
                 className={cn(
                   btnBase,
-                  "h-10 px-6 text-sm bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:brightness-110",
+                  "h-10 px-6 text-sm bg-gradient-to-r from-[var(--color-accent)] to-emerald-400 text-[var(--color-on-accent)] shadow-[0_0_35px_-8px_var(--color-accent)] hover:brightness-110",
                 )}
               >
                 <Download size={16} />
@@ -689,7 +696,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
         </div>
       ) : null}
       {ok ? (
-        <div className="rounded-xl border border-[var(--color-ok)]/40 bg-[var(--color-ok)]/10 text-[var(--color-ok)] text-sm px-4 py-3">
+        <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 text-sm px-4 py-3">
           {ok}
         </div>
       ) : null}

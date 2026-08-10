@@ -905,6 +905,20 @@ export async function rescheduleCalendarAction(
   return { error: ok ? null : "Couldn't move that event." };
 }
 
+/** Assign a calendar event to a client — or to F1 Media internal with an
+ *  empty value. This is what gives an event its colour on the calendar. */
+export async function setCalendarClientAction(
+  id: string,
+  clientId: string | null,
+): Promise<{ error: string | null }> {
+  await requireAdmin();
+  if (!id) return { error: "Missing event." };
+  const ok = await data.setCalendarEventClient(id, clientId || null);
+  revalidatePath("/admin");
+  revalidatePath("/admin/calendar");
+  return { error: ok ? null : "Couldn't change that event's client." };
+}
+
 /** Remove one customer portal login (an additional email/password for the
  *  client). The client and its primary login are unaffected. */
 export async function deleteClientUserAction(formData: FormData): Promise<void> {

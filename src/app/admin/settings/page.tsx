@@ -7,12 +7,21 @@ import Time from "@/components/shared/Time";
 import DropdownCard from "@/components/shared/DropdownCard";
 import { formatLocation } from "@/lib/utils";
 import ThemePicker from "@/components/admin/ThemePicker";
+import DefaultLookCard from "@/components/admin/DefaultLookCard";
 import { getDefaultTheme } from "@/lib/app-settings";
 
 export default async function AdminSettings() {
   const session = await requireAdmin();
   const audit = await data.listAudit({ userId: session.user_id, limit: 12 });
   const defaultTheme = await getDefaultTheme();
+  // saved_at drives the "Restore" button's enabled state, so a look can't be
+  // restored before one has been saved.
+  let savedLookAt: string | null = null;
+  try {
+    savedLookAt = (await data.getUiDefault()).saved_at;
+  } catch {
+    savedLookAt = null;
+  }
 
   return (
     <AdminShell session={session} active="/admin/settings">
@@ -54,6 +63,11 @@ export default async function AdminSettings() {
           <CardBody>
             <div className="mb-3 text-sm font-medium">Theme</div>
             <ThemePicker defaultTheme={defaultTheme} />
+
+            <div className="mt-6 border-t border-[var(--color-border)] pt-5">
+              <div className="mb-1 text-sm font-medium">Saved look</div>
+              <DefaultLookCard savedAt={savedLookAt} />
+            </div>
           </CardBody>
         </Card>
 

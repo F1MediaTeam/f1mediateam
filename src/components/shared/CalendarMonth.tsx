@@ -76,6 +76,8 @@ export default function CalendarMonth({
   addSlot,
   monthLabel,
   reschedule,
+  clients,
+  setClient,
 }: {
   /** 42 ISO date strings (Sun-aligned 6×7 grid) */
   days: string[];
@@ -89,6 +91,10 @@ export default function CalendarMonth({
   monthLabel?: string;
   /** when provided, events can be dragged to another day to reschedule them */
   reschedule?: (id: string, newStartIso: string) => Promise<{ error: string | null }>;
+  /** admin only: lets an event be moved to a different client from its popup,
+   *  which is what gives it a colour on the calendar */
+  clients?: Array<{ id: string; company_name: string }>;
+  setClient?: (id: string, clientId: string | null) => Promise<{ error: string | null }>;
 }) {
   const router = useRouter();
   const todayIso = tzTodayKey();
@@ -334,13 +340,34 @@ export default function CalendarMonth({
 
       {/* Event detail popup */}
       {openEvent ? (
-        <EventDetail event={openEvent} onClose={() => setOpenEvent(null)} />
+        <EventDetail
+          event={openEvent}
+          onClose={() => setOpenEvent(null)}
+          clients={clients}
+          setClient={setClient}
+          onChanged={() => {
+            setOpenEvent(null);
+            router.refresh();
+          }}
+        />
       ) : null}
     </div>
   );
 }
 
-function EventDetail({ event, onClose }: { event: CalEvent; onClose: () => void }) {
+function EventDetail({
+  event,
+  onClose,
+  clients,
+  setClient,
+  onChanged,
+}: {
+  event: CalEvent;
+  onClose: () => void;
+  clients?: Array<{ id: string; company_name: string }>;
+  setClient?: (id: string, clientId: string | null) => Promise<{ error: string | null }>;
+  onChanged?: () => void;
+}) {
   const { url, body } = parseEventNotes(event.notes);
   return (
     <div
@@ -382,7 +409,38 @@ function EventDetail({ event, onClose }: { event: CalEvent; onClose: () => void 
             <CalIcon size={15} className="shrink-0" />
             <span>{fmtDateTime(event.starts_at)}</span>
           </div>
-          {event.clientLabel ? (
+          {/* Whose event this is — and, for admins, a way to change it. An
+              event with no client shows in the neutral grey, so "the calendar
+              has no colours" is usually this being unset rather than a
+              styling problem. */}
+          {clients && setClient ? (
+            <div className="flex items-center gap-2">
+              {event.accentColor ? (
+                <span
+                  aria-hidden
+                  className="inline-block h-3 w-3 shrink-0 rounded-full"
+                  style={{ background: event.accentColor }}
+                />
+              ) : null}
+              <span className="shrink-0 text-[var(--color-text-subtle)]">Client:</span>
+              <select
+                defaultValue={clients.find((c) => c.company_name === event.clientLabel)?.id ?? ""}
+                onChange={(e) => {
+                  void setClient(event.id, e.target.value || null).then((res) => {
+                    if (!res.error) onChanged?.();
+                  });
+                }}
+                className="min-w-0 flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-2 py-1 text-xs"
+              >
+                <option value="">F1 Media (internal)</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.company_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : event.clientLabel ? (
             <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
               {event.accentColor ? (
                 <span

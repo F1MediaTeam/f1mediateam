@@ -405,6 +405,18 @@ export async function rescheduleCalendarEvent(id: UUID, startsAt: string): Promi
   return !error;
 }
 
+/** Move an event to a different client, or to null for an F1 Media internal
+ *  one. Events created before the client picker defaulted sensibly are all
+ *  internal, and there was no way to correct that after the fact. */
+export async function setCalendarEventClient(id: UUID, clientId: UUID | null): Promise<boolean> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("calendar_events")
+    .update({ client_id: clientId })
+    .eq("id", id);
+  return !error;
+}
+
 // ---------- calendar event attachments ----------
 
 export async function listEventAttachments(eventId: UUID): Promise<CalendarEventAttachment[]> {

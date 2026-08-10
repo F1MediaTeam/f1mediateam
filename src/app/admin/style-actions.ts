@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 import { data } from "@/lib/data";
 import { requireAdmin } from "@/lib/auth/session";
 import { sanitizeOverride } from "@/lib/ui-overrides";
-import { setDefaultTheme } from "@/lib/app-settings";
+import { getDefaultTheme, setDefaultTheme } from "@/lib/app-settings";
 
 // The override <style> block renders from the admin layout, so the whole
 // /admin subtree has to revalidate for a change to show everywhere.
@@ -54,6 +54,49 @@ export async function setStyleDefaultAction(): Promise<{ error: string | null }>
   await data.saveUiDefault(session.user_id);
   revalidateAdmin();
   return { error: null };
+}
+
+/**
+ * Save the whole look — theme *and* style overrides — as the default.
+ *
+ * These were two separate saves that could drift: the overrides had a
+ * checkpoint, the theme had a default, and nothing kept them in step. One
+ * button now captures both, so going back to "the one I liked" restores the
+ * look that was actually on screen rather than half of it.
+ */
+export async function saveLookDefaultAction(themeId: string): Promise<{ error: string | null }> {
+  const session = await requireAdmin();
+  try {
+    await data.saveUiDefault(session.user_id);
+    await setDefaultTheme(themeId, session.user_id);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Couldn't save the default." };
+  }
+  revalidatePath("/", "layout");
+  return { error: null };
+}
+
+/**
+ * Go back to the saved default. Returns the theme id so the caller can apply
+ * it in the browser — the theme lives in localStorage, which the server can't
+ * reach.
+ */
+export async function restoreLookDefaultAction(): Promise<{
+  error: string | null;
+  themeId: string | null;
+}> {
+  const session = await requireAdmin();
+  try {
+    await data.resetUiToDefault(session.user_id);
+    const themeId = await getDefaultTheme();
+    revalidatePath("/", "layout");
+    return { error: null, themeId };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Couldn't restore the default.",
+      themeId: null,
+    };
+  }
 }
 
 /** "Reset" — discard edits made since the last "Set as default". */

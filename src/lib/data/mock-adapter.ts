@@ -313,6 +313,15 @@ export function rescheduleCalendarEvent(id: UUID, startsAt: string): boolean {
   });
 }
 
+export function setCalendarEventClient(id: UUID, clientId: UUID | null): boolean {
+  return mutate((s) => {
+    const e = s.calendar.find((x) => x.id === id);
+    if (!e) return false;
+    e.client_id = clientId;
+    return true;
+  });
+}
+
 // ---------------- meetings ----------------
 
 export function listMeetings(): Meeting[] {

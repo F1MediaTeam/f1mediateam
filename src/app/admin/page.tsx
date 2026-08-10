@@ -14,6 +14,7 @@ import {
   createCalendarAction,
   deleteCalendarAction,
   rescheduleCalendarAction,
+  setCalendarClientAction,
 } from "./actions";
 import Time from "@/components/shared/Time";
 import AdminTaskAddModal from "@/components/admin/AdminTaskAddModal";
@@ -226,6 +227,8 @@ export default async function AdminDashboard() {
                   maxPerCell={5}
                   addSlot={<AdminCalendarAddModal action={createCalendarAction} clients={clients} people={people} />}
                   reschedule={rescheduleCalendarAction}
+                  clients={clients.map((c) => ({ id: c.id, company_name: c.company_name }))}
+          setClient={setCalendarClientAction}
                 />
               </div>
             </div>

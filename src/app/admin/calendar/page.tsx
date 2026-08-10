@@ -3,7 +3,7 @@ import { data } from "@/lib/data";
 import AdminShell from "@/components/admin/Shell";
 import { Card, CardBody, CardHeader, Pill, Button } from "@/components/ui";
 import { APP_TZ_LABEL, buildMonthGrid, tzDateKey, tzTodayKey } from "@/lib/timezone";
-import { createCalendarAction, deleteCalendarAction, rescheduleCalendarAction } from "../actions";
+import { createCalendarAction, deleteCalendarAction, rescheduleCalendarAction, setCalendarClientAction } from "../actions";
 import Time from "@/components/shared/Time";
 import CalendarMonth, { type CalEvent } from "@/components/shared/CalendarMonth";
 import { clientColorById } from "@/lib/client-color";
@@ -79,6 +79,8 @@ export default async function AdminCalendar() {
               minCellHeight="min-h-[88px]"
               maxPerCell={3}
               reschedule={rescheduleCalendarAction}
+              clients={clients.map((c) => ({ id: c.id, company_name: c.company_name }))}
+              setClient={setCalendarClientAction}
             />
           </CardBody>
         </Card>

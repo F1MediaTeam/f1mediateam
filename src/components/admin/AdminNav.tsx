@@ -219,7 +219,7 @@ export default function AdminNav({
   }
 
   return (
-    <nav data-style-id="admin-nav" className="mt-2 flex flex-col px-2">
+    <nav data-style-id="admin-nav" className="mt-2 flex flex-col gap-1.5 px-2">
       {tree.map((node) => (
         <div key={node.href}>
           {editing ? (
@@ -243,7 +243,7 @@ export default function AdminNav({
             onUnnest={(h) => commit(unnest(tree, h))}
           />
           {node.children.length > 0 ? (
-            <div className="mt-0.5 flex flex-col gap-0.5 border-l border-[var(--color-sidebar-border)] pl-1">
+            <div className="mt-1.5 flex flex-col gap-1.5 border-l border-[var(--color-sidebar-border)] pl-1">
               {node.children.map((c) => (
                 <Row
                   key={c.href}

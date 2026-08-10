@@ -97,9 +97,11 @@ function normalise(value: string): string | null {
  */
 export function sitePalette(
   clients: Array<{ company_name: string; hex: string }> = [],
+  hidden: string[] = [],
 ): SwatchGroup[] {
   const groups: SwatchGroup[] = [];
   if (typeof document === "undefined") return groups;
+  const isHidden = new Set(hidden.map((h) => h.toLowerCase()));
 
   const computed = getComputedStyle(document.documentElement);
 
@@ -111,24 +113,28 @@ export function sitePalette(
       // Skip duplicates within a group — several tokens legitimately resolve
       // to the same value in some themes, and a row of identical chips is
       // noise, not choice.
-      if (!hex || seen.has(hex)) continue;
+      if (!hex || seen.has(hex) || isHidden.has(hex)) continue;
       seen.add(hex);
       swatches.push({ label, hex });
     }
     if (swatches.length > 0) groups.push({ title: group.title, swatches });
   }
 
-  if (clients.length > 0) {
+  const visibleClients = clients.filter((c) => !isHidden.has(c.hex.toLowerCase()));
+  if (visibleClients.length > 0) {
     groups.push({
       title: "Clients",
-      swatches: clients.map((c) => ({ label: c.company_name, hex: c.hex })),
+      swatches: visibleClients.map((c) => ({ label: c.company_name, hex: c.hex })),
     });
   }
 
-  groups.push({
-    title: "Client palette",
-    swatches: CLIENT_PALETTE.map((hex) => ({ label: hex, hex })),
-  });
+  const spare = CLIENT_PALETTE.filter((hex) => !isHidden.has(hex));
+  if (spare.length > 0) {
+    groups.push({
+      title: "Client palette",
+      swatches: spare.map((hex) => ({ label: hex, hex })),
+    });
+  }
 
   return groups;
 }

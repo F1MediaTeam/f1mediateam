@@ -14,14 +14,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Crosshair, X, RotateCcw, Check, BookmarkCheck, Move, Pipette, CornerLeftUp } from "lucide-react";
+import { Crosshair, X, RotateCcw, Check, BookmarkCheck, Move, CornerLeftUp } from "lucide-react";
 import {
   buildOverrideCss,
   THEME_TOKENS,
   type OverrideScope,
   type UiOverride,
 } from "@/lib/ui-overrides";
-import { sitePalette } from "@/lib/site-palette";
+import { sitePalette, type SwatchGroup } from "@/lib/site-palette";
+import { loadHiddenSwatches, saveHiddenSwatches } from "@/lib/palette-prefs";
 import {
   saveStyleOverrideAction,
   setStyleDefaultAction,
@@ -208,6 +209,9 @@ export default function StyleInspector() {
   const [styles, setStyles] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // Palette curation, shared by every colour field in the panel.
+  const [hiddenSwatches, setHiddenSwatches] = useState<string[]>([]);
+  const [editingPalette, setEditingPalette] = useState(false);
   const previewRef = useRef<HTMLStyleElement | null>(null);
 
   // Drag-to-move. `offset` is the live translate(); `base*` are captured at
@@ -220,6 +224,7 @@ export default function StyleInspector() {
 
   /** Point the panel at one element and read its current styles in. */
   const selectElement = useCallback((el: HTMLElement) => {
+    setHiddenSwatches(loadHiddenSwatches());
     const resolved = resolveTarget(el);
     setTarget(resolved);
     setToken(resolved.tokenGuess);
@@ -407,6 +412,22 @@ export default function StyleInspector() {
     // Clear the preview first so the saved rule isn't briefly doubled up.
     await run(() => saveStyleOverrideAction(draft), "Saved and live.");
     close();
+  }
+
+  const palette = useMemo(
+    () => (target ? sitePalette([], hiddenSwatches) : []),
+    [target, hiddenSwatches],
+  );
+
+  function hideSwatch(hex: string) {
+    const next = [...hiddenSwatches, hex.toLowerCase()];
+    setHiddenSwatches(next);
+    saveHiddenSwatches(next);
+  }
+
+  function restoreSwatches() {
+    setHiddenSwatches([]);
+    saveHiddenSwatches([]);
   }
 
   const ratio =
@@ -618,7 +639,43 @@ export default function StyleInspector() {
               </Field>
             ) : null}
 
+            {/* Curating the list is separate from using it: hiding a swatch
+                only removes it from this picker, it changes nothing on the
+                site. Kept behind a toggle so the × targets can't be hit while
+                picking colours normally. */}
+            {palette.length > 0 || hiddenSwatches.length > 0 ? (
+              <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-wider text-[var(--color-text-subtle)]">
+                <span>Site colours</span>
+                <span className="flex items-center gap-2">
+                  {hiddenSwatches.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={restoreSwatches}
+                      className="rounded border border-[var(--color-border)] px-1.5 py-0.5 hover:text-[var(--color-text)]"
+                    >
+                      Restore {hiddenSwatches.length}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setEditingPalette((v) => !v)}
+                    className={
+                      "rounded border px-1.5 py-0.5 " +
+                      (editingPalette
+                        ? "border-[var(--color-accent)] text-[var(--color-accent)]"
+                        : "border-[var(--color-border)] hover:text-[var(--color-text)]")
+                    }
+                  >
+                    {editingPalette ? "Done" : "Edit list"}
+                  </button>
+                </span>
+              </div>
+            ) : null}
+
             <ColorField
+              palette={palette}
+              editingPalette={editingPalette}
+              onHide={hideSwatch}
               label={scope === "token" ? "Token value" : "Text"}
               value={styles.color ?? ""}
               onChange={(v) => set("color", v)}
@@ -627,6 +684,9 @@ export default function StyleInspector() {
             {scope !== "token" ? (
               <>
                 <ColorField
+                  palette={palette}
+                  editingPalette={editingPalette}
+                  onHide={hideSwatch}
                   label="Background"
                   value={styles.backgroundColor ?? ""}
                   onChange={(v) => set("backgroundColor", v)}
@@ -658,6 +718,9 @@ export default function StyleInspector() {
                 ) : null}
 
                 <ColorField
+                  palette={palette}
+                  editingPalette={editingPalette}
+                  onHide={hideSwatch}
                   label="Border"
                   value={styles.borderColor ?? ""}
                   onChange={(v) => set("borderColor", v)}
@@ -790,16 +853,17 @@ function ColorField({
   label,
   value,
   onChange,
+  palette,
+  editingPalette,
+  onHide,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  palette: SwatchGroup[];
+  editingPalette: boolean;
+  onHide: (hex: string) => void;
 }) {
-  const [showPalette, setShowPalette] = useState(false);
-  // Read on open, not on mount: the values change with the theme and with any
-  // override saved since this panel appeared.
-  const groups = useMemo(() => (showPalette ? sitePalette() : []), [showPalette]);
-
   return (
     <Field label={label}>
       <div className="flex items-center gap-2">
@@ -816,20 +880,6 @@ function ColorField({
           onChange={(e) => onChange(e.target.value)}
           className="min-w-0 flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-2 py-1.5 font-mono text-xs"
         />
-        <button
-          type="button"
-          onClick={() => setShowPalette((v) => !v)}
-          title="Pick a colour already used on the site"
-          aria-expanded={showPalette}
-          className={
-            "shrink-0 rounded border px-1.5 py-1 text-[10px] uppercase tracking-wider transition " +
-            (showPalette
-              ? "border-[var(--color-accent)] text-[var(--color-accent)]"
-              : "border-[var(--color-border)] text-[var(--color-text-subtle)] hover:text-[var(--color-text)]")
-          }
-        >
-          <Pipette size={12} />
-        </button>
         {value ? (
           <button
             type="button"
@@ -842,37 +892,40 @@ function ColorField({
         ) : null}
       </div>
 
-      {/* The colours already on the page. Picking one guarantees an exact
-          match instead of a near-miss that has to be chased down later. */}
-      {showPalette ? (
-        <div className="mt-2 space-y-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-2">
-          {groups.map((g) => (
-            <div key={g.title}>
-              <div className="mb-1 text-[9px] uppercase tracking-widest text-[var(--color-text-subtle)]">
-                {g.title}
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {g.swatches.map((sw) => (
+      {/* The colours already on the page, always visible rather than behind a
+          toggle: picking one is the normal way to set a colour here, and
+          matching by eye produces a near-miss that has to be chased down
+          later. */}
+      {palette.length > 0 ? (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {palette.flatMap((g) =>
+            g.swatches.map((sw) => (
+              <span key={g.title + sw.hex + sw.label} className="relative">
+                <button
+                  type="button"
+                  title={`${sw.label} — ${sw.hex}`}
+                  onClick={() => onChange(sw.hex)}
+                  className={
+                    "block h-6 w-6 rounded border transition hover:scale-110 " +
+                    (value.toLowerCase() === sw.hex
+                      ? "border-[var(--color-text)]"
+                      : "border-[var(--color-border-strong)]")
+                  }
+                  style={{ background: sw.hex }}
+                />
+                {editingPalette ? (
                   <button
-                    key={g.title + sw.hex + sw.label}
                     type="button"
-                    title={`${sw.label} — ${sw.hex}`}
-                    onClick={() => {
-                      onChange(sw.hex);
-                      setShowPalette(false);
-                    }}
-                    className={
-                      "h-6 w-6 rounded border transition hover:scale-110 " +
-                      (value.toLowerCase() === sw.hex
-                        ? "border-[var(--color-text)]"
-                        : "border-[var(--color-border-strong)]")
-                    }
-                    style={{ background: sw.hex }}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
+                    title={`Hide ${sw.hex} from this list`}
+                    onClick={() => onHide(sw.hex)}
+                    className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[var(--color-bad)] text-[8px] font-bold leading-none text-white"
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </span>
+            )),
+          )}
         </div>
       ) : null}
     </Field>

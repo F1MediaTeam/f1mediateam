@@ -173,6 +173,7 @@ export default async function AdminDashboard() {
                   return (
                     <div
                       key={e.id}
+                      data-style-id="upcoming-row"
                       className="flex items-start gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-3 py-3"
                     >
                       <div className="shrink-0 w-1.5 self-stretch rounded-full" style={{ background: p.hex }} />

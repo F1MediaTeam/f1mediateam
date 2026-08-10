@@ -133,6 +133,7 @@ export default async function AdminContent({
                   <Link
                     key={c.id}
                     href={`/admin/content?client=${c.id}`}
+                    data-style-id="content-client-chip"
                     className={
                       "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors " +
                       (active

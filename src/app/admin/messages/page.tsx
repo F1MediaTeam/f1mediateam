@@ -83,6 +83,7 @@ export default async function AdminMessagesInbox() {
                 <li key={c.id}>
                   <Link
                     href={`/admin/messages/${c.id}`}
+                    data-style-id="message-row"
                     data-panel=""
                     style={{ "--panel-outline": colour.hex } as React.CSSProperties}
                     className="group flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] px-3 py-1 transition-colors hover:bg-[var(--color-bg-hover)] active:bg-[var(--color-bg-hover)]"

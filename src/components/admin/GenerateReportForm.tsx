@@ -484,7 +484,7 @@ export default function GenerateReportForm({ clients, defaultClientId, logos }: 
           the date-range picker's popover has to escape the card's bounds. */}
       {/* data-panel is kept: it is what makes this card follow the selected
           client's colour, which is a separate ask from the page's palette. */}
-      <section data-panel="" className="animate-studio-rise relative rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-5 sm:p-6 shadow-2xl shadow-black/30">
+      <section data-style-id="deck-builder" data-panel="" className="animate-studio-rise relative rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-5 sm:p-6 shadow-2xl shadow-black/30">
 
         {/* flex-wrap + a hard min width on the client column: the meeting
             tab row grew a sixth option, and without these the client select

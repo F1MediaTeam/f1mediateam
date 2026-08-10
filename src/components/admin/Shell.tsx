@@ -57,7 +57,7 @@ export default async function AdminShell({
 
       {/* Desktop sidebar — hidden on mobile. */}
       <aside data-style-id="admin-sidebar" className="hidden md:flex w-60 shrink-0 flex-col border-r border-[var(--color-sidebar-border)] bg-[var(--color-sidebar-bg)] text-[var(--color-sidebar-text)]">
-        <div className="px-4 py-5">
+        <div data-style-id="sidebar-brand" className="px-4 py-5">
           <Link href="/admin" className="block">
             <Logo compact width={200} height={56} />
           </Link>

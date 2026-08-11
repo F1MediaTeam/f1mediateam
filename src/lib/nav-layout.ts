@@ -31,6 +31,7 @@ export const DEFAULT_NAV: NavItem[] = [
   { href: "/admin/reports", label: "Reports" },
   { href: "/admin/documents", label: "Documents" },
   { href: "/admin/audit", label: "Activity" },
+  { href: "/admin/pulse", label: "F1 Pulse" },
   { href: "/admin/tools", label: "Tools" },
   { href: "/admin/settings", label: "Settings" },
 ];

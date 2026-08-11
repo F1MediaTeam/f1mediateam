@@ -13,6 +13,24 @@ const nextConfig: NextConfig = {
     // public/ and are fs.read at runtime by the monthly-report route.
     "/api/monthly-report/**": ["./public/*.svg", "./public/*.png"],
   },
+  async headers() {
+    return [
+      {
+        // The F1 Pulse tag runs on client sites. Five minutes in the browser so
+        // a fix reaches visitors quickly, a day at the CDN so origin is never
+        // the bottleneck, and stale-while-revalidate so nobody ever waits on a
+        // revalidation. Without this it inherits whatever the default is, and a
+        // tag fix could sit uncollected for a long time.
+        source: "/f1.js",
+        headers: [
+          { key: "cache-control", value: "public, max-age=300, s-maxage=86400, stale-while-revalidate=604800" },
+          { key: "content-type", value: "application/javascript; charset=utf-8" },
+          // Loaded cross-origin from client sites by design.
+          { key: "access-control-allow-origin", value: "*" },
+        ],
+      },
+    ];
+  },
   experimental: {
     serverActions: {
       // Onboarding submit can include multiple brand-asset images.

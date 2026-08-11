@@ -15,12 +15,17 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { staffRoleOf } from "@/lib/permissions";
 import { getSite, listSites, type PulseSite } from "@/lib/pulse/sites";
 import { runHeartbeat } from "@/lib/pulse/heartbeat";
+import { runRanks } from "@/lib/pulse/collectors/ranks";
+import { runBacklinks } from "@/lib/pulse/collectors/backlinks";
+import { startCrawl, tickCrawl } from "@/lib/pulse/collectors/crawl";
+import { runSearch } from "@/lib/pulse/collectors/search";
+import { isMock } from "@/lib/pulse/providers/serp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-const COLLECTORS = ["heartbeat"] as const;
+const COLLECTORS = ["heartbeat", "ranks", "backlinks", "crawl", "search"] as const;
 type Collector = (typeof COLLECTORS)[number];
 
 async function authorize(request: NextRequest): Promise<{ ok: boolean; reason?: string }> {
@@ -72,8 +77,38 @@ export async function POST(
     .single();
 
   try {
-    const results = await Promise.all(sites.map((s) => runHeartbeat(s)));
-    const changed = results.filter((r) => r.changed).length;
+    let results: unknown[];
+
+    if (collector === "heartbeat") {
+      results = await Promise.all(sites.map((s) => runHeartbeat(s)));
+    } else if (collector === "ranks") {
+      // Sequential: each site is a burst of provider calls, and running four
+      // sites at once is how a rate limit gets hit.
+      results = [];
+      for (const s of sites) results.push(await runRanks(s));
+    } else if (collector === "backlinks") {
+      results = [];
+      for (const s of sites) results.push(await runBacklinks(s));
+    } else if (collector === "search") {
+      results = [];
+      for (const s of sites) results.push(await runSearch(s));
+    } else {
+      // Crawl is resumable: this call opens a crawl (or resumes the running
+      // one) and works a slice. The caller repeats until done is true, which
+      // is what keeps a 33-minute crawl inside a 120-second function.
+      results = [];
+      for (const s of sites) {
+        const { data: open } = await supabase
+          .from("pulse_crawls")
+          .select("id")
+          .eq("site_id", s.id)
+          .eq("status", "running")
+          .order("started_at", { ascending: false })
+          .limit(1);
+        const crawlId = (open?.[0]?.id as string) ?? (await startCrawl(s)).crawlId;
+        results.push(await tickCrawl(s, crawlId));
+      }
+    }
 
     if (run) {
       await supabase
@@ -81,11 +116,12 @@ export async function POST(
         .update({
           finished_at: new Date().toISOString(),
           ok: true,
-          counts: { sites: results.length, checked: results.filter((r) => r.checked).length, changed },
+          mocked: collector === "ranks" || collector === "backlinks" ? isMock() : false,
+          counts: { sites: sites.length, results: results.length },
         })
         .eq("id", run.id);
     }
-    return Response.json({ ok: true, collector, results });
+    return Response.json({ ok: true, collector, mocked: isMock(), results });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Collector failed.";
     if (run) {

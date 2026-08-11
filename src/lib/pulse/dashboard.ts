@@ -152,16 +152,22 @@ export interface TrafficPanel {
   vitals: Array<{ metric: string; p75: number; verdict: "good" | "needs-improvement" | "poor" }>;
   conversions: Array<{ kind: string; count: number; topTarget: string | null }>;
   totals: { visitors: number; pageviews: number; sessions: number; avgEngagementSec: number };
+  /** the same window immediately before this one, for deltas */
+  previous: { visitors: number; pageviews: number; sessions: number; avgEngagementSec: number };
 }
 
 export async function trafficPanel(siteId: string, range: Range): Promise<TrafficPanel> {
   const supabase = await createServiceClient();
   const from = since(range);
+  // The window immediately before this one — same length, so "up 18%" compares
+  // like with like rather than against an arbitrary baseline.
+  const prevFrom = new Date(Date.now() - RANGE_HOURS[range] * 2 * 3_600_000).toISOString();
 
-  const [viewsRes, vitalsRes, convRes] = await Promise.all([
+  const [viewsRes, vitalsRes, convRes, prevRes] = await Promise.all([
     supabase.from("pulse_pageviews").select("ts, path, referrer_domain, utm_source, utm_medium, visitor_hash, session_hash, engagement_ms").eq("site_id", siteId).gte("ts", from).order("ts", { ascending: true }).limit(20000),
     supabase.from("pulse_web_vitals").select("metric, value").eq("site_id", siteId).gte("ts", from).limit(20000),
     supabase.from("pulse_conversions").select("kind, target").eq("site_id", siteId).gte("ts", from).limit(20000),
+    supabase.from("pulse_pageviews").select("visitor_hash, session_hash, engagement_ms").eq("site_id", siteId).gte("ts", prevFrom).lt("ts", from).limit(20000),
   ]);
 
   const views = (viewsRes.data as Array<Record<string, string | number | null>>) ?? [];
@@ -219,6 +225,9 @@ export async function trafficPanel(siteId: string, range: Range): Promise<Traffi
 
   const engagements = views.map((v) => Number(v.engagement_ms ?? 0)).filter((n) => n > 0);
 
+  const prev = (prevRes.data as Array<Record<string, unknown>>) ?? [];
+  const prevEngagements = prev.map((v) => Number(v.engagement_ms ?? 0)).filter((n) => n > 0);
+
   return {
     series: [...buckets.entries()].sort().map(([bucket, b]) => ({ bucket, visitors: b.visitors.size, pageviews: b.pageviews })),
     topPages: count(views, "path").slice(0, 12).map(([path, views_]) => ({ path: path as string, views: views_ })),
@@ -231,6 +240,14 @@ export async function trafficPanel(siteId: string, range: Range): Promise<Traffi
       pageviews: views.length,
       sessions: new Set(views.map((v) => String(v.session_hash))).size,
       avgEngagementSec: engagements.length ? Math.round(engagements.reduce((a, b) => a + b, 0) / engagements.length / 1000) : 0,
+    },
+    previous: {
+      visitors: new Set(prev.map((v) => String(v.visitor_hash))).size,
+      pageviews: prev.length,
+      sessions: new Set(prev.map((v) => String(v.session_hash))).size,
+      avgEngagementSec: prevEngagements.length
+        ? Math.round(prevEngagements.reduce((a, b) => a + b, 0) / prevEngagements.length / 1000)
+        : 0,
     },
   };
 }

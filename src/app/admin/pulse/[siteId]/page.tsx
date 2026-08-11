@@ -26,6 +26,9 @@ import RefreshButton from "@/components/admin/pulse/RefreshButton";
 import Sparkline from "@/components/admin/pulse/Sparkline";
 import KeywordManager, { KeywordRowActions } from "@/components/admin/pulse/KeywordManager";
 import CsvButton from "@/components/admin/pulse/CsvButton";
+import TrafficChart from "@/components/admin/pulse/TrafficChart";
+import BarList from "@/components/admin/pulse/BarList";
+import VitalMeter from "@/components/admin/pulse/VitalMeter";
 
 export const dynamic = "force-dynamic";
 
@@ -41,11 +44,6 @@ const TAB_LABEL: Record<Tab, string> = {
 
 const RANGES: Range[] = ["24h", "7d", "30d", "90d"];
 
-const VERDICT_COLOR: Record<string, string> = {
-  good: "var(--color-ok)",
-  "needs-improvement": "var(--color-warn)",
-  poor: "var(--color-bad)",
-};
 const SEVERITY_COLOR: Record<string, string> = {
   error: "var(--color-bad)",
   warning: "var(--color-warn)",
@@ -75,6 +73,38 @@ function Panel({
         {right}
       </div>
       {children}
+    </div>
+  );
+}
+
+function Headline({ label, value, now, before, suffix }: {
+  label: string; value: string | number; now?: number; before?: number; suffix?: string;
+}) {
+  // No percentage against a zero baseline — "+400%" off one visitor is noise.
+  const delta =
+    now !== undefined && before !== undefined && before > 0
+      ? Math.round(((now - before) / before) * 100)
+      : null;
+  const isNew = now !== undefined && before === 0 && now > 0;
+
+  return (
+    <div data-panel="" className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-3">
+      <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">{label}</div>
+      <div className="mt-1 flex items-baseline gap-1.5">
+        <span className="text-2xl font-semibold tabular-nums">{value}</span>
+        {suffix ? <span className="text-xs text-[var(--color-text-subtle)]">{suffix}</span> : null}
+      </div>
+      <div className="mt-0.5 text-[10px]">
+        {isNew ? (
+          <span style={{ color: "var(--color-ok)" }}>new this period</span>
+        ) : delta === null ? (
+          <span className="text-[var(--color-text-subtle)]">no earlier data to compare</span>
+        ) : (
+          <span style={{ color: delta >= 0 ? "var(--color-ok)" : "var(--color-bad)" }}>
+            {delta >= 0 ? "▲" : "▼"} {Math.abs(delta)}% vs previous period
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -115,7 +145,6 @@ export default async function PulseSitePage({
   const health = tab === "health" ? await healthPanel(siteId) : null;
 
   const tabHref = (t: Tab) => `/admin/pulse/${siteId}?tab=${t}${t === "traffic" ? `&range=${range}` : ""}`;
-  const maxViews = Math.max(1, ...(traffic?.series.map((s) => s.pageviews) ?? [1]));
 
   return (
     <AdminShell session={session} active="/admin/pulse">
@@ -188,89 +217,47 @@ export default async function PulseSitePage({
             </div>
 
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              {[
-                ["Visitors", traffic.totals.visitors],
-                ["Pageviews", traffic.totals.pageviews],
-                ["Sessions", traffic.totals.sessions],
-                ["Avg. engagement", `${traffic.totals.avgEngagementSec}s`],
-              ].map(([label, value]) => (
-                <div key={String(label)} data-panel="" className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-3">
-                  <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">{label}</div>
-                  <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
-                </div>
-              ))}
+              <Headline label="Visitors" value={traffic.totals.visitors} now={traffic.totals.visitors} before={traffic.previous.visitors} />
+              <Headline label="Pageviews" value={traffic.totals.pageviews} now={traffic.totals.pageviews} before={traffic.previous.pageviews} />
+              <Headline label="Sessions" value={traffic.totals.sessions} now={traffic.totals.sessions} before={traffic.previous.sessions} />
+              <Headline label="Avg. engagement" value={traffic.totals.avgEngagementSec} suffix="sec" now={traffic.totals.avgEngagementSec} before={traffic.previous.avgEngagementSec} />
             </div>
 
-            <Panel title={`Traffic · last ${range}`}>
-              {traffic.series.length === 0 ? (
-                <Empty>
-                  Nothing recorded in this window yet. Once the snippet is live, visits appear here
-                  within seconds.
-                </Empty>
-              ) : (
-                <div className="flex h-32 items-end gap-[2px] overflow-x-auto">
-                  {traffic.series.map((s) => (
-                    <div
-                      key={s.bucket}
-                      title={`${s.bucket} — ${s.visitors} visitors, ${s.pageviews} views`}
-                      className="min-w-[4px] flex-1 rounded-t"
-                      style={{
-                        height: `${Math.max(2, (s.pageviews / maxViews) * 100)}%`,
-                        background: colour?.hex ?? "var(--color-accent)",
-                        opacity: 0.85,
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
+            <Panel title={`Visitors and pageviews · last ${range}`}>
+              <TrafficChart points={traffic.series} accent={colour?.hex ?? "#e11d2e"} hourly={range === "24h"} />
             </Panel>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <Panel title="Top pages">
-                {traffic.topPages.length === 0 ? <Empty>No pages yet.</Empty> : (
-                  <ul className="space-y-1.5">
-                    {traffic.topPages.map((p) => (
-                      <li key={p.path} className="flex items-center justify-between gap-3 text-xs">
-                        <span className="truncate font-mono text-[11px]">{p.path}</span>
-                        <span className="shrink-0 tabular-nums text-[var(--color-text-muted)]">{p.views}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+              <Panel title="Most visited pages">
+                <BarList mono accent={colour?.hex ?? "#e11d2e"}
+                  rows={traffic.topPages.map((p) => ({ label: p.path, value: p.views }))}
+                  empty="No pages recorded yet." />
               </Panel>
 
               <Panel title="Where visitors came from">
-                {traffic.topReferrers.length === 0 ? (
-                  <Empty>No referrers yet — all traffic so far is direct.</Empty>
-                ) : (
-                  <ul className="space-y-1.5">
-                    {traffic.topReferrers.map((r) => (
-                      <li key={r.domain} className="flex items-center justify-between gap-3 text-xs">
-                        <span className="truncate">{r.domain}</span>
-                        <span className="shrink-0 tabular-nums text-[var(--color-text-muted)]">{r.views}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <BarList accent={colour?.hex ?? "#e11d2e"}
+                  rows={traffic.topReferrers.map((r) => ({ label: r.domain, value: r.views }))}
+                  empty="Nothing yet — all traffic so far arrived directly." />
               </Panel>
 
-              <Panel title="Core Web Vitals · 75th percentile">
+              <Panel title="Speed, as real visitors experienced it">
                 {traffic.vitals.length === 0 ? (
                   <Empty>
-                    No vitals yet. These come from real browsers as visitors leave a page, so they
-                    appear once there is real traffic.
+                    No speed data yet. These are measured in real browsers as visitors leave a page,
+                    so they appear once there is real traffic.
                   </Empty>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {traffic.vitals.map((v) => (
-                      <div key={v.metric} className="rounded-lg border border-[var(--color-border)] px-3 py-2">
-                        <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">{v.metric}</div>
-                        <div className="mt-0.5 text-lg font-semibold tabular-nums" style={{ color: VERDICT_COLOR[v.verdict] }}>
-                          {v.metric === "CLS" ? v.p75.toFixed(3) : `${Math.round(v.p75)}ms`}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {traffic.vitals.map((v) => (
+                        <VitalMeter key={v.metric} metric={v.metric} p75={v.p75} verdict={v.verdict} />
+                      ))}
+                    </div>
+                    <p className="mt-3 text-[10px] leading-relaxed text-[var(--color-text-subtle)]">
+                      The 75th percentile — the experience of the slowest quarter of visits, which is
+                      what Google assesses. An average would hide them.
+                    </p>
+                  </>
                 )}
               </Panel>
 

@@ -214,6 +214,11 @@ export async function pulseMonthly(clientId: string): Promise<PulseMonthly | nul
  * narrative the AI writer produces, and overwriting that here would silently
  * discard it. The caller spreads this over its own object.
  */
+/** "1 visitor" not "1 visitors" — this text goes to a client verbatim. */
+function plural(n: number, one: string, many = `${one}s`): string {
+  return `${n.toLocaleString()} ${n === 1 ? one : many}`;
+}
+
 export function toMonthlyContent(m: PulseMonthly): Record<string, unknown> {
   const wins: string[] = [];
   if (m.rankings.improved.length > 0) {
@@ -221,10 +226,10 @@ export function toMonthlyContent(m: PulseMonthly): Record<string, unknown> {
     wins.push(`"${best.phrase}" moved from #${best.from} to #${best.to}`);
   }
   if (m.conversions.total > 0) {
-    wins.push(`${m.conversions.total} enquiries from the website`);
+    wins.push(`${plural(m.conversions.total, "enquiry", "enquiries")} from the website`);
   }
   if (m.backlinks.gained > 0) {
-    wins.push(`${m.backlinks.gained} new backlink${m.backlinks.gained === 1 ? "" : "s"}`);
+    wins.push(`${plural(m.backlinks.gained, "new backlink")}`);
   }
   if (m.traffic.visitorsDelta !== null && m.traffic.visitorsDelta > 0) {
     wins.push(`Visitors up ${m.traffic.visitorsDelta}% on the previous month`);
@@ -235,14 +240,14 @@ export function toMonthlyContent(m: PulseMonthly): Record<string, unknown> {
     website: m.domain,
     reportPeriod: m.period.label,
     executiveSummary: {
-      intro: `${m.traffic.visitors.toLocaleString()} people visited ${m.domain} this month across ${m.traffic.sessions.toLocaleString()} sessions.`,
+      intro: `${plural(m.traffic.visitors, "person", "people")} visited ${m.domain} this month across ${plural(m.traffic.sessions, "session")}.`,
       wins,
     },
     keywordRankings: {
       priorLabel: "Last month",
       currentLabel: "Now",
       rows: m.rankings.rows,
-      note: `${m.rankings.inTop10} of ${m.rankings.tracked} tracked keywords are on page one.`,
+      note: `${m.rankings.inTop10} of ${plural(m.rankings.tracked, "tracked keyword")} ${m.rankings.inTop10 === 1 ? "is" : "are"} on page one.`,
     },
     organicTraffic: {
       clicks: { value: m.search.clicks !== null ? String(m.search.clicks) : "—" },

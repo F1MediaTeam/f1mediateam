@@ -9,6 +9,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import { staffRoleOf } from "@/lib/permissions";
 import { checkInstallation, createSite, getSite } from "@/lib/pulse/sites";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export async function addPulseSiteAction(input: {
   clientId: string;
@@ -57,4 +58,51 @@ export async function pulseOrigin(): Promise<string> {
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "f1mediateam.com";
   const proto = h.get("x-forwarded-proto") ?? "https";
   return `${proto}://${host}`;
+}
+
+// --- keywords ---
+
+export async function addKeywordAction(input: {
+  siteId: string;
+  phrase: string;
+}): Promise<{ error: string | null }> {
+  await requireAdmin();
+  const phrase = input.phrase.trim().toLowerCase();
+  if (!phrase || phrase.length > 120) return { error: "Enter a keyword." };
+
+  const supabase = await createServiceClient();
+  const { error } = await supabase
+    .from("pulse_keywords")
+    .insert({ site_id: input.siteId, phrase });
+  if (error) {
+    if (error.code === "23505") return { error: "Already tracking that phrase." };
+    return { error: error.message };
+  }
+  revalidatePath(`/admin/pulse/${input.siteId}`);
+  return { error: null };
+}
+
+export async function toggleKeywordAction(
+  keywordId: string,
+  isActive: boolean,
+): Promise<{ error: string | null }> {
+  await requireAdmin();
+  const supabase = await createServiceClient();
+  // Pausing keeps every stored check — only future runs skip it.
+  const { error } = await supabase
+    .from("pulse_keywords")
+    .update({ is_active: isActive })
+    .eq("id", keywordId);
+  revalidatePath("/admin/pulse", "layout");
+  return { error: error?.message ?? null };
+}
+
+export async function removeKeywordAction(keywordId: string): Promise<{ error: string | null }> {
+  await requireAdmin();
+  const supabase = await createServiceClient();
+  // Rank checks cascade with the keyword — deleting really does discard the
+  // history, which is why the UI asks twice.
+  const { error } = await supabase.from("pulse_keywords").delete().eq("id", keywordId);
+  revalidatePath("/admin/pulse", "layout");
+  return { error: error?.message ?? null };
 }

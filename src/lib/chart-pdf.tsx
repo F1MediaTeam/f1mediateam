@@ -88,6 +88,9 @@ function niceAxis(
 
 function formatTickValue(v: number): string {
   if (Math.abs(v) >= 1000) return Math.round(v).toLocaleString("en-US");
+  // A baseline of exactly zero is "0", never "0.00" — the decimals imply a
+  // precision the axis doesn't have and read as a rendering fault.
+  if (v === 0) return "0";
   if (Math.abs(v) < 1) return v.toFixed(2);
   if (Math.abs(v) < 10) return v.toFixed(1);
   return Math.round(v).toLocaleString("en-US");

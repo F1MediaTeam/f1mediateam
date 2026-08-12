@@ -12,6 +12,21 @@ import type { PulseSite } from "@/lib/pulse/sites";
 import { botMatrix, isAllowed, NO_ROBOTS, parseRobots, type Robots } from "./robots";
 
 const UA = "F1PulseBot/1.0 (+https://f1mediateam.com)";
+
+// Sending a User-Agent and nothing else gets a 406 from mod_security setups —
+// ultimateassetprotection.com refuses exactly that request and answers a plain
+// browser fine. Without these headers a healthy client site reads as permanently
+// down, which is worse than not monitoring it at all.
+const FETCH_HEADERS = {
+  "user-agent": UA,
+  accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "accept-language": "en-US,en;q=0.9",
+} as const;
+
+const XML_HEADERS = {
+  "user-agent": UA,
+  accept: "application/xml,text/xml,application/xhtml+xml,*/*;q=0.8",
+} as const;
 /** Pages per invocation. 25 at ~1/sec leaves headroom under the 120s route cap. */
 const SLICE = 25;
 const DELAY_MS = 1000;
@@ -29,7 +44,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function getRobots(domain: string): Promise<Robots> {
   try {
     const res = await fetch(`https://${domain}/robots.txt`, {
-      headers: { "user-agent": UA },
+      headers: XML_HEADERS,
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) return NO_ROBOTS;
@@ -75,14 +90,31 @@ export async function startCrawl(site: PulseSite): Promise<{ crawlId: string; se
   // homepage. None of these three client sites declares a sitemap, so the
   // fallback is the normal path, not the exception.
   const seeds = new Set<string>([`https://${site.domain}/`]);
-  const sitemapUrls = site.sitemap_url ? [site.sitemap_url] : robots.sitemaps;
-  for (const sm of sitemapUrls.slice(0, 3)) {
+  // A <sitemapindex> lists other sitemaps rather than pages — CobraFlex's has
+  // five entries, none of which is a page. Reading only the top level would
+  // seed five URLs and silently miss the entire site, so index files are
+  // followed one level down.
+  const queue = site.sitemap_url ? [site.sitemap_url] : [...robots.sitemaps];
+  const fetched = new Set<string>();
+  let budget = 12; // index + children; a guard against a sitemap loop
+
+  while (queue.length > 0 && budget > 0 && seeds.size < site.crawl_page_cap) {
+    const sm = queue.shift()!;
+    if (fetched.has(sm)) continue;
+    fetched.add(sm);
+    budget -= 1;
     try {
-      const res = await fetch(sm, { headers: { "user-agent": UA }, signal: AbortSignal.timeout(20_000) });
+      const res = await fetch(sm, { headers: XML_HEADERS, signal: AbortSignal.timeout(20_000) });
       if (!res.ok) continue;
       const xml = await res.text();
+      const isIndex = /<sitemapindex/i.test(xml);
       for (const m of xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)) {
-        const u = normalizeUrl(m[1], `https://${site.domain}/`, site.domain, site.crawl_exclusions);
+        const raw = m[1].trim();
+        if (isIndex) {
+          if (queue.length < 12) queue.push(raw);
+          continue;
+        }
+        const u = normalizeUrl(raw, `https://${site.domain}/`, site.domain, site.crawl_exclusions);
         if (u) seeds.add(u);
         if (seeds.size >= site.crawl_page_cap) break;
       }
@@ -197,7 +229,7 @@ export async function tickCrawl(site: PulseSite, crawlId: string): Promise<TickR
     let html = "";
     try {
       const res = await fetch(item.url, {
-        headers: { "user-agent": UA },
+        headers: FETCH_HEADERS,
         redirect: "follow",
         signal: AbortSignal.timeout(15_000),
       });
@@ -306,6 +338,29 @@ export async function tickCrawl(site: PulseSite, crawlId: string): Promise<TickR
   return { crawlId, processed: pages.length, remaining, done: remaining === 0 };
 }
 
+/**
+ * F1 Site Health, 0-100.
+ *
+ * 100 minus weighted issue density, where an error costs three times a warning
+ * and twelve times a notice — a broken page matters, a short meta description
+ * does not. Normalised per page so a 2,000-page site isn't punished for scale,
+ * and clamped so a catastrophic crawl floors at 0 rather than going negative.
+ *
+ * Deliberately our own number, documented here, and never presented as anyone
+ * else's score.
+ */
+export function siteHealthScore(
+  pages: number,
+  counts: { errors: number; warnings: number; notices: number },
+): number {
+  if (pages <= 0) return 100;
+  const weighted = counts.errors * 3 + counts.warnings * 1 + counts.notices * 0.25;
+  // One weighted issue per page ≈ 40 points off; the curve is steep at first so
+  // the difference between a clean site and a slightly broken one is visible.
+  const density = weighted / pages;
+  return Math.max(0, Math.min(100, Math.round(100 - density * 40)));
+}
+
 async function finishCrawl(site: PulseSite, crawlId: string) {
   const supabase = await createServiceClient();
   const { data: crawl } = await supabase
@@ -328,6 +383,10 @@ async function finishCrawl(site: PulseSite, crawlId: string) {
   const all = (issueRows as Array<{ severity: string }>) ?? [];
   const errors = all.filter((i) => i.severity === "error").length;
   const warnings = all.filter((i) => i.severity === "warning").length;
+  const notices = all.length - errors - warnings;
+  const pages = (crawl as { pages_crawled: number })?.pages_crawled ?? 0;
+  const health = siteHealthScore(pages, { errors, warnings, notices });
+  await supabase.from("pulse_crawls").update({ health_score: health }).eq("id", crawlId);
 
   // One event per crawl, not per issue — 400 notices would otherwise bury
   // everything else in the feed.
@@ -337,13 +396,8 @@ async function finishCrawl(site: PulseSite, crawlId: string) {
     severity: errors > 0 ? "warning" : "info",
     title:
       all.length === 0
-        ? `Crawl of ${site.domain} found no issues`
-        : `Crawl of ${site.domain}: ${errors} errors, ${warnings} warnings`,
-    payload: {
-      pages: (crawl as { pages_crawled: number })?.pages_crawled ?? 0,
-      errors,
-      warnings,
-      notices: all.length - errors - warnings,
-    },
+        ? `${site.domain} crawled clean — health 100`
+        : `${site.domain} health ${health}/100 — ${errors} errors, ${warnings} warnings`,
+    payload: { pages, errors, warnings, notices, health_score: health },
   });
 }

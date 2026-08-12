@@ -19,13 +19,14 @@ import { runRanks } from "@/lib/pulse/collectors/ranks";
 import { runBacklinks } from "@/lib/pulse/collectors/backlinks";
 import { startCrawl, tickCrawl } from "@/lib/pulse/collectors/crawl";
 import { runSearch } from "@/lib/pulse/collectors/search";
+import { runBackfill } from "@/lib/pulse/collectors/backfill";
 import { isMock } from "@/lib/pulse/providers/serp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
-const COLLECTORS = ["heartbeat", "ranks", "backlinks", "crawl", "search"] as const;
+const COLLECTORS = ["heartbeat", "ranks", "backlinks", "crawl", "search", "backfill"] as const;
 type Collector = (typeof COLLECTORS)[number];
 
 async function authorize(request: NextRequest): Promise<{ ok: boolean; reason?: string }> {
@@ -89,6 +90,11 @@ export async function POST(
     } else if (collector === "backlinks") {
       results = [];
       for (const s of sites) results.push(await runBacklinks(s));
+    } else if (collector === "backfill") {
+      // 16 months × 2 dimensions of Google calls per site — sequential, or the
+      // per-project quota is gone in one burst.
+      results = [];
+      for (const s of sites) results.push(await runBackfill(s));
     } else if (collector === "search") {
       results = [];
       for (const s of sites) results.push(await runSearch(s));

@@ -109,7 +109,13 @@ export async function checkInstallation(site: PulseSite): Promise<InstallCheck> 
   let statusCode: number | null = null;
   try {
     const res = await fetch(`https://${site.domain}/`, {
-      headers: { "user-agent": "F1PulseBot/1.0 (+https://f1mediateam.com)" },
+      // Accept headers matter: some hosts answer 406 to a bare User-Agent and
+      // the site would read as down forever.
+      headers: {
+        "user-agent": "F1PulseBot/1.0 (+https://f1mediateam.com)",
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "accept-language": "en-US,en;q=0.9",
+      },
       redirect: "follow",
       signal: AbortSignal.timeout(15_000),
     });

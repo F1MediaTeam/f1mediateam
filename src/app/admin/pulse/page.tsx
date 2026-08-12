@@ -83,6 +83,14 @@ export default async function PulsePage() {
                 Live feed
               </Link>
               <RefreshButton collector="heartbeat" lastUpdated={runs.get("heartbeat")?.finishedAt} label="Refresh all" />
+              {/* Search Console deletes anything older than 16 months, so this
+                  is a one-time capture per client — and needs re-running each
+                  time another client's Google account is connected. */}
+              <RefreshButton
+                collector="backfill"
+                lastUpdated={runs.get("backfill")?.finishedAt}
+                label="Import search history"
+              />
               <PulseAddSite
                 clients={clients.map((c) => ({
                   id: c.id,

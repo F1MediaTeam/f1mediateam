@@ -5,6 +5,7 @@
 // these rather than writing a second set of queries against the same tables.
 
 import { createServiceClient } from "@/lib/supabase/server";
+import { visibility, type VisibilitySummary } from "@/lib/pulse/visibility";
 
 export type Range = "24h" | "7d" | "30d" | "90d";
 
@@ -261,6 +262,12 @@ export interface RankRow {
   rankingUrl: string | null;
   history: Array<number | null>;
   isActive: boolean;
+}
+
+/** The whole tracked set as one score, for the headline and the trend. */
+export async function visibilityFor(siteId: string): Promise<VisibilitySummary> {
+  const rows = await rankPanel(siteId);
+  return visibility(rows.map((r) => ({ position: r.position, previous: r.previous })));
 }
 
 export async function rankPanel(siteId: string): Promise<RankRow[]> {

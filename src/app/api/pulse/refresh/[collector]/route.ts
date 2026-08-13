@@ -24,6 +24,7 @@ import { runOpportunities } from "@/lib/pulse/collectors/opportunities";
 import { runPsi } from "@/lib/pulse/collectors/psi";
 import { runLocal } from "@/lib/pulse/collectors/local";
 import { runCompetitorsForSite } from "@/lib/pulse/collectors/competitors";
+import { runIndexInspector } from "@/lib/pulse/collectors/index-inspector";
 import { isMock } from "@/lib/pulse/providers/serp";
 
 export const runtime = "nodejs";
@@ -41,6 +42,7 @@ const COLLECTORS = [
   "psi",
   "local",
   "competitors",
+  "index",
 ] as const;
 type Collector = (typeof COLLECTORS)[number];
 
@@ -118,6 +120,12 @@ export async function POST(
       // another rather than racing each other into the route's time ceiling.
       results = [];
       for (const s of sites) results.push(await runPsi(s));
+    } else if (collector === "index") {
+      // Resumable like the crawler: each call works a slice of the sitemap and
+      // reports what is left, because a large site cannot be inspected inside
+      // one day's Search Console quota, let alone one function invocation.
+      results = [];
+      for (const s of sites) results.push(await runIndexInspector(s));
     } else if (collector === "competitors") {
       // Each competitor is someone else's server. Sequential across sites and
       // sequential within them, with the crawler's own one-per-second delay.

@@ -61,13 +61,19 @@ export interface CompetitorRunResult {
   error?: string;
 }
 
-interface SitemapEntry {
+export interface SitemapEntry {
   url: string;
   lastmod: string | null;
 }
 
-/** robots.txt, and the sitemaps it points at. */
-async function fetchRobots(domain: string): Promise<Robots> {
+/**
+ * robots.txt, and the sitemaps it points at.
+ *
+ * Exported because the index inspector needs the same two steps against a
+ * client's own domain — one implementation with two consumers rather than a
+ * third copy of sitemap parsing in this codebase.
+ */
+export async function fetchRobots(domain: string): Promise<Robots> {
   try {
     const res = await fetch(`https://${domain}/robots.txt`, {
       headers: { "user-agent": UA },
@@ -87,7 +93,7 @@ async function fetchRobots(domain: string): Promise<Robots> {
  * followed one level down — reading only the top level of an index would count
  * five URLs and conclude the site was tiny.
  */
-async function readSitemaps(domain: string, robots: Robots): Promise<SitemapEntry[]> {
+export async function readSitemaps(domain: string, robots: Robots): Promise<SitemapEntry[]> {
   const queue = robots.sitemaps.length > 0 ? [...robots.sitemaps] : [`https://${domain}/sitemap.xml`];
   const fetched = new Set<string>();
   const entries = new Map<string, string | null>();

@@ -376,6 +376,128 @@ export async function healthPanel(siteId: string) {
   };
 }
 
+/**
+ * Index health: what Google has actually accepted, and what changed.
+ *
+ * Deadweight is computed by joining verdicts against pulse_search_terms rather
+ * than against a second copy of page performance — same reasoning as
+ * collectors/search.ts, which deliberately collects nothing. One source of
+ * truth, so the two can never disagree. Requires migration 0028.
+ */
+export async function indexPanel(siteId: string) {
+  const supabase = await createServiceClient();
+
+  const { data: runRows } = await supabase
+    .from("pulse_index_runs")
+    .select("id, started_at, finished_at, status, urls_total, urls_inspected, buckets, mocked")
+    .eq("site_id", siteId)
+    .order("started_at", { ascending: false })
+    .limit(12);
+
+  const runs =
+    (runRows as Array<{
+      id: string;
+      started_at: string;
+      finished_at: string | null;
+      status: string;
+      urls_total: number;
+      urls_inspected: number;
+      buckets: Record<string, number>;
+      mocked: boolean;
+    }>) ?? [];
+
+  const latest = runs[0] ?? null;
+  const lastComplete = runs.find((r) => r.status === "done") ?? null;
+  const previousComplete = runs.filter((r) => r.status === "done")[1] ?? null;
+
+  if (!latest) {
+    return {
+      latest: null,
+      buckets: [] as Array<{ bucket: string; count: number }>,
+      problems: [] as Array<{ url: string; bucket: string; coverage_state: string | null; last_crawl_time: string | null }>,
+      deadweight: [] as string[],
+      fixed: null as number | null,
+      regressed: null as number | null,
+      indexed: 0,
+      total: 0,
+      mocked: false,
+      history: [] as Array<{ at: string; indexed: number }>,
+    };
+  }
+
+  const buckets = Object.entries(latest.buckets ?? {})
+    .map(([bucket, count]) => ({ bucket, count: Number(count) }))
+    .sort((a, b) => b.count - a.count);
+
+  // The buckets someone can act on. "indexed" needs no action and would
+  // otherwise dominate a list meant to be a to-do.
+  const { data: problemRows } = await supabase
+    .from("pulse_index_verdicts")
+    .select("url, bucket, coverage_state, last_crawl_time")
+    .eq("run_id", latest.id)
+    .in("bucket", ["rejected", "not_crawled", "canonical_override", "blocked", "error", "redirect"])
+    .limit(300);
+
+  // Deadweight: Google accepted the page, and nobody has seen it in search.
+  const { data: indexedRows } = await supabase
+    .from("pulse_index_verdicts")
+    .select("url")
+    .eq("run_id", latest.id)
+    .eq("bucket", "indexed")
+    .limit(5000);
+
+  const { data: seenRows } = await supabase
+    .from("pulse_search_terms")
+    .select("term, impressions")
+    .eq("site_id", siteId)
+    .eq("dimension", "page")
+    .gte("period_start", new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10))
+    .limit(20_000);
+
+  const withImpressions = new Set(
+    ((seenRows as Array<{ term: string; impressions: number }>) ?? [])
+      .filter((r) => r.impressions > 0)
+      .map((r) => r.term.replace(/\/$/, "")),
+  );
+  // Only meaningful once search history exists — with an empty table every
+  // indexed page would look like deadweight, which is the opposite of true.
+  const deadweight =
+    withImpressions.size === 0
+      ? []
+      : ((indexedRows as Array<{ url: string }>) ?? [])
+          .map((r) => r.url)
+          .filter((u) => !withImpressions.has(u.replace(/\/$/, "")))
+          .slice(0, 100);
+
+  const indexed = latest.buckets?.indexed ?? 0;
+  const previousIndexed = previousComplete?.buckets?.indexed ?? null;
+  const delta = previousIndexed === null ? null : indexed - previousIndexed;
+
+  return {
+    latest,
+    lastComplete,
+    buckets,
+    problems:
+      (problemRows as Array<{
+        url: string;
+        bucket: string;
+        coverage_state: string | null;
+        last_crawl_time: string | null;
+      }>) ?? [],
+    deadweight,
+    fixed: delta !== null && delta > 0 ? delta : null,
+    regressed: delta !== null && delta < 0 ? Math.abs(delta) : null,
+    indexed,
+    total: latest.urls_total ?? 0,
+    mocked: latest.mocked,
+    history: runs
+      .filter((r) => r.status === "done")
+      .slice()
+      .reverse()
+      .map((r) => ({ at: r.started_at, indexed: r.buckets?.indexed ?? 0 })),
+  };
+}
+
 export interface CompetitorRow {
   domainId: string;
   domain: string;

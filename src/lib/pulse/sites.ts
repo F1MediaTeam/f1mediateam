@@ -19,6 +19,10 @@ export interface PulseSite {
   crawl_page_cap: number;
   /** Lowercase fragments marking a search query as branded. See migration 0025. */
   brand_terms: string[];
+  /** Search Console property id — "sc-domain:x.com" or "https://www.x.com/". */
+  gsc_property: string | null;
+  /** Proven by a successful inspection call, not by saving the field. */
+  gsc_connected: boolean;
   last_beacon_at: string | null;
   last_crawled_at: string | null;
   created_at: string;

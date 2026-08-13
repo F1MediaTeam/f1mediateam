@@ -17,6 +17,7 @@ import {
   backlinkPanel,
   competitorPanel,
   healthPanel,
+  indexPanel,
   lastRuns,
   localPanel,
   opportunityPanel,
@@ -34,17 +35,20 @@ import CsvButton from "@/components/admin/pulse/CsvButton";
 import TrafficChart from "@/components/admin/pulse/TrafficChart";
 import BarList from "@/components/admin/pulse/BarList";
 import VitalMeter from "@/components/admin/pulse/VitalMeter";
+import { BUCKET_LABEL } from "@/lib/pulse/collectors/index-inspector";
 import { AddCompetitor, RemoveCompetitor } from "@/components/admin/pulse/CompetitorManager";
+import GscPropertyForm from "@/components/admin/pulse/GscPropertyForm";
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["traffic", "rankings", "backlinks", "health", "opportunities", "competitors", "local", "search"] as const;
+const TABS = ["traffic", "rankings", "backlinks", "health", "index", "opportunities", "competitors", "local", "search"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
   traffic: "Traffic",
   rankings: "Rankings",
   backlinks: "Backlinks",
   health: "Site health",
+  index: "Index health",
   opportunities: "Opportunities",
   competitors: "Competitors",
   local: "Local",
@@ -166,6 +170,7 @@ export default async function PulseSitePage({
   const psi = tab === "health" ? await psiPanel(siteId) : null;
   const local = tab === "local" ? await localPanel(siteId) : null;
   const competitors = tab === "competitors" ? await competitorPanel(siteId) : null;
+  const indexHealth = tab === "index" ? await indexPanel(siteId) : null;
 
   const tabHref = (t: Tab) => `/admin/pulse/${siteId}?tab=${t}${t === "traffic" ? `&range=${range}` : ""}`;
 
@@ -648,6 +653,135 @@ export default async function PulseSitePage({
                 </div>
               )}
             </Panel>
+          </div>
+        ) : null}
+
+        {/* ---------------- Index health ---------------- */}
+        {tab === "index" && indexHealth ? (
+          <div className="space-y-4">
+            {!site.gsc_connected ? (
+              <Panel title="Connect Search Console">
+                <GscPropertyForm
+                  siteId={siteId}
+                  domain={site.domain}
+                  current={site.gsc_property}
+                  connected={site.gsc_connected}
+                />
+              </Panel>
+            ) : null}
+
+            <Panel
+              title="In Google"
+              right={
+                <div className="flex items-center gap-2">
+                  {indexHealth.mocked ? (
+                    <span
+                      className="rounded-full border px-2 py-0.5 text-[10px] font-medium"
+                      style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}
+                    >
+                      Sample data
+                    </span>
+                  ) : null}
+                  <RefreshButton collector="index" siteId={siteId} lastUpdated={runs.get("index")?.finishedAt} />
+                </div>
+              }
+            >
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                A page Google has not accepted cannot rank for anything, however good it is. Nothing else
+                here can see that: the crawler reports what a page says about itself, and search data only
+                describes pages that already got in.
+              </p>
+
+              {!indexHealth.latest ? (
+                <Empty>
+                  No inspection yet. Connect the property above, then press Refresh — a large site is
+                  checked a slice at a time and resumes where it stopped.
+                </Empty>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <Headline label="In Google" value={indexHealth.indexed} />
+                    <Headline label="Pages checked" value={indexHealth.latest.urls_inspected} />
+                    <Headline label="Pages listed" value={indexHealth.total} />
+                    <Headline
+                      label={indexHealth.regressed ? "Dropped out" : "Newly in"}
+                      value={indexHealth.regressed ?? indexHealth.fixed ?? 0}
+                    />
+                  </div>
+
+                  {indexHealth.latest.status !== "done" ? (
+                    <p className="mt-3 rounded-lg border px-3 py-2 text-[11px] leading-relaxed"
+                       style={{ borderColor: "var(--color-warn)", color: "var(--color-text-muted)" }}>
+                      {indexHealth.latest.status === "quota_paused"
+                        ? "Paused on Google's daily limit. Press Refresh tomorrow and it continues from where it stopped."
+                        : "Still working through the site. Press Refresh again to continue the run."}
+                    </p>
+                  ) : null}
+
+                  <div className="mt-4">
+                    <BarList
+                      accent={colour?.hex ?? "#e11d2e"}
+                      rows={indexHealth.buckets.map((b) => ({
+                        label: BUCKET_LABEL[b.bucket as keyof typeof BUCKET_LABEL] ?? b.bucket,
+                        value: b.count,
+                      }))}
+                      empty="Nothing inspected yet."
+                    />
+                  </div>
+                </>
+              )}
+            </Panel>
+
+            {indexHealth.problems.length > 0 ? (
+              <Panel title="Pages Google has not accepted">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[560px] text-left text-xs">
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
+                        <th className="pb-2 font-normal">Page</th>
+                        <th className="pb-2 font-normal">What happened</th>
+                        <th className="pb-2 font-normal">Google&apos;s wording</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {indexHealth.problems.slice(0, 60).map((p) => (
+                        <tr key={p.url} className="border-t border-[var(--color-border)]">
+                          <td className="py-2 pr-3 font-mono text-[10px] text-[var(--color-text-subtle)]">
+                            <span className="block max-w-[240px] truncate">{p.url}</span>
+                          </td>
+                          <td className="py-2 pr-3">
+                            {BUCKET_LABEL[p.bucket as keyof typeof BUCKET_LABEL] ?? p.bucket}
+                          </td>
+                          <td className="py-2 text-[10px] text-[var(--color-text-muted)]">
+                            <span className="block max-w-[220px] truncate">{p.coverage_state ?? "—"}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Panel>
+            ) : null}
+
+            {indexHealth.deadweight.length > 0 ? (
+              <Panel title="In Google, but nobody sees them">
+                <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                  Google accepted these pages and they have had no impressions in 90 days. That is not a
+                  technical fault — it means nothing is being searched that these pages answer. They are
+                  candidates for rewriting, merging, or removing.
+                </p>
+                <ul className="space-y-1">
+                  {indexHealth.deadweight.slice(0, 30).map((u) => (
+                    <li
+                      key={u}
+                      className="truncate rounded-lg border border-[var(--color-border)] px-3 py-1.5 font-mono text-[10px] text-[var(--color-text-subtle)]"
+                    >
+                      {u}
+                    </li>
+                  ))}
+                </ul>
+              </Panel>
+            ) : null}
           </div>
         ) : null}
 

@@ -10,6 +10,7 @@ import { data } from "@/lib/data";
 import { staffRoleOf } from "@/lib/permissions";
 import { checkInstallation, createSite, getSite, normalizeDomain } from "@/lib/pulse/sites";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getValidAccessToken } from "@/lib/connectors/google-oauth";
 
 export async function addPulseSiteAction(input: {
   clientId: string;
@@ -190,4 +191,71 @@ export async function removeCompetitorAction(input: {
     .eq("domain_id", input.domainId);
   revalidatePath(`/admin/pulse/${input.siteId}`);
   return { error: error?.message ?? null };
+}
+
+// --- Search Console property (index inspector) ---
+
+/**
+ * Save the property id and prove it works in one step.
+ *
+ * Saving alone proves nothing — the string can be subtly wrong (a URL-prefix
+ * property written as a domain property, or a missing trailing slash) and
+ * Google answers 403 rather than 404, which reads like a permissions problem.
+ * So this performs one real inspection against the homepage and only sets
+ * gsc_connected when Google actually answers.
+ */
+export async function verifyGscPropertyAction(input: {
+  siteId: string;
+  property: string;
+}): Promise<{ error: string | null; connected: boolean }> {
+  await requireAdmin();
+  const property = input.property.trim();
+  if (!property) return { error: "Enter the property id.", connected: false };
+
+  const site = await getSite(input.siteId);
+  if (!site) return { error: "Unknown site.", connected: false };
+
+  const supabase = await createServiceClient();
+  await supabase.from("pulse_sites").update({ gsc_property: property }).eq("id", input.siteId);
+
+  const connectors = await data.listConnectors(site.client_id);
+  const token = connectors.find((c) => c.provider === "gsc");
+  if (!token) {
+    return {
+      error: "This client has no Search Console connection yet — connect Google on the client's page first.",
+      connected: false,
+    };
+  }
+
+  try {
+    const { access_token } = await getValidAccessToken(token.id);
+    const res = await fetch("https://searchconsole.googleapis.com/v1/urlInspection/index:inspect", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${access_token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ inspectionUrl: `https://${site.domain}/`, siteUrl: property }),
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      const readable =
+        res.status === 403
+          ? "Google refused that property. Check it matches the verified property exactly — a domain property is \"sc-domain:example.com\", a URL-prefix property is \"https://www.example.com/\" including the trailing slash — and that the connected Google account is an owner or full user, not a restricted one."
+          : res.status === 404
+            ? "Google doesn't recognise that property for this account."
+            : `Google returned ${res.status}: ${text.slice(0, 160)}`;
+      await supabase.from("pulse_sites").update({ gsc_connected: false }).eq("id", input.siteId);
+      return { error: readable, connected: false };
+    }
+
+    await supabase.from("pulse_sites").update({ gsc_connected: true }).eq("id", input.siteId);
+    revalidatePath(`/admin/pulse/${input.siteId}`);
+    return { error: null, connected: true };
+  } catch (err) {
+    await supabase.from("pulse_sites").update({ gsc_connected: false }).eq("id", input.siteId);
+    return {
+      error: err instanceof Error ? err.message : "Couldn't reach Search Console.",
+      connected: false,
+    };
+  }
 }

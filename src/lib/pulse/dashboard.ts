@@ -376,6 +376,73 @@ export async function healthPanel(siteId: string) {
   };
 }
 
+export interface OpportunityRow {
+  id: number;
+  page: string;
+  category: string;
+  status: string;
+  computed_at: string;
+  detail: Record<string, unknown>;
+}
+
+/**
+ * Everything the Opportunities tab reads.
+ *
+ * Open findings only by default — a list that keeps showing work you already
+ * did is a list you stop opening. Dismissed and done rows stay in the table so
+ * a recompute can't resurrect them; they're counted here but not listed.
+ */
+export async function opportunityPanel(siteId: string) {
+  const supabase = await createServiceClient();
+  const { data: rows } = await supabase
+    .from("pulse_opportunities")
+    .select("id, page, category, status, computed_at, detail")
+    .eq("site_id", siteId)
+    .order("computed_at", { ascending: false })
+    .limit(2000);
+
+  const all = (rows as OpportunityRow[]) ?? [];
+  const open = all.filter((r) => r.status === "open");
+
+  // Strike-distance first, ordered by impressions: the biggest audience
+  // closest to page one is the most valuable hour of work available.
+  const strike = open
+    .filter((r) => r.category === "strike_distance")
+    .sort((a, b) => Number(b.detail?.impressions ?? 0) - Number(a.detail?.impressions ?? 0));
+
+  const cannibalization = open.filter((r) => r.detail?.kind === "cannibalization");
+
+  const byCategory = new Map<string, number>();
+  for (const r of open) {
+    if (r.detail?.kind === "cannibalization") continue; // counted on its own
+    byCategory.set(r.category, (byCategory.get(r.category) ?? 0) + 1);
+  }
+
+  // Which pages carry the most fixable work — the fix-this-page-first list.
+  const byPage = new Map<string, number>();
+  for (const r of open) {
+    if (r.category === "strike_distance" || r.category === "cwv") continue;
+    byPage.set(r.page, (byPage.get(r.page) ?? 0) + 1);
+  }
+
+  return {
+    strike,
+    cannibalization,
+    cwv: open.filter((r) => r.category === "cwv"),
+    fixes: open.filter(
+      (r) => r.category !== "strike_distance" && r.category !== "cwv" && r.detail?.kind !== "cannibalization",
+    ),
+    byCategory: [...byCategory.entries()].map(([category, count]) => ({ category, count })).sort((a, b) => b.count - a.count),
+    topPages: [...byPage.entries()].map(([page, count]) => ({ page, count })).sort((a, b) => b.count - a.count).slice(0, 8),
+    counts: {
+      open: open.length,
+      done: all.filter((r) => r.status === "done").length,
+      dismissed: all.filter((r) => r.status === "dismissed").length,
+    },
+    lastComputed: all[0]?.computed_at ?? null,
+  };
+}
+
 export async function feedEvents(siteIds: string[], limit = 100) {
   if (siteIds.length === 0) return [];
   const supabase = await createServiceClient();

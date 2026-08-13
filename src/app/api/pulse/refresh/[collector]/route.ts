@@ -20,13 +20,22 @@ import { runBacklinks } from "@/lib/pulse/collectors/backlinks";
 import { startCrawl, tickCrawl } from "@/lib/pulse/collectors/crawl";
 import { runSearch } from "@/lib/pulse/collectors/search";
 import { runBackfill } from "@/lib/pulse/collectors/backfill";
+import { runOpportunities } from "@/lib/pulse/collectors/opportunities";
 import { isMock } from "@/lib/pulse/providers/serp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const COLLECTORS = ["heartbeat", "ranks", "backlinks", "crawl", "search", "backfill"] as const;
+const COLLECTORS = [
+  "heartbeat",
+  "ranks",
+  "backlinks",
+  "crawl",
+  "search",
+  "backfill",
+  "opportunities",
+] as const;
 type Collector = (typeof COLLECTORS)[number];
 
 async function authorize(request: NextRequest): Promise<{ ok: boolean; reason?: string }> {
@@ -98,6 +107,12 @@ export async function POST(
     } else if (collector === "search") {
       results = [];
       for (const s of sites) results.push(await runSearch(s));
+    } else if (collector === "opportunities") {
+      // One Search Console call per site plus local reads. Sequential for the
+      // same reason as the other Google collectors: the quota is per project,
+      // not per site.
+      results = [];
+      for (const s of sites) results.push(await runOpportunities(s));
     } else {
       // Crawl is resumable: this call opens a crawl (or resumes the running
       // one) and works a slice. The caller repeats until done is true, which

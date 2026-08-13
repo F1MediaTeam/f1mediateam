@@ -17,6 +17,7 @@ import {
   backlinkPanel,
   healthPanel,
   lastRuns,
+  opportunityPanel,
   rankPanel,
   trafficPanel,
   type Range,
@@ -33,14 +34,25 @@ import VitalMeter from "@/components/admin/pulse/VitalMeter";
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["traffic", "rankings", "backlinks", "health", "search"] as const;
+const TABS = ["traffic", "rankings", "backlinks", "health", "opportunities", "search"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
   traffic: "Traffic",
   rankings: "Rankings",
   backlinks: "Backlinks",
   health: "Site health",
+  opportunities: "Opportunities",
   search: "Search data",
+};
+
+/** Plain English for the client-facing category names. */
+const CATEGORY_LABEL: Record<string, string> = {
+  strike_distance: "Nearly ranking",
+  content: "Content",
+  technical: "Technical",
+  schema: "Structured data",
+  links: "Internal links",
+  cwv: "Speed",
 };
 
 const RANGES: Range[] = ["24h", "7d", "30d", "90d"];
@@ -144,6 +156,7 @@ export default async function PulseSitePage({
   const ranks = tab === "rankings" ? await rankPanel(siteId) : null;
   const backlinks = tab === "backlinks" ? await backlinkPanel(siteId) : null;
   const health = tab === "health" ? await healthPanel(siteId) : null;
+  const opps = tab === "opportunities" ? await opportunityPanel(siteId) : null;
 
   const tabHref = (t: Tab) => `/admin/pulse/${siteId}?tab=${t}${t === "traffic" ? `&range=${range}` : ""}`;
 
@@ -560,6 +573,180 @@ export default async function PulseSitePage({
                     specific paths is still allowed overall.
                   </p>
                 </div>
+              )}
+            </Panel>
+          </div>
+        ) : null}
+
+        {/* ---------------- Opportunities ---------------- */}
+        {tab === "opportunities" && opps ? (
+          <div className="space-y-4">
+            <Panel
+              title="Nearly ranking"
+              right={
+                <RefreshButton
+                  collector="opportunities"
+                  siteId={siteId}
+                  lastUpdated={runs.get("opportunities")?.finishedAt}
+                />
+              }
+            >
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                Searches where this site already appears on or near the first page. Google has
+                decided the page is relevant — closing the last few positions is usually a title
+                and copy job rather than a new page, which makes these the cheapest wins available.
+              </p>
+              {opps.strike.length === 0 ? (
+                <Empty>
+                  Nothing yet. This needs Search Console connected and about a month of data —
+                  it recomputes every time the Opportunities refresh runs.
+                </Empty>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[560px] text-left text-xs">
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
+                        <th className="pb-2 font-normal">Search</th>
+                        <th className="pb-2 font-normal">Page</th>
+                        <th className="pb-2 text-right font-normal">Position</th>
+                        <th className="pb-2 text-right font-normal">Impressions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {opps.strike.slice(0, 30).map((o) => (
+                        <tr key={o.id} className="border-t border-[var(--color-border)]">
+                          <td className="py-2 pr-3 font-medium">{String(o.detail?.query ?? "—")}</td>
+                          <td className="py-2 pr-3 font-mono text-[10px] text-[var(--color-text-subtle)]">
+                            <span className="block max-w-[220px] truncate">{o.page}</span>
+                          </td>
+                          <td className="py-2 text-right font-semibold tabular-nums">
+                            {String(o.detail?.position ?? "—")}
+                          </td>
+                          <td className="py-2 text-right tabular-nums text-[var(--color-text-muted)]">
+                            {Number(o.detail?.impressions ?? 0).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Panel>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Panel title="Work by type">
+                {opps.byCategory.length === 0 ? (
+                  <Empty>Nothing outstanding.</Empty>
+                ) : (
+                  <BarList
+                    accent={colour?.hex ?? "#e11d2e"}
+                    rows={opps.byCategory.map((c) => ({
+                      label: CATEGORY_LABEL[c.category] ?? c.category,
+                      value: c.count,
+                    }))}
+                    empty="Nothing outstanding."
+                  />
+                )}
+              </Panel>
+
+              <Panel title="Pages with the most to fix">
+                {opps.topPages.length === 0 ? (
+                  <Empty>Nothing outstanding.</Empty>
+                ) : (
+                  <BarList
+                    mono
+                    accent={colour?.hex ?? "#e11d2e"}
+                    rows={opps.topPages.map((p) => ({ label: p.page, value: p.count }))}
+                    empty="Nothing outstanding."
+                  />
+                )}
+              </Panel>
+            </div>
+
+            <Panel title="Pages competing with each other">
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                When more than one page targets the same search, they split the signals between them
+                and neither ranks as well as a single strong page would.
+              </p>
+              {opps.cannibalization.length === 0 ? (
+                <Empty>No searches are pulling in more than one of this site&apos;s pages.</Empty>
+              ) : (
+                <ul className="space-y-2">
+                  {opps.cannibalization.slice(0, 15).map((o) => (
+                    <li key={o.id} className="rounded-lg border border-[var(--color-border)] px-3 py-2">
+                      <div className="text-xs font-medium">{String(o.detail?.query ?? "—")}</div>
+                      <div className="mt-1 space-y-0.5">
+                        {(Array.isArray(o.detail?.pages) ? (o.detail.pages as Array<Record<string, unknown>>) : []).map(
+                          (p, i) => (
+                            <div
+                              key={i}
+                              className="flex items-center justify-between gap-3 font-mono text-[10px] text-[var(--color-text-subtle)]"
+                            >
+                              <span className="truncate">{String(p.page)}</span>
+                              <span className="shrink-0 tabular-nums">position {String(p.position)}</span>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+
+            <Panel title="Speed">
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                Measured on real visitors, at the 75th percentile — so a quarter of visits were at
+                least this slow. This is field data, not a lab test.
+              </p>
+              {opps.cwv.length === 0 ? (
+                <Empty>Every speed measure is inside Google&apos;s &quot;good&quot; threshold, or there isn&apos;t enough traffic to judge yet.</Empty>
+              ) : (
+                <ul className="space-y-1.5">
+                  {opps.cwv.map((o) => (
+                    <li
+                      key={o.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs"
+                    >
+                      <span>{String(o.detail?.headline ?? o.detail?.metric ?? "—")}</span>
+                      <span
+                        className="shrink-0 tabular-nums"
+                        style={{
+                          color:
+                            o.detail?.verdict === "poor" ? "var(--color-bad)" : "var(--color-warn)",
+                        }}
+                      >
+                        {String(o.detail?.p75 ?? "—")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+
+            <Panel title="Everything else worth fixing">
+              {opps.fixes.length === 0 ? (
+                <Empty>Nothing outstanding from the last crawl.</Empty>
+              ) : (
+                <ul className="space-y-1.5">
+                  {opps.fixes.slice(0, 40).map((o) => (
+                    <li
+                      key={o.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs"
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="h-1.5 w-1.5 shrink-0 rounded-full"
+                          style={{ background: SEVERITY_COLOR[String(o.detail?.severity ?? "notice")] }}
+                        />
+                        <span className="truncate">{String(o.detail?.headline ?? o.category)}</span>
+                      </span>
+                      <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-subtle)]">
+                        <span className="block max-w-[200px] truncate">{o.page}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               )}
             </Panel>
           </div>

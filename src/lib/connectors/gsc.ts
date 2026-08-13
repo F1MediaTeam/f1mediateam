@@ -168,6 +168,68 @@ export async function fetchClientGscQueries(clientId: string, from: string, to: 
   return runBreakdown(ctx, "query", from, to, limit);
 }
 
+/** One row per (query, page) pair — the same query can appear on several pages. */
+export interface GscQueryPageRow {
+  query: string;
+  page: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
+/**
+ * Queries paired with the page that ranked for them.
+ *
+ * Single-dimension breakdowns can't answer either question this exists for:
+ * "which page do I improve to move this keyword" needs the pairing, and
+ * cannibalization is *defined* as one query pulling in two of our own pages.
+ * Asking for query and page separately loses exactly the join that matters.
+ *
+ * The row limit is Google's own ceiling of 25,000 per request. Pairs multiply,
+ * so a site with a long tail will hit it — that's acceptable here because the
+ * rows come back ordered by clicks, and an opportunity buried below the
+ * 25,000th pair is not one worth surfacing.
+ */
+export async function fetchClientGscQueryPagePairs(
+  clientId: string,
+  from: string,
+  to: string,
+  limit = 5000,
+): Promise<GscQueryPageRow[]> {
+  const ctx = await resolveSite(clientId);
+  if (!ctx) return [];
+
+  const res = await fetch(
+    `https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(ctx.siteUrl)}/searchAnalytics/query`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${ctx.access_token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        startDate: from,
+        endDate: to,
+        dimensions: ["query", "page"],
+        rowLimit: Math.max(1, Math.min(limit, 25_000)),
+      }),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GSC query/page pairs failed (${res.status}): ${text.slice(0, 200)}`);
+  }
+  const json = (await res.json()) as {
+    rows?: Array<{ keys: string[]; clicks: number; impressions: number; ctr: number; position: number }>;
+  };
+  return (json.rows ?? []).map((r) => ({
+    query: r.keys[0] ?? "",
+    page: r.keys[1] ?? "",
+    clicks: r.clicks,
+    impressions: r.impressions,
+    ctr: r.ctr,
+    position: r.position,
+  }));
+}
+
 /** Device (desktop/mobile/tablet) or country split over [from, to]. */
 export async function fetchClientGscBreakdown(
   clientId: string,

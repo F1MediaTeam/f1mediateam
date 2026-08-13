@@ -17,7 +17,10 @@ export type EventKind =
   | "content_posted"
   | "content_submitted"
   | "calendar_meeting"
-  | "calendar_deadline";
+  | "calendar_deadline"
+  // F1 Pulse site alerts — uptime, index and opportunity events worth a
+  // digest but not an interruption.
+  | "pulse_alert";
 
 export interface QueuedEvent {
   client_id: string;

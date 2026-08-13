@@ -20,6 +20,9 @@ const KIND_LABELS: Record<string, string> = {
   content_submitted: "Content submitted",
   calendar_meeting: "New meeting",
   calendar_deadline: "New deadline",
+  // Without this a Pulse alert renders as the generic "Update", which reads
+  // as content activity in a digest that is mostly about content.
+  pulse_alert: "Site monitoring",
 };
 
 interface EventRow {

@@ -53,7 +53,8 @@ export interface CompetitorRunResult {
   domain: string;
   pagesListed: number;
   pagesNew: number;
-  published30d: number;
+  /** null when the site stamps lastmod site-wide, making the figure meaningless. */
+  published30d: number | null;
   speedScore: number | null;
   botsBlocked: string[];
   sampled: number;
@@ -151,8 +152,54 @@ interface PageFacts {
   structuredData: boolean;
 }
 
+/**
+ * Decode the handful of HTML entities that actually show up in titles.
+ *
+ * Without this a title reads "Screen Printing &amp; Embroidery" on screen and
+ * in the client's report — which looks like our bug, not theirs.
+ */
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, (whole, code: string) => {
+      if (code.startsWith("#x") || code.startsWith("#X")) {
+        return String.fromCodePoint(parseInt(code.slice(2), 16));
+      }
+      if (code.startsWith("#")) return String.fromCodePoint(parseInt(code.slice(1), 10));
+      const named: Record<string, string> = {
+        amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+        rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“",
+        mdash: "—", ndash: "–", hellip: "…",
+      };
+      return named[code.toLowerCase()] ?? whole;
+    })
+    .trim();
+}
+
+/**
+ * Is this URL likely to be an HTML page?
+ *
+ * Sitemaps routinely list files that are not pages — phxsignshop.com lists an
+ * agents.md, others list PDFs and feeds. Sampling one of those yields no title
+ * and no heading, and makes a well-built site look like it has neither.
+ */
+function looksLikePage(url: string): boolean {
+  try {
+    const path = new URL(url).pathname.toLowerCase();
+    return !/\.(md|txt|xml|json|pdf|jpe?g|png|gif|webp|svg|ico|css|js|zip|mp4|webm|rss)$/.test(path);
+  } catch {
+    return false;
+  }
+}
+
 function extract(url: string, html: string): PageFacts {
-  const pick = (re: RegExp) => html.match(re)?.[1]?.trim().replace(/\s+/g, " ") ?? null;
+  const pick = (re: RegExp) => {
+    const raw = html.match(re)?.[1];
+    if (!raw) return null;
+    // Headings often wrap words in <span> or <br>; strip tags before decoding
+    // or the tags end up in the stored title.
+    const text = raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    return text ? decodeEntities(text) : null;
+  };
   const text = html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -182,7 +229,7 @@ export async function runCompetitor(domainInput: string, siteId: string | null):
     domain,
     pagesListed: 0,
     pagesNew: 0,
-    published30d: 0,
+    published30d: null as number | null,
     speedScore: null,
     botsBlocked: [],
     sampled: 0,
@@ -223,18 +270,27 @@ export async function runCompetitor(domainInput: string, siteId: string | null):
     );
   }
 
+  // ------------------------------------------------- publishing pace, or null
+  //
+  // lastmod is only meaningful if the site sets it per page. Plenty of
+  // platforms stamp every URL with the date the site was last regenerated —
+  // phxsignshop.com reports 267 of its 273 pages "modified" inside 30 days,
+  // which would have this panel claim a sign shop published 267 pages in a
+  // month. When almost every dated URL falls inside the window, the dates are
+  // describing a rebuild rather than publishing, and the honest figure is
+  // "unknown" rather than a number that happens to be computable.
   const cutoff = Date.now() - 30 * 86_400_000;
-  const published30d = entries.filter((e) => {
-    if (!e.lastmod) return false;
-    const t = new Date(e.lastmod).getTime();
-    return Number.isFinite(t) && t >= cutoff;
-  }).length;
+  const dated = entries.filter((e) => e.lastmod && Number.isFinite(new Date(e.lastmod).getTime()));
+  const inWindow = dated.filter((e) => new Date(e.lastmod!).getTime() >= cutoff).length;
+  const SITEWIDE_REGEN_RATIO = 0.8;
+  const datesLookSitewide = dated.length >= 10 && inWindow / dated.length >= SITEWIDE_REGEN_RATIO;
+  const published30d = dated.length === 0 || datesLookSitewide ? null : inWindow;
 
   // ------------------------------------------------------------- page sample
   // Newest first where dates exist, so the sample reflects what they are
   // publishing now rather than whatever the sitemap happens to list first.
   const ordered = entries
-    .slice()
+    .filter((e) => looksLikePage(e.url))
     .sort((a, b) => (new Date(b.lastmod ?? 0).getTime() || 0) - (new Date(a.lastmod ?? 0).getTime() || 0));
   const sampleUrls = [`https://${domain}/`, ...ordered.map((e) => e.url)]
     .filter((u, i, arr) => arr.indexOf(u) === i)
@@ -285,6 +341,10 @@ export async function runCompetitor(domainInput: string, siteId: string | null):
     bots: bots.map((b) => ({ bot: b.bot, allowed: b.allowed })),
     robotsPresent: robots.present,
     sitemapDeclared: robots.sitemaps.length > 0,
+    // Recorded so the panel can explain a blank publishing figure instead of
+    // showing an unexplained dash.
+    datesLookSitewide,
+    datedUrls: dated.length,
   };
 
   await supabase.from("pulse_domain_snapshots").insert({
@@ -358,7 +418,7 @@ export async function runCompetitorsForSite(siteId: string): Promise<CompetitorR
         domain,
         pagesListed: 0,
         pagesNew: 0,
-        published30d: 0,
+        published30d: null,
         speedScore: null,
         botsBlocked: [],
         sampled: 0,

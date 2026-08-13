@@ -900,7 +900,16 @@ export default async function PulseSitePage({
                             )}
                           </td>
                           <td className="py-2 text-right tabular-nums text-[var(--color-text-muted)]">
-                            {c.published30d ?? "—"}
+                            {c.published30d === null ? (
+                              <span
+                                className="text-[var(--color-text-subtle)]"
+                                title="This site stamps every page with the same modified date, so its sitemap can't tell us what was actually published."
+                              >
+                                n/a
+                              </span>
+                            ) : (
+                              c.published30d
+                            )}
                           </td>
                           <td className="py-2 text-right tabular-nums">
                             {c.speedScore === null ? (
@@ -931,6 +940,9 @@ export default async function PulseSitePage({
                     &quot;Pages&quot; is how many URLs the site lists in its own sitemap — not how many
                     Google has indexed, which only that site&apos;s owner can see. A rising page count
                     with rising Published (30d) is a competitor investing in content.
+                    Published shows <strong>n/a</strong> when a site stamps every page with the same
+                    modified date, which some platforms do on every rebuild — a real number is better
+                    left blank than invented.
                   </p>
                 </div>
               </Panel>

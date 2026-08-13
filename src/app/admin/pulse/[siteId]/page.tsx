@@ -17,6 +17,7 @@ import {
   backlinkPanel,
   competitorPanel,
   gscRankPanel,
+  referralPanel,
   healthPanel,
   indexPanel,
   lastRuns,
@@ -46,12 +47,13 @@ import { installGuide, PRIVACY_SENTENCE, locationLabels } from "@/lib/pulse/onbo
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["traffic", "rankings", "backlinks", "health", "index", "opportunities", "competitors", "local", "search", "setup"] as const;
+const TABS = ["traffic", "rankings", "backlinks", "ai", "health", "index", "opportunities", "competitors", "local", "search", "setup"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
   traffic: "Traffic",
   rankings: "Rankings",
   backlinks: "Backlinks",
+  ai: "AI visibility",
   health: "Site health",
   index: "Index health",
   opportunities: "Opportunities",
@@ -181,6 +183,11 @@ export default async function PulseSitePage({
   const psi = tab === "health" ? await psiPanel(siteId) : null;
   const local = tab === "local" ? await localPanel(siteId) : null;
   const competitors = tab === "competitors" ? await competitorPanel(siteId) : null;
+  // The tag already records where every visitor came from, which answers two
+  // questions we would otherwise have to buy: which links actually send
+  // people, and whether AI assistants send anyone at all.
+  const referrals =
+    tab === "backlinks" || tab === "ai" ? await referralPanel(siteId, site.domain) : null;
   const indexHealth = tab === "index" ? await indexPanel(siteId) : null;
 
   const tabHref = (t: Tab) => `/admin/pulse/${siteId}?tab=${t}${t === "traffic" ? `&range=${range}` : ""}`;
@@ -517,6 +524,68 @@ export default async function PulseSitePage({
         {/* ---------------- Backlinks ---------------- */}
         {tab === "backlinks" && !paidData ? (
           <div className="space-y-4">
+            <Panel
+              title="Links that actually sent visitors"
+              right={<span className="text-[10px] text-[var(--color-text-subtle)]">last 90 days · measured</span>}
+            >
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                Every time someone arrives from another website, their browser says where they came
+                from, and the F1 tag records it. So while we cannot list every link that exists, this is
+                every link that <strong>actually sent a person</strong> — which is usually the more
+                useful list, because a link nobody clicks is worth very little.
+              </p>
+              {!referrals || referrals.links.length === 0 ? (
+                <Empty>
+                  No referring sites yet. This fills in as people arrive from other websites — it only
+                  counts visits since the tag went live.
+                </Empty>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[520px] text-left text-xs">
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
+                        <th className="pb-2 font-normal">Site</th>
+                        <th className="pb-2 text-right font-normal">Visits</th>
+                        <th className="pb-2 text-right font-normal">People</th>
+                        <th className="pb-2 text-right font-normal">Most recent</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {referrals.links.slice(0, 40).map((r) => (
+                        <tr key={r.host} className="border-t border-[var(--color-border)]">
+                          <td className="py-2 pr-3 font-medium">
+                            <span className="block max-w-[260px] truncate">{r.host}</span>
+                          </td>
+                          <td className="py-2 text-right font-semibold tabular-nums">{r.visits}</td>
+                          <td className="py-2 text-right tabular-nums text-[var(--color-text-muted)]">
+                            {r.people}
+                          </td>
+                          <td className="py-2 text-right text-[10px] text-[var(--color-text-subtle)]">
+                            <Time iso={r.lastSeen} dateOnly />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <p className="mt-3 border-t border-[var(--color-border)] pt-2 text-[10px] leading-relaxed text-[var(--color-text-subtle)]">
+                A floor, not a census: it counts only links people clicked, only since the tag was
+                installed, and some browsers hide where a visitor came from. Social networks and search
+                engines are listed separately — social under Traffic, search on the Rankings tab.
+              </p>
+            </Panel>
+
+            {referrals && referrals.social.length > 0 ? (
+              <Panel title="Social referrals">
+                <BarList
+                  accent={colour?.hex ?? "#e11d2e"}
+                  rows={referrals.social.map((r) => ({ label: r.host, value: r.visits }))}
+                  empty="No social referrals recorded."
+                />
+              </Panel>
+            ) : null}
+
             <PaidFeatureNotice
               title="Who links to this site"
               feature={PAID_FEATURES.backlinks}
@@ -621,6 +690,69 @@ export default async function PulseSitePage({
                 </div>
               )}
             </Panel>
+          </div>
+        ) : null}
+
+        {/* ---------------- AI visibility ---------------- */}
+        {tab === "ai" ? (
+          <div className="space-y-4">
+            <Panel
+              title="AI assistants sending real visitors"
+              right={<span className="text-[10px] text-[var(--color-text-subtle)]">last 90 days · measured</span>}
+            >
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                When someone asks ChatGPT, Perplexity, Gemini or Copilot a question and then clicks
+                through to this site, the browser says which assistant sent them. This is the outcome
+                that mention-tracking is a proxy for — not whether an assistant <em>talked</em> about
+                the business, but whether it actually sent someone.
+              </p>
+              {!referrals || referrals.ai.length === 0 ? (
+                <Empty>
+                  No AI assistant has sent a visitor yet. This is measured, not sampled — when one does,
+                  it appears here.
+                </Empty>
+              ) : (
+                <>
+                  <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <Headline
+                      label="Visits from AI"
+                      value={referrals.ai.reduce((s, r) => s + r.visits, 0)}
+                    />
+                    <Headline label="People" value={referrals.ai.reduce((s, r) => s + r.people, 0)} />
+                    <Headline label="Assistants" value={referrals.ai.length} />
+                  </div>
+                  <ul className="space-y-1.5">
+                    {referrals.ai.map((r) => (
+                      <li
+                        key={r.host}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs"
+                      >
+                        <span className="font-medium">{r.host}</span>
+                        <span className="flex items-center gap-3 text-[var(--color-text-muted)]">
+                          <span className="tabular-nums">
+                            {r.visits} visit{r.visits === 1 ? "" : "s"}
+                          </span>
+                          <span className="text-[10px] text-[var(--color-text-subtle)]">
+                            latest <Time iso={r.lastSeen} dateOnly />
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <p className="mt-3 border-t border-[var(--color-border)] pt-2 text-[10px] leading-relaxed text-[var(--color-text-subtle)]">
+                Counts clicks through to the site, so it undercounts: someone who reads an answer
+                mentioning the business and never clicks is invisible here. It costs nothing and it is
+                real, which is the trade.
+              </p>
+            </Panel>
+
+            <PaidFeatureNotice
+              title="How often assistants mention this business"
+              feature={PAID_FEATURES.ai_visibility}
+              freeAlternative="The panel above — assistants that actually sent someone. Mention tracking additionally catches the people who read about the business and never clicked."
+            />
           </div>
         ) : null}
 

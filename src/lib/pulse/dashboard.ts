@@ -499,6 +499,141 @@ export async function indexPanel(siteId: string) {
   };
 }
 
+/**
+ * Referrer classification.
+ *
+ * The tag records where a visitor came from, which turns out to answer two
+ * questions we otherwise have to buy: which links actually send people, and
+ * whether AI assistants send anyone at all. It is a floor rather than a
+ * census — only links someone clicked, only since the tag went live — and the
+ * panels say so.
+ */
+const AI_HOSTS = [
+  "chatgpt.com",
+  "chat.openai.com",
+  "openai.com",
+  "perplexity.ai",
+  "claude.ai",
+  "gemini.google.com",
+  "bard.google.com",
+  "copilot.microsoft.com",
+  "you.com",
+  "poe.com",
+  "meta.ai",
+  "grok.com",
+  "x.ai",
+];
+
+const SEARCH_HOSTS = [
+  "google.",
+  "bing.com",
+  "duckduckgo.com",
+  "search.yahoo.com",
+  "ecosia.org",
+  "search.brave.com",
+  "yandex.",
+  "baidu.com",
+  "startpage.com",
+  "qwant.com",
+  "search.marcia",
+];
+
+const SOCIAL_HOSTS = [
+  "instagram.com",
+  "facebook.com",
+  "t.co",
+  "twitter.com",
+  "x.com",
+  "linkedin.com",
+  "pinterest.",
+  "reddit.com",
+  "tiktok.com",
+  "youtube.com",
+  "youtu.be",
+  "nextdoor.com",
+];
+
+export type ReferrerKind = "ai" | "search" | "social" | "link";
+
+/** Which bucket a referring host falls into. Order matters: AI before search,
+ *  because gemini.google.com is Google but is not a search result. */
+export function classifyReferrer(host: string): ReferrerKind {
+  const h = host.toLowerCase();
+  if (AI_HOSTS.some((a) => h === a || h.endsWith(`.${a}`) || h.includes(a))) return "ai";
+  if (SEARCH_HOSTS.some((s) => h.includes(s))) return "search";
+  if (SOCIAL_HOSTS.some((s) => h.includes(s))) return "social";
+  return "link";
+}
+
+export interface ReferralRow {
+  host: string;
+  visits: number;
+  people: number;
+  kind: ReferrerKind;
+  firstSeen: string;
+  lastSeen: string;
+}
+
+/**
+ * Where visitors actually came from, split by kind.
+ *
+ * Self-referrals are dropped: a visitor moving between two pages of the
+ * client's own site is navigation, not a link from anywhere.
+ */
+export async function referralPanel(siteId: string, domain: string, days = 90) {
+  const supabase = await createServiceClient();
+  const from = new Date(Date.now() - days * 86_400_000).toISOString();
+
+  const { data: rows } = await supabase
+    .from("pulse_pageviews")
+    .select("referrer_domain, visitor_hash, ts")
+    .eq("site_id", siteId)
+    .gte("ts", from)
+    .not("referrer_domain", "is", null)
+    .limit(50_000);
+
+  const all = (rows as Array<{ referrer_domain: string; visitor_hash: string; ts: string }>) ?? [];
+
+  const bare = domain.replace(/^www\./, "").toLowerCase();
+  const grouped = new Map<string, { visits: number; people: Set<string>; first: string; last: string }>();
+
+  for (const r of all) {
+    const host = (r.referrer_domain ?? "").toLowerCase();
+    if (!host) continue;
+    // The client's own site is not a referrer to itself.
+    const hostBare = host.replace(/^www\./, "");
+    if (hostBare === bare || hostBare.endsWith(`.${bare}`)) continue;
+
+    const row = grouped.get(host) ?? { visits: 0, people: new Set<string>(), first: r.ts, last: r.ts };
+    row.visits += 1;
+    row.people.add(r.visitor_hash);
+    if (r.ts < row.first) row.first = r.ts;
+    if (r.ts > row.last) row.last = r.ts;
+    grouped.set(host, row);
+  }
+
+  const list: ReferralRow[] = [...grouped.entries()]
+    .map(([host, v]) => ({
+      host,
+      visits: v.visits,
+      people: v.people.size,
+      kind: classifyReferrer(host),
+      firstSeen: v.first,
+      lastSeen: v.last,
+    }))
+    .sort((a, b) => b.visits - a.visits);
+
+  return {
+    links: list.filter((r) => r.kind === "link"),
+    ai: list.filter((r) => r.kind === "ai"),
+    social: list.filter((r) => r.kind === "social"),
+    search: list.filter((r) => r.kind === "search"),
+    days,
+    /** Total referred visits, so a panel can say how much it is describing. */
+    totalReferred: list.reduce((s, r) => s + r.visits, 0),
+  };
+}
+
 export interface PortfolioExtras {
   siteId: string;
   /** Search Console clicks and impressions, last 30 days vs the 30 before. */

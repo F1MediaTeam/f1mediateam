@@ -17,7 +17,9 @@ import {
   backlinkPanel,
   healthPanel,
   lastRuns,
+  localPanel,
   opportunityPanel,
+  psiPanel,
   rankPanel,
   trafficPanel,
   type Range,
@@ -34,7 +36,7 @@ import VitalMeter from "@/components/admin/pulse/VitalMeter";
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["traffic", "rankings", "backlinks", "health", "opportunities", "search"] as const;
+const TABS = ["traffic", "rankings", "backlinks", "health", "opportunities", "local", "search"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
   traffic: "Traffic",
@@ -42,6 +44,7 @@ const TAB_LABEL: Record<Tab, string> = {
   backlinks: "Backlinks",
   health: "Site health",
   opportunities: "Opportunities",
+  local: "Local",
   search: "Search data",
 };
 
@@ -157,6 +160,8 @@ export default async function PulseSitePage({
   const backlinks = tab === "backlinks" ? await backlinkPanel(siteId) : null;
   const health = tab === "health" ? await healthPanel(siteId) : null;
   const opps = tab === "opportunities" ? await opportunityPanel(siteId) : null;
+  const psi = tab === "health" ? await psiPanel(siteId) : null;
+  const local = tab === "local" ? await localPanel(siteId) : null;
 
   const tabHref = (t: Tab) => `/admin/pulse/${siteId}?tab=${t}${t === "traffic" ? `&range=${range}` : ""}`;
 
@@ -575,6 +580,70 @@ export default async function PulseSitePage({
                 </div>
               )}
             </Panel>
+
+            <Panel
+              title="Speed — lab test vs real visitors"
+              right={<RefreshButton collector="psi" siteId={siteId} lastUpdated={runs.get("psi")?.finishedAt} />}
+            >
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                Two different measurements, never mixed. <strong>Lab</strong> is one simulated load on a
+                fixed machine — always available, reproducible, and where the score and the fix list come
+                from. <strong>Real visitors</strong> is what people actually experienced, which is what
+                Google ranks on. A page with little traffic has no real-visitor data at all.
+              </p>
+              {!psi || psi.pages.length === 0 ? (
+                <Empty>
+                  No lab tests recorded yet. This needs a free PageSpeed Insights API key
+                  (PAGESPEED_API_KEY) — without one the test is skipped rather than guessed at.
+                </Empty>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[520px] text-left text-xs">
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
+                        <th className="pb-2 font-normal">Page</th>
+                        <th className="pb-2 text-right font-normal">Lab score</th>
+                        <th className="pb-2 text-right font-normal">Real visitors</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {psi.pages.map((p) => {
+                        const score = (p.lab_scores as { score?: number | null })?.score ?? null;
+                        const fieldVerdict = (p.lab_scores as { fieldVerdict?: string | null })?.fieldVerdict ?? null;
+                        const tone =
+                          score === null ? "var(--color-text-subtle)"
+                            : score >= 90 ? "var(--color-ok)"
+                            : score >= 50 ? "var(--color-warn)"
+                            : "var(--color-bad)";
+                        return (
+                          <tr key={`${p.url}:${p.strategy}`} className="border-t border-[var(--color-border)]">
+                            <td className="py-2 pr-3 font-mono text-[10px] text-[var(--color-text-subtle)]">
+                              <span className="block max-w-[280px] truncate">{p.url}</span>
+                            </td>
+                            <td className="py-2 text-right font-semibold tabular-nums" style={{ color: tone }}>
+                              {p.error ? "failed" : (score ?? "—")}
+                            </td>
+                            <td className="py-2 text-right text-[var(--color-text-muted)]">
+                              {fieldVerdict
+                                ? fieldVerdict === "good"
+                                  ? "Good"
+                                  : fieldVerdict === "needs-improvement"
+                                    ? "Needs work"
+                                    : "Poor"
+                                : "not enough traffic"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <p className="mt-3 border-t border-[var(--color-border)] pt-2 text-[10px] leading-relaxed text-[var(--color-text-subtle)]">
+                    Updated monthly and on demand. The Traffic tab shows this site&apos;s own Core Web
+                    Vitals, measured by the F1 tag on every visit rather than sampled by Google.
+                  </p>
+                </div>
+              )}
+            </Panel>
           </div>
         ) : null}
 
@@ -744,6 +813,98 @@ export default async function PulseSitePage({
                       <span className="shrink-0 font-mono text-[10px] text-[var(--color-text-subtle)]">
                         <span className="block max-w-[200px] truncate">{o.page}</span>
                       </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+          </div>
+        ) : null}
+
+        {/* ---------------- Local presence ---------------- */}
+        {tab === "local" && local ? (
+          <div className="space-y-4">
+            <Panel
+              title="Google Business Profile"
+              right={
+                <div className="flex items-center gap-2">
+                  {local.mocked ? (
+                    <span
+                      className="rounded-full border px-2 py-0.5 text-[10px] font-medium"
+                      style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}
+                    >
+                      Sample data
+                    </span>
+                  ) : null}
+                  <RefreshButton collector="local" siteId={siteId} lastUpdated={runs.get("local")?.finishedAt} />
+                </div>
+              }
+            >
+              {local.mocked ? (
+                <p className="mb-3 rounded-lg border px-3 py-2 text-xs leading-relaxed"
+                   style={{ borderColor: "var(--color-warn)", color: "var(--color-text-muted)" }}>
+                  This is placeholder data. No Business Profile is connected for this client yet — connect
+                  one on the client&apos;s page to replace every figure below with the real profile.
+                </p>
+              ) : null}
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Headline label="Rating" value={local.average ?? "—"} />
+                <Headline label="Reviews" value={local.total} />
+                <Headline label="Awaiting a reply" value={local.needsReply} />
+                <Headline
+                  label="Five star"
+                  value={local.distribution.find((d) => d.stars === 5)?.count ?? 0}
+                />
+              </div>
+
+              <div className="mt-4">
+                <BarList
+                  accent={colour?.hex ?? "#e11d2e"}
+                  rows={local.distribution.map((d) => ({ label: `${d.stars} star`, value: d.count }))}
+                  empty="No reviews recorded yet."
+                />
+              </div>
+            </Panel>
+
+            <Panel title="Recent reviews">
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                Newest first. A review with no reply is worth answering — replying is the one lever the
+                business fully controls, and it is visible to everyone who reads the profile afterwards.
+              </p>
+              {local.reviews.length === 0 ? (
+                <Empty>No reviews yet.</Empty>
+              ) : (
+                <ul className="space-y-2">
+                  {local.reviews.slice(0, 20).map((r) => (
+                    <li key={r.id} className="rounded-lg border border-[var(--color-border)] px-3 py-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs font-medium">{r.author ?? "Anonymous"}</span>
+                        <span
+                          className="shrink-0 text-xs tabular-nums"
+                          style={{
+                            color:
+                              (r.rating ?? 5) >= 4
+                                ? "var(--color-ok)"
+                                : (r.rating ?? 5) === 3
+                                  ? "var(--color-warn)"
+                                  : "var(--color-bad)",
+                          }}
+                        >
+                          {r.rating ?? "—"} ★
+                        </span>
+                      </div>
+                      {r.text ? (
+                        <p className="mt-1 text-[11px] leading-relaxed text-[var(--color-text-muted)]">{r.text}</p>
+                      ) : null}
+                      <div className="mt-1.5 flex items-center gap-2 text-[10px] text-[var(--color-text-subtle)]">
+                        <Time iso={r.created_at} dateOnly />
+                        {r.reply_text ? (
+                          <span style={{ color: "var(--color-ok)" }}>replied</span>
+                        ) : (
+                          <span style={{ color: "var(--color-warn)" }}>no reply yet</span>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>

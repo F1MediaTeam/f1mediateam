@@ -44,12 +44,14 @@ import { gscConnector } from "./gsc";
 import { ga4Connector } from "./ga4";
 import { bingConnector } from "./bing";
 import { semrushConnector } from "./semrush";
+import { gbpConnector } from "./gbp";
 
 export const REGISTRY: Record<string, Connector> = {
   gsc: gscConnector,
   ga4: ga4Connector,
   bing: bingConnector,
   semrush: semrushConnector,
+  gbp: gbpConnector,
 };
 
 export function getConnector(provider: string): Connector | null {

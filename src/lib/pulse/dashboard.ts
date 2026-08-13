@@ -376,6 +376,95 @@ export async function healthPanel(siteId: string) {
   };
 }
 
+/**
+ * Lab speed tests, newest per URL.
+ *
+ * Deliberately separate from the vitals in trafficPanel: those are the tag's
+ * own measurements of real visitors, these are a simulated load. The panel
+ * shows both and never averages them, per the source-class rules.
+ */
+export async function psiPanel(siteId: string) {
+  const supabase = await createServiceClient();
+  const { data: rows } = await supabase
+    .from("pulse_psi_checks")
+    .select("url, strategy, fetched_at, lab_scores, error")
+    .eq("site_id", siteId)
+    .order("fetched_at", { ascending: false })
+    .limit(60);
+
+  const all =
+    (rows as Array<{
+      url: string;
+      strategy: string;
+      fetched_at: string;
+      lab_scores: Record<string, unknown>;
+      error: string | null;
+    }>) ?? [];
+
+  // One row per URL — the most recent test is the only one worth showing.
+  const seen = new Set<string>();
+  const latest = all.filter((r) => {
+    const key = `${r.url}:${r.strategy}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return {
+    pages: latest,
+    lastChecked: all[0]?.fetched_at ?? null,
+    configured: latest.length > 0,
+  };
+}
+
+export async function localPanel(siteId: string) {
+  const supabase = await createServiceClient();
+  const { data: rows } = await supabase
+    .from("pulse_reviews")
+    .select("id, review_id, rating, author, text, reply_text, created_at")
+    .eq("site_id", siteId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  const reviews =
+    (rows as Array<{
+      id: number;
+      review_id: string;
+      rating: number | null;
+      author: string | null;
+      text: string | null;
+      reply_text: string | null;
+      created_at: string;
+    }>) ?? [];
+
+  const rated = reviews.filter((r) => typeof r.rating === "number");
+  const average =
+    rated.length > 0 ? Math.round((rated.reduce((sum, r) => sum + (r.rating ?? 0), 0) / rated.length) * 10) / 10 : null;
+
+  // A review with no owner reply is an open task, and the low-rated ones are
+  // the ones worth answering first.
+  const needsReply = reviews.filter((r) => !r.reply_text);
+
+  const distribution = [5, 4, 3, 2, 1].map((stars) => ({
+    stars,
+    count: reviews.filter((r) => r.rating === stars).length,
+  }));
+
+  // Mock rows are written with a recognisable id prefix by the collector, so
+  // the panel can badge itself without a second lookup.
+  const mocked = reviews.length > 0 && reviews.every((r) => r.review_id.startsWith("mock-"));
+
+  return {
+    reviews,
+    average,
+    total: reviews.length,
+    needsReply: needsReply.length,
+    distribution,
+    mocked,
+    newest: reviews[0]?.created_at ?? null,
+  };
+}
+
 export interface OpportunityRow {
   id: number;
   page: string;

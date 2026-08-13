@@ -21,6 +21,8 @@ import { startCrawl, tickCrawl } from "@/lib/pulse/collectors/crawl";
 import { runSearch } from "@/lib/pulse/collectors/search";
 import { runBackfill } from "@/lib/pulse/collectors/backfill";
 import { runOpportunities } from "@/lib/pulse/collectors/opportunities";
+import { runPsi } from "@/lib/pulse/collectors/psi";
+import { runLocal } from "@/lib/pulse/collectors/local";
 import { isMock } from "@/lib/pulse/providers/serp";
 
 export const runtime = "nodejs";
@@ -35,6 +37,8 @@ const COLLECTORS = [
   "search",
   "backfill",
   "opportunities",
+  "psi",
+  "local",
 ] as const;
 type Collector = (typeof COLLECTORS)[number];
 
@@ -107,6 +111,14 @@ export async function POST(
     } else if (collector === "search") {
       results = [];
       for (const s of sites) results.push(await runSearch(s));
+    } else if (collector === "psi") {
+      // Lighthouse is slow — tens of seconds per URL — so sites run one after
+      // another rather than racing each other into the route's time ceiling.
+      results = [];
+      for (const s of sites) results.push(await runPsi(s));
+    } else if (collector === "local") {
+      results = [];
+      for (const s of sites) results.push(await runLocal(s));
     } else if (collector === "opportunities") {
       // One Search Console call per site plus local reads. Sequential for the
       // same reason as the other Google collectors: the quota is per project,
@@ -137,7 +149,14 @@ export async function POST(
         .update({
           finished_at: new Date().toISOString(),
           ok: true,
-          mocked: collector === "ranks" || collector === "backlinks" ? isMock() : false,
+          // Honest per-collector: ranks and backlinks follow the provider's
+          // mock switch, Local reports its own (it mocks when a client has no
+          // Business Profile connected even with credentials present), and
+          // everything else reads real sources only.
+          mocked:
+            collector === "ranks" || collector === "backlinks"
+              ? isMock()
+              : results.some((r) => (r as { mocked?: boolean } | null)?.mocked === true),
           counts: { sites: sites.length, results: results.length },
         })
         .eq("id", run.id);

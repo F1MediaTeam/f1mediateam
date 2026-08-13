@@ -57,6 +57,24 @@ function rateLimited(key: string): boolean {
   return row.n > RATE_LIMIT;
 }
 
+// A beacon carrying a valid key from an unregistered host is refused silently,
+// which is right for security and terrible for diagnosis: a storefront served
+// from a host nobody registered looks exactly like a tag that was never pasted.
+// So the refusal itself gets recorded — the hostname only, no visitor data —
+// once per site per host per day. Same per-instance caveat as the rate limiter:
+// a cold start may re-report, which is a duplicate feed row, not a leak.
+const reportedOrigins = new Map<string, number>();
+function shouldReportOrigin(siteId: string, host: string): boolean {
+  const key = `${siteId}:${host}:${Math.floor(Date.now() / 86_400_000)}`;
+  const now = Date.now();
+  if (reportedOrigins.has(key)) return false;
+  reportedOrigins.set(key, now);
+  if (reportedOrigins.size > 1_000) {
+    for (const [k, t] of reportedOrigins) if (now - t > 86_400_000) reportedOrigins.delete(k);
+  }
+  return true;
+}
+
 function hostOf(value: string | null): string | null {
   if (!value) return null;
   try {
@@ -118,6 +136,17 @@ export async function POST(request: NextRequest) {
     // page source is useless from anywhere else.
     const origin = hostOf(request.headers.get("origin")) ?? hostOf(request.headers.get("referer"));
     if (!originAllowed(origin, site.domain as string, (site.allowed_origins as string[]) ?? [])) {
+      // Still discarded, still a 204 — but now it is visible in the feed, so
+      // "installed but no data" has an answer instead of being a dead end.
+      if (origin && shouldReportOrigin(site.id as string, origin)) {
+        await supabase.from("pulse_feed_events").insert({
+          site_id: site.id,
+          kind: "tag_origin_rejected",
+          severity: "warning",
+          title: `Beacons rejected from ${origin}`,
+          payload: { host: origin, registered: site.domain },
+        });
+      }
       return OK();
     }
 

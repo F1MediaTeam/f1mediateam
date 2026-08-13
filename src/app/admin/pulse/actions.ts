@@ -52,12 +52,27 @@ export async function checkInstallAction(
   return { error: null, installed: result.installed, reason: result.reason };
 }
 
-/** The origin the snippet should point at, taken from the live request. */
+/**
+ * The origin the snippet should point at.
+ *
+ * Pinned, deliberately not taken from the request. A snippet is pasted once
+ * into someone else's footer and may not be touched again for years — if the
+ * install card were opened on a preview deployment, the request host would
+ * bake a `*.vercel.app` URL into a live client site that dies with that
+ * deployment. The request host is only trusted on localhost, where there is
+ * no production origin to point at.
+ */
 export async function pulseOrigin(): Promise<string> {
+  const pinned = process.env.PULSE_TAG_ORIGIN;
+  if (pinned) return pinned.replace(/\/+$/, "");
+
   const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "f1mediateam.com";
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  return `${proto}://${host}`;
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
+  if (/^localhost(:\d+)?$|^127\.0\.0\.1(:\d+)?$/.test(host)) {
+    const proto = h.get("x-forwarded-proto") ?? "http";
+    return `${proto}://${host}`;
+  }
+  return "https://f1mediateam.com";
 }
 
 // --- keywords ---

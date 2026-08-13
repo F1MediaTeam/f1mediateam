@@ -27,8 +27,14 @@ const XML_HEADERS = {
   "user-agent": UA,
   accept: "application/xml,text/xml,application/xhtml+xml,*/*;q=0.8",
 } as const;
-/** Pages per invocation. 25 at ~1/sec leaves headroom under the 120s route cap. */
-const SLICE = 25;
+/**
+ * Pages per invocation. The refresh route runs with maxDuration = 300, and at
+ * the 1/sec politeness delay 120 pages is ~120s of fetching plus response time
+ * — comfortably inside the ceiling with room for a slow host. This was 25,
+ * sized against a 120s cap the route no longer has, which made a full 2,000
+ * page crawl take 80 ticks instead of 17.
+ */
+const SLICE = 120;
 const DELAY_MS = 1000;
 const MAX_DEPTH = 6;
 

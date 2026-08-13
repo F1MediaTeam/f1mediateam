@@ -12,6 +12,7 @@
 
 import { createServiceClient } from "@/lib/supabase/server";
 import { data } from "@/lib/data";
+import { runForwardFill } from "./backfill";
 import type { PulseSite } from "@/lib/pulse/sites";
 
 export interface SearchRunResult {
@@ -22,6 +23,9 @@ export interface SearchRunResult {
   ga4Rows: number;
   latest: string | null;
   note: string;
+  /** Daily query/page rows written into pulse_search_terms by this run. */
+  termRows: number;
+  termDays: number;
 }
 
 /** Metric series Pulse surfaces. Everything else in the table is left alone. */
@@ -50,11 +54,28 @@ export async function runSearch(site: PulseSite): Promise<SearchRunResult> {
   const providers = new Set((connectors as Array<{ provider: string }>).map((c) => c.provider));
   const connected = providers.has("gsc") || providers.has("ga4");
 
+  // The one thing this collector does write: yesterday's search terms, kept
+  // current so the opportunity and cannibalization reports have live data to
+  // read rather than a frozen import. Free — Search Console's API costs nothing.
+  const forward = await runForwardFill(site);
+  const termRows = forward.queryRows + forward.pageRows;
+
   const note = !connected
     ? "No Google connection on this client yet — connect it on the client's page."
     : latest
-      ? `Reading the portal's existing sync. Latest data ${latest}.`
+      ? `Reading the portal's existing sync. Latest data ${latest}.` +
+        (termRows > 0 ? ` Refreshed ${termRows} search terms across ${forward.days} days.` : "")
       : "Connected, but no data has synced yet.";
 
-  return { siteId: site.id, domain: site.domain, clientId: site.client_id, gscRows, ga4Rows, latest, note };
+  return {
+    siteId: site.id,
+    domain: site.domain,
+    clientId: site.client_id,
+    gscRows,
+    ga4Rows,
+    latest,
+    note,
+    termRows,
+    termDays: forward.days,
+  };
 }

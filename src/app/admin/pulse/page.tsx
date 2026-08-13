@@ -14,11 +14,12 @@ import { clientColor } from "@/lib/client-color";
 import { filterClients } from "@/lib/permissions";
 import { visibleClientIds } from "@/lib/permissions.server";
 import { listSites, snippetFor } from "@/lib/pulse/sites";
-import { lastRuns, overviewCards } from "@/lib/pulse/dashboard";
+import { lastRuns, overviewCards, portfolioExtras } from "@/lib/pulse/dashboard";
 import { pulseOrigin } from "./actions";
 import PulseAddSite from "@/components/admin/PulseAddSite";
 import PulseInstallCard from "@/components/admin/PulseInstallCard";
 import PulseHeader from "@/components/admin/pulse/PulseHeader";
+import PortfolioTable, { type PortfolioRow } from "@/components/admin/pulse/PortfolioTable";
 import RefreshButton from "@/components/admin/pulse/RefreshButton";
 import LiveVisitors from "@/components/admin/pulse/LiveVisitors";
 
@@ -49,15 +50,24 @@ function Delta({ now, before }: { now: number; before: number }) {
   );
 }
 
-export default async function PulsePage() {
+export default async function PulsePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string }>;
+}) {
   const session = await requireAdmin();
+  const sp = await searchParams;
+  // Cards for glancing at one client, table for "which of these needs me
+  // today". URL state so a chosen view survives a refresh and is linkable.
+  const view = sp.view === "table" ? "table" : "cards";
   const allowed = await visibleClientIds(session);
   const [allClients, origin] = await Promise.all([data.listClients(), pulseOrigin()]);
   const clients = filterClients(allClients, allowed);
   const sites = await listSites(allowed);
-  const [cards, runs] = await Promise.all([
+  const [cards, runs, extras] = await Promise.all([
     overviewCards(sites.map((s) => s.id)),
     lastRuns(null),
+    portfolioExtras(sites.map((s) => s.id)),
   ]);
 
   const cardFor = (id: string) => cards.find((c) => c.siteId === id);
@@ -76,6 +86,12 @@ export default async function PulsePage() {
           subtitle="First-party, cookieless analytics for every client site."
           right={
             <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={`/admin/pulse?view=${view === "table" ? "cards" : "table"}`}
+                className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              >
+                {view === "table" ? "Card view" : "Table view"}
+              </Link>
               <Link
                 href="/admin/pulse/feed"
                 className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
@@ -123,13 +139,45 @@ export default async function PulsePage() {
           </Card>
         ) : null}
 
-        {installed.length > 0 ? (
+        {installed.length > 0 && view === "table" ? (
+          <div className="mb-8">
+            <PortfolioTable
+              rows={installed.map((site): PortfolioRow => {
+                const card = cardFor(site.id);
+                const client = clientOf(site.client_id);
+                const extra = extras.get(site.id);
+                return {
+                  siteId: site.id,
+                  domain: site.domain,
+                  clientName: client?.company_name ?? site.domain,
+                  colour: client ? clientColor(client).hex : null,
+                  status: site.status,
+                  live: card?.liveVisitors ?? 0,
+                  visitors: card?.today.visitors ?? 0,
+                  visitorsPrev: card?.yesterday.visitors ?? 0,
+                  conversions: card?.today.conversions ?? 0,
+                  clicks: extra?.clicks ?? 0,
+                  clicksPrev: extra?.clicksPrev ?? 0,
+                  errors: card?.health.errors ?? 0,
+                  opportunities: extra?.opportunities ?? 0,
+                  strikeDistance: extra?.strikeDistance ?? 0,
+                  indexed: extra?.indexed ?? null,
+                  indexTotal: extra?.indexTotal ?? null,
+                  competitors: extra?.competitors ?? 0,
+                };
+              })}
+            />
+          </div>
+        ) : null}
+
+        {installed.length > 0 && view === "cards" ? (
           <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
             {installed.map((site) => {
               const card = cardFor(site.id);
               const client = clientOf(site.client_id);
               const colour = client ? clientColor(client) : null;
               const status = STATUS[site.status] ?? STATUS.pending;
+              const extra = extras.get(site.id);
               return (
                 <div
                   key={site.id}
@@ -175,6 +223,60 @@ export default async function PulsePage() {
                         <Delta now={card?.today.visitors ?? 0} before={card?.yesterday.visitors ?? 0} />
                       </div>
                       <div>{card?.today.conversions ?? 0} conversions</div>
+                    </div>
+                  </div>
+
+                  {/* Free-source signals: what Google is doing with the site,
+                      and what work is waiting. Real data, no subscription. */}
+                  <div className="mb-3 grid grid-cols-3 gap-2 border-b border-[var(--color-border)] pb-3 text-center">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-subtle)]">
+                        Search clicks
+                      </div>
+                      <div className="mt-0.5 text-xs font-semibold tabular-nums">
+                        {extra && (extra.clicks > 0 || extra.clicksPrev > 0) ? (
+                          <>
+                            {extra.clicks.toLocaleString()}{" "}
+                            <Delta now={extra.clicks} before={extra.clicksPrev} />
+                          </>
+                        ) : (
+                          <span className="font-normal text-[var(--color-text-subtle)]">—</span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-[var(--color-text-subtle)]">30 days</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-subtle)]">
+                        In Google
+                      </div>
+                      <div className="mt-0.5 text-xs font-semibold tabular-nums">
+                        {extra?.indexed === null || extra === undefined ? (
+                          <span className="font-normal text-[var(--color-text-subtle)]">—</span>
+                        ) : (
+                          <>
+                            {extra.indexed}
+                            <span className="font-normal text-[var(--color-text-subtle)]">
+                              /{extra.indexTotal}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-[var(--color-text-subtle)]">pages</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-subtle)]">
+                        To do
+                      </div>
+                      <div className="mt-0.5 text-xs font-semibold tabular-nums">
+                        {extra && extra.opportunities > 0 ? (
+                          extra.opportunities
+                        ) : (
+                          <span className="font-normal text-[var(--color-text-subtle)]">—</span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-[var(--color-text-subtle)]">
+                        {extra && extra.strikeDistance > 0 ? `${extra.strikeDistance} near page 1` : "opportunities"}
+                      </div>
                     </div>
                   </div>
 

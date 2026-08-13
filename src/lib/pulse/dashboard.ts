@@ -499,6 +499,101 @@ export async function indexPanel(siteId: string) {
   };
 }
 
+export interface PortfolioExtras {
+  siteId: string;
+  /** Search Console clicks and impressions, last 30 days vs the 30 before. */
+  clicks: number;
+  clicksPrev: number;
+  impressions: number;
+  /** Open opportunities, and how many are the high-value strike-distance kind. */
+  opportunities: number;
+  strikeDistance: number;
+  /** Index health from the most recent completed inspection. */
+  indexed: number | null;
+  indexTotal: number | null;
+  /** Competitors actively tracked for this site. */
+  competitors: number;
+}
+
+/**
+ * The free-data columns for the Portfolio Overview.
+ *
+ * Deliberately one query per concern across every site at once rather than
+ * per-site loops — the overview is the first screen loaded and a per-site
+ * fan-out makes it slower with every client signed.
+ */
+export async function portfolioExtras(siteIds: string[]): Promise<Map<string, PortfolioExtras>> {
+  const out = new Map<string, PortfolioExtras>();
+  if (siteIds.length === 0) return out;
+
+  const supabase = await createServiceClient();
+  const from30 = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+  const from60 = new Date(Date.now() - 60 * 86_400_000).toISOString().slice(0, 10);
+
+  const [termsRes, oppsRes, runsRes, compsRes] = await Promise.all([
+    supabase
+      .from("pulse_search_terms")
+      .select("site_id, clicks, impressions, period_start")
+      .in("site_id", siteIds)
+      .eq("dimension", "query")
+      .eq("granularity", "day")
+      .gte("period_start", from60)
+      .limit(40_000),
+    supabase
+      .from("pulse_opportunities")
+      .select("site_id, category, status")
+      .in("site_id", siteIds)
+      .eq("status", "open")
+      .limit(20_000),
+    supabase
+      .from("pulse_index_runs")
+      .select("site_id, buckets, urls_total, status, started_at")
+      .in("site_id", siteIds)
+      .eq("status", "done")
+      .order("started_at", { ascending: false })
+      .limit(200),
+    supabase
+      .from("pulse_competitors")
+      .select("site_id, is_active")
+      .in("site_id", siteIds)
+      .eq("is_active", true)
+      .limit(2000),
+  ]);
+
+  const terms =
+    (termsRes.data as Array<{ site_id: string; clicks: number; impressions: number; period_start: string }>) ?? [];
+  const opps = (oppsRes.data as Array<{ site_id: string; category: string }>) ?? [];
+  const runs =
+    (runsRes.data as Array<{ site_id: string; buckets: Record<string, number>; urls_total: number }>) ?? [];
+  const comps = (compsRes.data as Array<{ site_id: string }>) ?? [];
+
+  // Newest completed index run wins; the query is already newest-first.
+  const newestRun = new Map<string, { buckets: Record<string, number>; urls_total: number }>();
+  for (const r of runs) if (!newestRun.has(r.site_id)) newestRun.set(r.site_id, r);
+
+  for (const siteId of siteIds) {
+    const mine = terms.filter((t) => t.site_id === siteId);
+    const recent = mine.filter((t) => t.period_start >= from30);
+    const prior = mine.filter((t) => t.period_start < from30);
+    const myOpps = opps.filter((o) => o.site_id === siteId);
+    const run = newestRun.get(siteId);
+
+    out.set(siteId, {
+      siteId,
+      clicks: recent.reduce((s, t) => s + t.clicks, 0),
+      clicksPrev: prior.reduce((s, t) => s + t.clicks, 0),
+      impressions: recent.reduce((s, t) => s + t.impressions, 0),
+      opportunities: myOpps.length,
+      strikeDistance: myOpps.filter((o) => o.category === "strike_distance").length,
+      indexed: run ? (run.buckets?.indexed ?? 0) : null,
+      indexTotal: run ? run.urls_total : null,
+      competitors: comps.filter((c) => c.site_id === siteId).length,
+    });
+  }
+
+  return out;
+}
+
 export interface GscRankRow {
   query: string;
   position: number;

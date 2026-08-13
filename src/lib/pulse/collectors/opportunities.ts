@@ -281,8 +281,21 @@ export async function runOpportunities(site: PulseSite): Promise<OpportunityRunR
     .eq("site_id", site.id);
   const existing = new Set(((existingRows as Array<{ fingerprint: string }>) ?? []).map((r) => r.fingerprint));
 
+  // Collapse duplicate fingerprints before writing.
+  //
+  // Postgres refuses an upsert whose batch touches the same row twice — "ON
+  // CONFLICT DO UPDATE command cannot affect row a second time" — and it is
+  // easy to produce one here without noticing: pathOf() drops query strings,
+  // so /page?a=1 and /page?a=2 are one page as far as a fingerprint is
+  // concerned, and a crawl that flagged both produced two identical keys.
+  // Deduping here rather than making fingerprints URL-exact is deliberate: the
+  // same fault on the same page is one piece of work, not two.
+  const unique = new Map<string, Draft>();
+  for (const d of drafts) if (!unique.has(d.fingerprint)) unique.set(d.fingerprint, d);
+  const deduped = [...unique.values()];
+
   const computedAt = new Date().toISOString();
-  const payload = drafts.map((d) => ({
+  const payload = deduped.map((d) => ({
     site_id: site.id,
     computed_at: computedAt,
     page: d.page.slice(0, 500),
@@ -298,12 +311,12 @@ export async function runOpportunities(site: PulseSite): Promise<OpportunityRunR
     .upsert(payload, { onConflict: "site_id,fingerprint", ignoreDuplicates: false });
   if (error) throw new Error(`Could not store opportunities: ${error.message}`);
 
-  const fresh = drafts.filter((d) => !existing.has(d.fingerprint));
+  const fresh = deduped.filter((d) => !existing.has(d.fingerprint));
   const byCategory: Record<string, number> = {};
-  for (const d of drafts) byCategory[d.category] = (byCategory[d.category] ?? 0) + 1;
+  for (const d of deduped) byCategory[d.category] = (byCategory[d.category] ?? 0) + 1;
 
-  const strikeDistance = drafts.filter((d) => d.category === "strike_distance").length;
-  const cannibalization = drafts.filter((d) => d.detail.kind === "cannibalization").length;
+  const strikeDistance = deduped.filter((d) => d.category === "strike_distance").length;
+  const cannibalization = deduped.filter((d) => d.detail.kind === "cannibalization").length;
 
   // ------------------------------------------------------------- feed events
   // One aggregated event, not one per finding — a crawl that surfaces 200

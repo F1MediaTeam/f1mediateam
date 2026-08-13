@@ -23,6 +23,12 @@ export interface PulseSite {
   gsc_property: string | null;
   /** Proven by a successful inspection call, not by saving the field. */
   gsc_connected: boolean;
+  /** Section 8 business profile. Empty service_areas means national. */
+  industry: string | null;
+  services: string[];
+  service_areas: string[];
+  platform: string | null;
+  profile_notes: string | null;
   last_beacon_at: string | null;
   last_crawled_at: string | null;
   created_at: string;

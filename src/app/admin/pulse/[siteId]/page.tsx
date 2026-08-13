@@ -38,10 +38,12 @@ import VitalMeter from "@/components/admin/pulse/VitalMeter";
 import { BUCKET_LABEL } from "@/lib/pulse/collectors/index-inspector";
 import { AddCompetitor, RemoveCompetitor } from "@/components/admin/pulse/CompetitorManager";
 import GscPropertyForm from "@/components/admin/pulse/GscPropertyForm";
+import SiteProfileForm from "@/components/admin/pulse/SiteProfileForm";
+import { installGuide, PRIVACY_SENTENCE, locationLabels } from "@/lib/pulse/onboarding";
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["traffic", "rankings", "backlinks", "health", "index", "opportunities", "competitors", "local", "search"] as const;
+const TABS = ["traffic", "rankings", "backlinks", "health", "index", "opportunities", "competitors", "local", "search", "setup"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
   traffic: "Traffic",
@@ -53,6 +55,7 @@ const TAB_LABEL: Record<Tab, string> = {
   competitors: "Competitors",
   local: "Local",
   search: "Search data",
+  setup: "Setup",
 };
 
 /** Plain English for the client-facing category names. */
@@ -1202,6 +1205,88 @@ export default async function PulseSitePage({
                 </ul>
               )}
             </Panel>
+          </div>
+        ) : null}
+
+        {/* ---------------- Setup ---------------- */}
+        {tab === "setup" ? (
+          <div className="space-y-4">
+            <Panel title="About this business">
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                Everything technical is derived from these answers — the keywords tracked, the questions
+                buyers ask, where ranking is measured, and which install guide is shown. Nothing here is
+                specific to any industry, so a client in any field is set up the same way.
+              </p>
+              <SiteProfileForm
+                siteId={siteId}
+                initial={{
+                  industry: site.industry,
+                  services: site.services ?? [],
+                  serviceAreas: site.service_areas ?? [],
+                  platform: site.platform,
+                  profileNotes: site.profile_notes,
+                  crawlExclusions: site.crawl_exclusions ?? [],
+                }}
+              />
+            </Panel>
+
+            <Panel title="Where ranking is measured">
+              <ul className="flex flex-wrap gap-2">
+                {locationLabels({
+                  industry: site.industry,
+                  services: site.services ?? [],
+                  serviceAreas: site.service_areas ?? [],
+                  platform: site.platform,
+                  notes: site.profile_notes,
+                }).map((l) => (
+                  <li
+                    key={l}
+                    className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs"
+                  >
+                    {l}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[10px] leading-relaxed text-[var(--color-text-subtle)]">
+                Taken from the service areas above. With none given, ranking is measured nationally.
+              </p>
+            </Panel>
+
+            <Panel title="Installing the tag">
+              <p className="mb-2 text-xs font-medium">
+                Paste it immediately before the closing <code className="font-mono">&lt;/body&gt;</code> tag.
+              </p>
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                That rule is true on every platform, including ones not listed here.
+                {site.platform ? " For " + site.platform + ": " + installGuide(site.platform) : ""}
+              </p>
+              <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3">
+                <code className="block break-all font-mono text-[11px]">
+                  {`<script defer src="https://f1mediateam.com/f1.js" data-site="${site.site_key}"></script>`}
+                </code>
+              </div>
+            </Panel>
+
+            <Panel title="For the client's privacy policy">
+              <p className="mb-2 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                Send this to the client to add to their privacy policy. It is accurate: the tag sets no
+                cookies, stores nothing on the visitor&apos;s device, and collects no personal information.
+              </p>
+              <p className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3 text-xs italic leading-relaxed">
+                {PRIVACY_SENTENCE}
+              </p>
+            </Panel>
+
+            {!site.gsc_connected ? (
+              <Panel title="Search Console">
+                <GscPropertyForm
+                  siteId={siteId}
+                  domain={site.domain}
+                  current={site.gsc_property}
+                  connected={site.gsc_connected}
+                />
+              </Panel>
+            ) : null}
           </div>
         ) : null}
 

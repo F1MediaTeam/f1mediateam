@@ -11,19 +11,25 @@ import { staffRoleOf } from "@/lib/permissions";
 import { checkInstallation, createSite, getSite, normalizeDomain } from "@/lib/pulse/sites";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getValidAccessToken } from "@/lib/connectors/google-oauth";
+import { generateKeywords, generatePrompts, type BusinessProfile } from "@/lib/pulse/onboarding";
 
 export async function addPulseSiteAction(input: {
   clientId: string;
   domain: string;
   crawlExclusions: string;
-}): Promise<{ error: string | null; siteId?: string }> {
+  /** Section 8 business profile — optional at onboarding, editable later. */
+  industry?: string;
+  services?: string;
+  serviceAreas?: string;
+  platform?: string;
+  profileNotes?: string;
+  /** Seed the generated keyword and prompt proposals straight away. */
+  seedKeywords?: boolean;
+}): Promise<{ error: string | null; siteId?: string; seeded?: { keywords: number; prompts: number } }> {
   await requireAdmin();
   if (!input.clientId) return { error: "Pick a client." };
 
-  const exclusions = input.crawlExclusions
-    .split(/[\n,]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const exclusions = splitList(input.crawlExclusions);
 
   const { site, error } = await createSite({
     clientId: input.clientId,
@@ -32,8 +38,129 @@ export async function addPulseSiteAction(input: {
   });
   if (error || !site) return { error: error ?? "Couldn't add that site." };
 
+  const profile = {
+    industry: input.industry?.trim() || null,
+    services: splitList(input.services ?? ""),
+    serviceAreas: splitList(input.serviceAreas ?? ""),
+    platform: input.platform?.trim() || null,
+    notes: input.profileNotes?.trim() || null,
+  };
+
+  const supabase = await createServiceClient();
+  await supabase
+    .from("pulse_sites")
+    .update({
+      industry: profile.industry,
+      services: profile.services,
+      service_areas: profile.serviceAreas,
+      platform: profile.platform,
+      profile_notes: profile.notes,
+    })
+    .eq("id", site.id);
+
+  let seeded = { keywords: 0, prompts: 0 };
+  if (input.seedKeywords !== false) seeded = await seedFromProfile(site.id, profile);
+
   revalidatePath("/admin/pulse");
-  return { error: null, siteId: site.id };
+  return { error: null, siteId: site.id, seeded };
+}
+
+/** Split a textarea or comma list into clean entries. */
+function splitList(raw: string): string[] {
+  return raw
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Write the generated proposals.
+ *
+ * Everything written here is a starting point the user is expected to edit —
+ * which is why nothing is overwritten on a re-run: `ignoreDuplicates` means
+ * re-seeding after editing the profile adds what is new and leaves alone
+ * anything already reviewed, paused, or deleted.
+ */
+async function seedFromProfile(
+  siteId: string,
+  profile: BusinessProfile,
+): Promise<{ keywords: number; prompts: number }> {
+  const supabase = await createServiceClient();
+
+  const keywords = generateKeywords(profile);
+  const prompts = generatePrompts(profile);
+
+  if (keywords.length > 0) {
+    // The unique key is (site_id, phrase, location_code, device) — the same
+    // phrase is legitimately tracked twice for two locations. The conflict
+    // target has to name all four or Postgres rejects the statement, so the
+    // defaults are written explicitly rather than left implied.
+    await supabase.from("pulse_keywords").upsert(
+      keywords.map((phrase) => ({
+        site_id: siteId,
+        phrase,
+        location_code: 2840, // United States
+        device: "desktop",
+      })),
+      { onConflict: "site_id,phrase,location_code,device", ignoreDuplicates: true },
+    );
+  }
+  if (prompts.length > 0) {
+    await supabase.from("pulse_ai_prompts").upsert(
+      prompts.map((prompt) => ({ site_id: siteId, prompt })),
+      { onConflict: "site_id,prompt", ignoreDuplicates: true },
+    );
+  }
+
+  return { keywords: keywords.length, prompts: prompts.length };
+}
+
+/**
+ * Update an existing site's profile, and optionally re-seed from it.
+ *
+ * This is the "add more information to clients I already have" path: the four
+ * sites already registered were created before the profile existed, so they
+ * carry none of it.
+ */
+export async function updateSiteProfileAction(input: {
+  siteId: string;
+  industry: string;
+  services: string;
+  serviceAreas: string;
+  platform: string;
+  profileNotes: string;
+  crawlExclusions: string;
+  reseed: boolean;
+}): Promise<{ error: string | null; seeded?: { keywords: number; prompts: number } }> {
+  await requireAdmin();
+
+  const profile = {
+    industry: input.industry.trim() || null,
+    services: splitList(input.services),
+    serviceAreas: splitList(input.serviceAreas),
+    platform: input.platform.trim() || null,
+    notes: input.profileNotes.trim() || null,
+  };
+
+  const supabase = await createServiceClient();
+  const { error } = await supabase
+    .from("pulse_sites")
+    .update({
+      industry: profile.industry,
+      services: profile.services,
+      service_areas: profile.serviceAreas,
+      platform: profile.platform,
+      profile_notes: profile.notes,
+      crawl_exclusions: splitList(input.crawlExclusions),
+    })
+    .eq("id", input.siteId);
+  if (error) return { error: error.message };
+
+  const seeded = input.reseed ? await seedFromProfile(input.siteId, profile) : undefined;
+
+  revalidatePath(`/admin/pulse/${input.siteId}`);
+  revalidatePath("/admin/pulse");
+  return { error: null, seeded };
 }
 
 export async function checkInstallAction(

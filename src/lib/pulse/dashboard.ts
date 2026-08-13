@@ -376,6 +376,100 @@ export async function healthPanel(siteId: string) {
   };
 }
 
+export interface CompetitorRow {
+  domainId: string;
+  domain: string;
+  capturedAt: string | null;
+  pagesListed: number | null;
+  pagesNew: number | null;
+  published30d: number | null;
+  speedScore: number | null;
+  measured: Record<string, unknown>;
+  /** Change in listed pages since the previous snapshot. */
+  pagesDelta: number | null;
+}
+
+/**
+ * Competitors for one site, with the latest measurements and the movement
+ * since the snapshot before it.
+ *
+ * Everything here is measured by us. The vendor columns on the same table
+ * (est_traffic, authority_score, ref_domains) are deliberately not read —
+ * they are null, and a panel that reads them would imply we know something we
+ * do not. Requires migration 0027.
+ */
+export async function competitorPanel(siteId: string) {
+  const supabase = await createServiceClient();
+
+  const { data: links } = await supabase
+    .from("pulse_competitors")
+    .select("domain_id, is_active, pulse_domains!inner(id, domain)")
+    .eq("site_id", siteId)
+    .eq("is_active", true);
+
+  type Joined = {
+    domain_id: string;
+    pulse_domains: { id: string; domain: string } | Array<{ id: string; domain: string }> | null;
+  };
+  const domains = ((links as unknown as Joined[]) ?? [])
+    .map((r) => {
+      const d = Array.isArray(r.pulse_domains) ? r.pulse_domains[0] : r.pulse_domains;
+      return d ? { domainId: r.domain_id, domain: d.domain } : null;
+    })
+    .filter((d): d is { domainId: string; domain: string } => d !== null);
+
+  if (domains.length === 0) {
+    return { competitors: [] as CompetitorRow[], lastChecked: null as string | null };
+  }
+
+  const { data: snapshots } = await supabase
+    .from("pulse_domain_snapshots")
+    .select("domain_id, captured_at, pages_listed, pages_new, published_30d, speed_score, measured")
+    .in(
+      "domain_id",
+      domains.map((d) => d.domainId),
+    )
+    .eq("source", "measured")
+    .order("captured_at", { ascending: false })
+    .limit(400);
+
+  const rows =
+    (snapshots as Array<{
+      domain_id: string;
+      captured_at: string;
+      pages_listed: number | null;
+      pages_new: number | null;
+      published_30d: number | null;
+      speed_score: number | null;
+      measured: Record<string, unknown>;
+    }>) ?? [];
+
+  const competitors: CompetitorRow[] = domains.map((d) => {
+    const mine = rows.filter((r) => r.domain_id === d.domainId);
+    const latest = mine[0] ?? null;
+    const previous = mine[1] ?? null;
+    return {
+      domainId: d.domainId,
+      domain: d.domain,
+      capturedAt: latest?.captured_at ?? null,
+      pagesListed: latest?.pages_listed ?? null,
+      pagesNew: latest?.pages_new ?? null,
+      published30d: latest?.published_30d ?? null,
+      speedScore: latest?.speed_score ?? null,
+      measured: latest?.measured ?? {},
+      pagesDelta:
+        latest?.pages_listed != null && previous?.pages_listed != null
+          ? latest.pages_listed - previous.pages_listed
+          : null,
+    };
+  });
+
+  return {
+    competitors: competitors.sort((a, b) => (b.pagesListed ?? 0) - (a.pagesListed ?? 0)),
+    lastChecked: rows[0]?.captured_at ?? null,
+  };
+}
+
 /**
  * Lab speed tests, newest per URL.
  *

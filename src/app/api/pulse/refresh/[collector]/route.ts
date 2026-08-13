@@ -23,6 +23,7 @@ import { runBackfill } from "@/lib/pulse/collectors/backfill";
 import { runOpportunities } from "@/lib/pulse/collectors/opportunities";
 import { runPsi } from "@/lib/pulse/collectors/psi";
 import { runLocal } from "@/lib/pulse/collectors/local";
+import { runCompetitorsForSite } from "@/lib/pulse/collectors/competitors";
 import { isMock } from "@/lib/pulse/providers/serp";
 
 export const runtime = "nodejs";
@@ -39,6 +40,7 @@ const COLLECTORS = [
   "opportunities",
   "psi",
   "local",
+  "competitors",
 ] as const;
 type Collector = (typeof COLLECTORS)[number];
 
@@ -116,6 +118,11 @@ export async function POST(
       // another rather than racing each other into the route's time ceiling.
       results = [];
       for (const s of sites) results.push(await runPsi(s));
+    } else if (collector === "competitors") {
+      // Each competitor is someone else's server. Sequential across sites and
+      // sequential within them, with the crawler's own one-per-second delay.
+      results = [];
+      for (const s of sites) results.push(await runCompetitorsForSite(s.id));
     } else if (collector === "local") {
       results = [];
       for (const s of sites) results.push(await runLocal(s));

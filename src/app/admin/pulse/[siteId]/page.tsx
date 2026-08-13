@@ -15,6 +15,7 @@ import { visibleClientIds } from "@/lib/permissions.server";
 import { getSite } from "@/lib/pulse/sites";
 import {
   backlinkPanel,
+  competitorPanel,
   healthPanel,
   lastRuns,
   localPanel,
@@ -33,10 +34,11 @@ import CsvButton from "@/components/admin/pulse/CsvButton";
 import TrafficChart from "@/components/admin/pulse/TrafficChart";
 import BarList from "@/components/admin/pulse/BarList";
 import VitalMeter from "@/components/admin/pulse/VitalMeter";
+import { AddCompetitor, RemoveCompetitor } from "@/components/admin/pulse/CompetitorManager";
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["traffic", "rankings", "backlinks", "health", "opportunities", "local", "search"] as const;
+const TABS = ["traffic", "rankings", "backlinks", "health", "opportunities", "competitors", "local", "search"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
   traffic: "Traffic",
@@ -44,6 +46,7 @@ const TAB_LABEL: Record<Tab, string> = {
   backlinks: "Backlinks",
   health: "Site health",
   opportunities: "Opportunities",
+  competitors: "Competitors",
   local: "Local",
   search: "Search data",
 };
@@ -162,6 +165,7 @@ export default async function PulseSitePage({
   const opps = tab === "opportunities" ? await opportunityPanel(siteId) : null;
   const psi = tab === "health" ? await psiPanel(siteId) : null;
   const local = tab === "local" ? await localPanel(siteId) : null;
+  const competitors = tab === "competitors" ? await competitorPanel(siteId) : null;
 
   const tabHref = (t: Tab) => `/admin/pulse/${siteId}?tab=${t}${t === "traffic" ? `&range=${range}` : ""}`;
 
@@ -818,6 +822,148 @@ export default async function PulseSitePage({
                 </ul>
               )}
             </Panel>
+          </div>
+        ) : null}
+
+        {/* ---------------- Competitors ---------------- */}
+        {tab === "competitors" && competitors ? (
+          <div className="space-y-4">
+            <Panel
+              title="Tracked competitors"
+              right={
+                <RefreshButton
+                  collector="competitors"
+                  siteId={siteId}
+                  lastUpdated={runs.get("competitors")?.finishedAt}
+                />
+              }
+            >
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                Everything here is measured by visiting the competitor&apos;s own site, politely and
+                within the rules their robots.txt sets — no data is bought. That means we can tell you
+                how big their site is, how fast it is growing, what they are publishing and how quickly
+                their pages load. It also means we cannot tell you their keyword rankings, their traffic,
+                or their backlinks: those come from a web-wide index that only a data vendor operates.
+              </p>
+              <AddCompetitor siteId={siteId} />
+            </Panel>
+
+            {competitors.competitors.length === 0 ? (
+              <Panel title="No competitors yet">
+                <Empty>
+                  Add a competitor&apos;s domain above. The first check records a baseline; from then on
+                  every run reports what changed.
+                </Empty>
+              </Panel>
+            ) : (
+              <Panel title="How they compare">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-left text-xs">
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
+                        <th className="pb-2 font-normal">Competitor</th>
+                        <th className="pb-2 text-right font-normal">Pages</th>
+                        <th className="pb-2 text-right font-normal">Change</th>
+                        <th className="pb-2 text-right font-normal">Published (30d)</th>
+                        <th className="pb-2 text-right font-normal">Speed</th>
+                        <th className="pb-2 text-right font-normal"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {competitors.competitors.map((c) => (
+                        <tr key={c.domainId} className="border-t border-[var(--color-border)]">
+                          <td className="py-2 pr-3">
+                            <div className="font-medium">{c.domain}</div>
+                            <div className="text-[10px] text-[var(--color-text-subtle)]">
+                              {c.capturedAt ? <Time iso={c.capturedAt} dateOnly /> : "not checked yet"}
+                            </div>
+                          </td>
+                          <td className="py-2 text-right tabular-nums font-semibold">
+                            {c.pagesListed ?? "—"}
+                          </td>
+                          <td className="py-2 text-right tabular-nums">
+                            {c.pagesDelta === null ? (
+                              <span className="text-[var(--color-text-subtle)]">—</span>
+                            ) : (
+                              <span
+                                style={{
+                                  color:
+                                    c.pagesDelta > 0
+                                      ? "var(--color-warn)"
+                                      : c.pagesDelta < 0
+                                        ? "var(--color-text-muted)"
+                                        : "var(--color-text-subtle)",
+                                }}
+                              >
+                                {c.pagesDelta > 0 ? `+${c.pagesDelta}` : c.pagesDelta}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 text-right tabular-nums text-[var(--color-text-muted)]">
+                            {c.published30d ?? "—"}
+                          </td>
+                          <td className="py-2 text-right tabular-nums">
+                            {c.speedScore === null ? (
+                              <span className="text-[var(--color-text-subtle)]">—</span>
+                            ) : (
+                              <span
+                                style={{
+                                  color:
+                                    c.speedScore >= 90
+                                      ? "var(--color-ok)"
+                                      : c.speedScore >= 50
+                                        ? "var(--color-warn)"
+                                        : "var(--color-bad)",
+                                }}
+                              >
+                                {c.speedScore}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 text-right">
+                            <RemoveCompetitor siteId={siteId} domainId={c.domainId} domain={c.domain} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="mt-3 border-t border-[var(--color-border)] pt-2 text-[10px] leading-relaxed text-[var(--color-text-subtle)]">
+                    &quot;Pages&quot; is how many URLs the site lists in its own sitemap — not how many
+                    Google has indexed, which only that site&apos;s owner can see. A rising page count
+                    with rising Published (30d) is a competitor investing in content.
+                  </p>
+                </div>
+              </Panel>
+            )}
+
+            {competitors.competitors.filter((c) => Array.isArray((c.measured as { recentTitles?: unknown }).recentTitles)).length > 0 ? (
+              <Panel title="What they have been publishing">
+                <div className="space-y-3">
+                  {competitors.competitors.map((c) => {
+                    const titles = ((c.measured as { recentTitles?: Array<{ url: string; title: string | null }> })
+                      .recentTitles ?? []).filter((t) => t.title);
+                    if (titles.length === 0) return null;
+                    return (
+                      <div key={c.domainId}>
+                        <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-muted)]">
+                          {c.domain}
+                        </div>
+                        <ul className="space-y-1">
+                          {titles.slice(0, 5).map((t) => (
+                            <li
+                              key={t.url}
+                              className="truncate rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-[11px]"
+                            >
+                              {t.title}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Panel>
+            ) : null}
           </div>
         ) : null}
 

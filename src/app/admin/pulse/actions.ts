@@ -8,7 +8,7 @@ import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import { staffRoleOf } from "@/lib/permissions";
-import { checkInstallation, createSite, getSite } from "@/lib/pulse/sites";
+import { checkInstallation, createSite, getSite, normalizeDomain } from "@/lib/pulse/sites";
 import { createServiceClient } from "@/lib/supabase/server";
 
 export async function addPulseSiteAction(input: {
@@ -119,5 +119,75 @@ export async function removeKeywordAction(keywordId: string): Promise<{ error: s
   // history, which is why the UI asks twice.
   const { error } = await supabase.from("pulse_keywords").delete().eq("id", keywordId);
   revalidatePath("/admin/pulse", "layout");
+  return { error: error?.message ?? null };
+}
+
+// --- competitors ---
+
+/**
+ * Track a competitor domain for one client site.
+ *
+ * The domain row is shared: two clients watching the same competitor point at
+ * one pulse_domains row and therefore one set of measurements, so we visit
+ * that competitor's server once rather than once per client.
+ */
+export async function addCompetitorAction(input: {
+  siteId: string;
+  domain: string;
+}): Promise<{ error: string | null }> {
+  await requireAdmin();
+  const domain = normalizeDomain(input.domain);
+  if (!domain || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) {
+    return { error: "That doesn't look like a domain." };
+  }
+
+  const supabase = await createServiceClient();
+
+  const site = await getSite(input.siteId);
+  if (!site) return { error: "Unknown site." };
+  if (site.domain === domain) return { error: "That's this client's own site." };
+
+  // Upsert rather than insert: the domain may already exist because another
+  // client tracks it, or because it is itself a client of ours.
+  const { data: existing } = await supabase
+    .from("pulse_domains")
+    .select("id")
+    .eq("domain", domain)
+    .maybeSingle();
+
+  let domainId = existing?.id as string | undefined;
+  if (!domainId) {
+    const { data: created, error } = await supabase
+      .from("pulse_domains")
+      .insert({ domain, kind: "competitor" })
+      .select("id")
+      .single();
+    if (error || !created) return { error: error?.message ?? "Couldn't add that domain." };
+    domainId = created.id as string;
+  }
+
+  const { error: linkError } = await supabase
+    .from("pulse_competitors")
+    .upsert({ site_id: input.siteId, domain_id: domainId, is_active: true }, { onConflict: "site_id,domain_id" });
+  if (linkError) return { error: linkError.message };
+
+  revalidatePath(`/admin/pulse/${input.siteId}`);
+  return { error: null };
+}
+
+export async function removeCompetitorAction(input: {
+  siteId: string;
+  domainId: string;
+}): Promise<{ error: string | null }> {
+  await requireAdmin();
+  const supabase = await createServiceClient();
+  // Unlink rather than delete the domain: its measurements stay, so re-adding
+  // it later restores the history instead of starting from nothing.
+  const { error } = await supabase
+    .from("pulse_competitors")
+    .delete()
+    .eq("site_id", input.siteId)
+    .eq("domain_id", input.domainId);
+  revalidatePath(`/admin/pulse/${input.siteId}`);
   return { error: error?.message ?? null };
 }

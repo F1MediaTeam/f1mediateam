@@ -99,6 +99,12 @@ export default async function PulsePage({
                 Live feed
               </Link>
               <Link
+                href="/admin/pulse/glossary"
+                className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              >
+                Glossary
+              </Link>
+              <Link
                 href="/admin/pulse/reports"
                 className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
               >

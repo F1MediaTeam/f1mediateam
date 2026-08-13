@@ -17,6 +17,8 @@ export interface PulseSite {
   crawl_exclusions: string[];
   allowed_origins: string[];
   crawl_page_cap: number;
+  /** Lowercase fragments marking a search query as branded. See migration 0025. */
+  brand_terms: string[];
   last_beacon_at: string | null;
   last_crawled_at: string | null;
   created_at: string;

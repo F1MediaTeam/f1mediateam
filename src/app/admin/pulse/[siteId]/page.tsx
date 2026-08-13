@@ -22,6 +22,7 @@ import {
   type Range,
 } from "@/lib/pulse/dashboard";
 import PulseHeader from "@/components/admin/pulse/PulseHeader";
+import PullReportButton from "@/components/admin/pulse/PullReportButton";
 import RefreshButton from "@/components/admin/pulse/RefreshButton";
 import Sparkline from "@/components/admin/pulse/Sparkline";
 import KeywordManager, { KeywordRowActions } from "@/components/admin/pulse/KeywordManager";
@@ -164,12 +165,17 @@ export default async function PulseSitePage({
             </div>
           }
           right={
-            <Link
-              href={`/admin/pulse/${siteId}/report`}
-              className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-            >
-              Client report
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={`/admin/pulse/${siteId}/report`}
+                className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              >
+                Client report
+              </Link>
+              {/* The on-screen report above is a web page; this is the branded
+                  PDF with its CSV companions. */}
+              <PullReportButton siteId={siteId} template="monthly" compact />
+            </div>
           }
         />
 

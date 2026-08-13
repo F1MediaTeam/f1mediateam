@@ -82,6 +82,12 @@ export default async function PulsePage() {
               >
                 Live feed
               </Link>
+              <Link
+                href="/admin/pulse/reports"
+                className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              >
+                Reports
+              </Link>
               <RefreshButton collector="heartbeat" lastUpdated={runs.get("heartbeat")?.finishedAt} label="Refresh all" />
               {/* Search Console deletes anything older than 16 months, so this
                   is a one-time capture per client — and needs re-running each

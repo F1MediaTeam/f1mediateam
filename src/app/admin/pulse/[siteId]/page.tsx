@@ -16,6 +16,7 @@ import { getSite } from "@/lib/pulse/sites";
 import {
   backlinkPanel,
   competitorPanel,
+  gscRankPanel,
   healthPanel,
   indexPanel,
   lastRuns,
@@ -38,6 +39,8 @@ import VitalMeter from "@/components/admin/pulse/VitalMeter";
 import { BUCKET_LABEL } from "@/lib/pulse/collectors/index-inspector";
 import { AddCompetitor, RemoveCompetitor } from "@/components/admin/pulse/CompetitorManager";
 import GscPropertyForm from "@/components/admin/pulse/GscPropertyForm";
+import PaidFeatureNotice from "@/components/admin/pulse/PaidFeatureNotice";
+import { hasPaidData, PAID_FEATURES } from "@/lib/pulse/mode";
 import SiteProfileForm from "@/components/admin/pulse/SiteProfileForm";
 import { installGuide, PRIVACY_SENTENCE, locationLabels } from "@/lib/pulse/onboarding";
 
@@ -166,8 +169,13 @@ export default async function PulseSitePage({
   const colour = client ? clientColor(client) : null;
 
   const traffic = tab === "traffic" ? await trafficPanel(siteId, range) : null;
-  const ranks = tab === "rankings" ? await rankPanel(siteId) : null;
-  const backlinks = tab === "backlinks" ? await backlinkPanel(siteId) : null;
+  // Free Mode: paid rank tracking is off, so Rankings is fed by Search
+  // Console — real Google-measured positions rather than invented ones.
+  const paidData = hasPaidData();
+  const ranks = tab === "rankings" && paidData ? await rankPanel(siteId) : null;
+  const gscRanks =
+    tab === "rankings" && !paidData ? await gscRankPanel(siteId, site.client_id) : null;
+  const backlinks = tab === "backlinks" && paidData ? await backlinkPanel(siteId) : null;
   const health = tab === "health" ? await healthPanel(siteId) : null;
   const opps = tab === "opportunities" ? await opportunityPanel(siteId) : null;
   const psi = tab === "health" ? await psiPanel(siteId) : null;
@@ -320,6 +328,97 @@ export default async function PulseSitePage({
         ) : null}
 
         {/* ---------------- Rankings ---------------- */}
+        {tab === "rankings" && gscRanks ? (
+          <div className="space-y-4">
+            <Panel
+              title="Where this site ranks"
+              right={<RefreshButton collector="search" siteId={siteId} lastUpdated={runs.get("search")?.finishedAt} />}
+            >
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                <strong>Google-measured.</strong> These are the searches people actually used to reach
+                this site, and the average position it held across everyone who saw it — Google&apos;s own
+                figures, about two days behind. Updated daily.
+              </p>
+              {!gscRanks.connected ? (
+                <Empty>
+                  Search Console isn&apos;t connected for this client yet. Connect Google on the
+                  client&apos;s page and this fills in on the next sync.
+                </Empty>
+              ) : gscRanks.rows.length === 0 ? (
+                <Empty>
+                  No search data stored yet. It arrives with the nightly sync — or press Refresh above to
+                  pull it now.
+                </Empty>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[620px] text-left text-xs">
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
+                        <th className="pb-2 font-normal">Search</th>
+                        <th className="pb-2 text-right font-normal">Position</th>
+                        <th className="pb-2 text-right font-normal">Change</th>
+                        <th className="pb-2 text-right font-normal">Clicks</th>
+                        <th className="pb-2 text-right font-normal">Impressions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gscRanks.rows.slice(0, 60).map((r) => {
+                        // Positions improve by going DOWN, so the arrow and the
+                        // colour are deliberately inverted against the number.
+                        const move =
+                          r.previousPosition === null
+                            ? null
+                            : Math.round((r.previousPosition - r.position) * 10) / 10;
+                        return (
+                          <tr key={r.query} className="border-t border-[var(--color-border)]">
+                            <td className="py-2 pr-3 font-medium">
+                              <span className="block max-w-[260px] truncate">{r.query}</span>
+                            </td>
+                            <td className="py-2 text-right font-semibold tabular-nums">{r.position}</td>
+                            <td className="py-2 text-right tabular-nums">
+                              {move === null || move === 0 ? (
+                                <span className="text-[var(--color-text-subtle)]">—</span>
+                              ) : (
+                                <span style={{ color: move > 0 ? "var(--color-ok)" : "var(--color-bad)" }}>
+                                  {move > 0 ? "▲" : "▼"} {Math.abs(move)}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2 text-right tabular-nums">{r.clicks.toLocaleString()}</td>
+                            <td className="py-2 text-right tabular-nums text-[var(--color-text-muted)]">
+                              {r.impressions.toLocaleString()}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <p className="mt-3 border-t border-[var(--color-border)] pt-2 text-[10px] leading-relaxed text-[var(--color-text-subtle)]">
+                    Change compares the last two weeks against the two before. Position is averaged across
+                    every impression, so a query shown once in Ohio and 900 times in Phoenix reports mostly
+                    Phoenix.
+                  </p>
+                </div>
+              )}
+            </Panel>
+
+            <PaidFeatureNotice
+              title="Track any keyword you choose"
+              feature={PAID_FEATURES.rank_tracking}
+              freeAlternative="The table above — the searches that already reach this site, measured by Google."
+            />
+            <PaidFeatureNotice
+              title="AI Overviews and search features"
+              feature={PAID_FEATURES.serp_features}
+            />
+            <PaidFeatureNotice
+              title="Competitor positions and Share of Voice"
+              feature={PAID_FEATURES.competitor_positions}
+              freeAlternative="The Competitors tab tracks their size, publishing pace and speed — measured by us."
+            />
+          </div>
+        ) : null}
+
         {tab === "rankings" && ranks ? (
           <div className="space-y-4">
             <Panel
@@ -416,6 +515,32 @@ export default async function PulseSitePage({
         ) : null}
 
         {/* ---------------- Backlinks ---------------- */}
+        {tab === "backlinks" && !paidData ? (
+          <div className="space-y-4">
+            <PaidFeatureNotice
+              title="Who links to this site"
+              feature={PAID_FEATURES.backlinks}
+              freeAlternative="Search Console shows a links report in its own interface — sign in to the client's account to read it by hand. Google publishes no way to pull it automatically, so it cannot appear here."
+            />
+            <Panel title="Why this one has no free version">
+              <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
+                Everything else in F1 Pulse can be measured by visiting a site or asking Google about a
+                site we are authorised on. Backlinks are different: knowing who links to this client
+                means knowing about pages on other people&apos;s websites, which requires crawling a
+                large share of the web and keeping an index of it. That index is the product a data
+                vendor sells, so this is the one panel where the honest answer is that it has to be
+                bought.
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                Two things partly cover the gap at no cost. The client&apos;s own Search Console
+                interface lists its top linking sites — accurate but manual, and not exportable by API.
+                And the <strong>Competitors</strong> tab already tracks what rival sites publish, which
+                is often what you actually wanted to know when you asked about their links.
+              </p>
+            </Panel>
+          </div>
+        ) : null}
+
         {tab === "backlinks" && backlinks ? (
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-3">

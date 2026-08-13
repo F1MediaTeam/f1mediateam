@@ -19,7 +19,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { data } from "@/lib/data";
 import { getValidAccessToken } from "@/lib/connectors/google-oauth";
 import { fetchGbpReviews, listGbpLocations, type GbpReview } from "@/lib/connectors/gbp";
-import { isMock } from "@/lib/pulse/providers/serp";
+import { mockEnabled } from "@/lib/pulse/mode";
 import type { PulseSite } from "@/lib/pulse/sites";
 
 export interface LocalRunResult {
@@ -84,19 +84,34 @@ export async function runLocal(site: PulseSite): Promise<LocalRunResult> {
   const connectors = await data.listConnectors(site.client_id);
   const token = connectors.find((c) => c.provider === "gbp");
 
+  // Google Business Profile is free to read, so "no reviews shown" is a
+  // connection problem rather than a budget one — and saying so is more useful
+  // than filling the panel with invented five-star reviews.
+  if (!token && !mockEnabled()) {
+    return {
+      ...base,
+      skipped:
+        "No Google Business Profile connected for this client yet. It costs nothing to connect — the profile just has to be authorised.",
+    };
+  }
+
   let reviews: GbpReview[];
   let rating: number | null;
   let total: number;
   let location: string | null;
   let mocked = false;
 
-  if (!token || isMock()) {
+  if (mockEnabled()) {
     const m = mockReviews(site);
     reviews = m.reviews;
     rating = m.rating;
     total = m.total;
     location = `${site.domain} (sample)`;
     mocked = true;
+  } else if (!token) {
+    // Unreachable: the early return above covers it. Kept so the compiler can
+    // prove it rather than being told to trust a non-null assertion.
+    return { ...base, skipped: "No Google Business Profile connected for this client yet." };
   } else {
     const { access_token, credentials } = await getValidAccessToken(token.id);
     const locations = await listGbpLocations(access_token);

@@ -26,6 +26,7 @@ import { runLocal } from "@/lib/pulse/collectors/local";
 import { runCompetitorsForSite } from "@/lib/pulse/collectors/competitors";
 import { runIndexInspector } from "@/lib/pulse/collectors/index-inspector";
 import { isMock } from "@/lib/pulse/providers/serp";
+import { hasPaidData, mockEnabled, PAID_FEATURES } from "@/lib/pulse/mode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -74,6 +75,23 @@ export async function POST(
 
   const auth = await authorize(request);
   if (!auth.ok) return Response.json({ error: auth.reason }, { status: 403 });
+
+  // Free Mode: a paid collector with no credentials used to quietly write mock
+  // rows. On a launched platform that is worse than not running at all — the
+  // dashboard fills with numbers nobody can act on and nobody can question.
+  // It refuses instead, and says what would turn it on.
+  if ((collector === "ranks" || collector === "backlinks") && !hasPaidData() && !mockEnabled()) {
+    const feature = collector === "ranks" ? PAID_FEATURES.rank_tracking : PAID_FEATURES.backlinks;
+    return Response.json(
+      {
+        error: `${collector === "ranks" ? "Rank tracking" : "Backlink data"} needs a data subscription.`,
+        adds: feature.adds,
+        cost: feature.cost,
+        why: feature.why,
+      },
+      { status: 409 },
+    );
+  }
 
   const siteId = request.nextUrl.searchParams.get("siteId");
   const supabase = await createServiceClient();

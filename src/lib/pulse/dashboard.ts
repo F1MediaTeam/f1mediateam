@@ -5,6 +5,7 @@
 // these rather than writing a second set of queries against the same tables.
 
 import { createServiceClient } from "@/lib/supabase/server";
+import { data } from "@/lib/data";
 import { visibility, type VisibilitySummary } from "@/lib/pulse/visibility";
 
 export type Range = "24h" | "7d" | "30d" | "90d";
@@ -496,6 +497,120 @@ export async function indexPanel(siteId: string) {
       .reverse()
       .map((r) => ({ at: r.started_at, indexed: r.buckets?.indexed ?? 0 })),
   };
+}
+
+export interface GscRankRow {
+  query: string;
+  position: number;
+  previousPosition: number | null;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+}
+
+/**
+ * The Free Mode Rankings surface: real positions, measured by Google.
+ *
+ * This is a genuinely different thing from paid rank tracking and the UI must
+ * say so. Paid tracking answers "where do I rank for the keywords I chose" —
+ * including keywords nobody has ever found the site with. This answers "where
+ * did I actually rank for the searches that reached me", averaged across
+ * everyone who saw it, lagging about two days.
+ *
+ * The trade is real but the data is not a downgrade: these are Google's own
+ * numbers for searches that genuinely happened, rather than a sample of one
+ * search from one location.
+ */
+export async function gscRankPanel(siteId: string, clientId: string): Promise<{
+  rows: GscRankRow[];
+  connected: boolean;
+  from: string;
+  to: string;
+}> {
+  const connectors = await data.listConnectors(clientId);
+  const connected = connectors.some((c: { provider: string }) => c.provider === "gsc");
+  // Google's data is incomplete for the last couple of days, so the window
+  // ends two days back rather than today — otherwise every position looks
+  // like it moved every morning.
+  const to = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
+  const from = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+  if (!connected) return { rows: [], connected: false, from, to };
+
+  const supabase = await createServiceClient();
+
+  // Read from the stored daily rows the forward-fill maintains rather than
+  // calling Google on every page view. Same numbers, no quota spent, and the
+  // page stays fast.
+  const { data: rows } = await supabase
+    .from("pulse_search_terms")
+    .select("term, clicks, impressions, ctr, position, period_start")
+    .eq("site_id", siteId)
+    .eq("dimension", "query")
+    .eq("granularity", "day")
+    .gte("period_start", from)
+    .limit(20_000);
+
+  const all =
+    (rows as Array<{
+      term: string;
+      clicks: number;
+      impressions: number;
+      ctr: number | null;
+      position: number | null;
+      period_start: string;
+    }>) ?? [];
+
+  if (all.length === 0) return { rows: [], connected: true, from, to };
+
+  // Split the window in half so "moved up / moved down" compares two equal
+  // periods rather than one day against a month.
+  const midpoint = new Date(Date.now() - 16 * 86_400_000).toISOString().slice(0, 10);
+
+  const agg = new Map<
+    string,
+    { clicks: number; impressions: number; posSum: number; posWeight: number; prevSum: number; prevWeight: number }
+  >();
+
+  for (const r of all) {
+    const row = agg.get(r.term) ?? {
+      clicks: 0,
+      impressions: 0,
+      posSum: 0,
+      posWeight: 0,
+      prevSum: 0,
+      prevWeight: 0,
+    };
+    const recent = r.period_start >= midpoint;
+    if (recent) {
+      row.clicks += r.clicks;
+      row.impressions += r.impressions;
+      // Weighted by impressions: a position held on 900 impressions describes
+      // the query better than one held on a single impression.
+      if (r.position !== null) {
+        row.posSum += r.position * Math.max(1, r.impressions);
+        row.posWeight += Math.max(1, r.impressions);
+      }
+    } else if (r.position !== null) {
+      row.prevSum += r.position * Math.max(1, r.impressions);
+      row.prevWeight += Math.max(1, r.impressions);
+    }
+    agg.set(r.term, row);
+  }
+
+  const out: GscRankRow[] = [...agg.entries()]
+    .filter(([, v]) => v.posWeight > 0)
+    .map(([query, v]) => ({
+      query,
+      position: Math.round((v.posSum / v.posWeight) * 10) / 10,
+      previousPosition: v.prevWeight > 0 ? Math.round((v.prevSum / v.prevWeight) * 10) / 10 : null,
+      clicks: v.clicks,
+      impressions: v.impressions,
+      ctr: v.impressions > 0 ? v.clicks / v.impressions : 0,
+    }))
+    .sort((a, b) => b.impressions - a.impressions)
+    .slice(0, 200);
+
+  return { rows: out, connected: true, from, to };
 }
 
 export interface CompetitorRow {

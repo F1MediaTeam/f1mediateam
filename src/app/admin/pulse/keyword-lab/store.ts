@@ -71,34 +71,42 @@ export async function loadProfiles(): Promise<LabProfile[]> {
       kd: number | null; cpc: number | null; target_url: string | null; created_at: string;
     }>) ?? [];
 
-  const { data: checkRows } = keywords.length
-    ? await supabase
-        .from("pulse_rank_checks")
-        .select("keyword_id, checked_at, position, ranking_url, match_type, top_results")
-        .in("keyword_id", keywords.map((k) => k.id))
-        .order("checked_at", { ascending: true })
-        .limit(6000)
-    : { data: [] };
+  // Positions come from Search Console — Google's own measurement of where
+  // each page actually ranked, already synced nightly and costing nothing.
+  //
+  // The trade, stated plainly because it decides what the column means: this
+  // only knows about searches people actually used to reach the site. A
+  // keyword nobody has found them with yet has no row here, and shows as
+  // never checked rather than as a position of zero.
+  const { data: termRows } = await supabase
+    .from("pulse_search_terms")
+    .select("site_id, term, position, period_start, impressions")
+    .in("site_id", siteIds)
+    .eq("dimension", "query")
+    .not("position", "is", null)
+    .gte("period_start", new Date(Date.now() - 120 * 86_400_000).toISOString().slice(0, 10))
+    .limit(40_000);
 
-  const checks =
-    (checkRows as Array<{
-      keyword_id: string; checked_at: string; position: number | null;
-      ranking_url: string | null; match_type: string | null;
-      top_results: Array<{ pos: number; title: string; url: string }>;
+  const terms =
+    (termRows as Array<{
+      site_id: string; term: string; position: number; period_start: string; impressions: number;
     }>) ?? [];
 
-  const byKeyword = new Map<string, LabCheck[]>();
-  for (const c of checks) {
-    const list = byKeyword.get(c.keyword_id) ?? [];
-    // Oldest first — the component reads the last element as "current".
-    list.push({
-      date: c.checked_at,
-      position: c.position,
-      foundUrl: c.ranking_url,
-      match: c.match_type ?? "none",
-      top: c.top_results ?? [],
-    });
-    byKeyword.set(c.keyword_id, list);
+  // One weekly figure per phrase, impression-weighted, so a position held on
+  // 900 impressions describes the week better than one held on a single view.
+  const weekly = new Map<string, Map<string, { sum: number; weight: number }>>();
+  for (const t of terms) {
+    const key = `${t.site_id}|${t.term.toLowerCase()}`;
+    const d = new Date(t.period_start);
+    d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+    const week = d.toISOString().slice(0, 10);
+    const byWeek = weekly.get(key) ?? new Map();
+    const cell = byWeek.get(week) ?? { sum: 0, weight: 0 };
+    const w = Math.max(1, t.impressions);
+    cell.sum += t.position * w;
+    cell.weight += w;
+    byWeek.set(week, cell);
+    weekly.set(key, byWeek);
   }
 
   return sites.map((s) => {
@@ -110,17 +118,31 @@ export async function loadProfiles(): Promise<LabProfile[]> {
       createdAt: s.created_at,
       keywords: keywords
         .filter((k) => k.site_id === s.id)
-        .map((k) => ({
-          id: k.id,
-          k: k.phrase,
-          v: k.volume ?? 0,
-          i: k.intent ?? "C",
-          kd: k.kd ?? 0,
-          c: Number(k.cpc ?? 0),
-          url: k.target_url ?? `https://${s.domain}/`,
-          addedAt: k.created_at,
-          checks: byKeyword.get(k.id) ?? [],
-        })),
+        .map((k) => {
+          const byWeek = weekly.get(`${s.id}|${k.phrase.toLowerCase()}`);
+          const checks: LabCheck[] = byWeek
+            ? [...byWeek.entries()]
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([week, cell]) => ({
+                  date: `${week}T00:00:00.000Z`,
+                  position: Math.round((cell.sum / cell.weight) * 10) / 10,
+                  foundUrl: null,
+                  match: "gsc",
+                  top: [],
+                }))
+            : [];
+          return {
+            id: k.id,
+            k: k.phrase,
+            v: k.volume ?? 0,
+            i: k.intent ?? "C",
+            kd: k.kd ?? 0,
+            c: Number(k.cpc ?? 0),
+            url: k.target_url ?? `https://${s.domain}/`,
+            addedAt: k.created_at,
+            checks,
+          };
+        }),
     };
   });
 }
@@ -190,19 +212,4 @@ export async function deleteKeyword(keywordId: string): Promise<void> {
   await requireAdmin();
   const supabase = await createServiceClient();
   await supabase.from("pulse_keywords").delete().eq("id", keywordId);
-}
-
-export async function saveCheck(keywordId: string, check: LabCheck): Promise<void> {
-  await requireAdmin();
-  const supabase = await createServiceClient();
-  await supabase.from("pulse_rank_checks").insert({
-    keyword_id: keywordId,
-    checked_at: check.date,
-    position: check.position,
-    ranking_url: check.foundUrl,
-    match_type: check.match,
-    top_results: check.top,
-    source: "ai_search",
-    serp_features: {},
-  });
 }

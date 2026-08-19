@@ -4,13 +4,12 @@ import AdminShell from "@/components/admin/Shell";
 import PulseHeader from "@/components/admin/pulse/PulseHeader";
 import KeywordLab from "@/components/admin/pulse/KeywordLab";
 import { loadProfiles } from "./store";
-import { spendSummary, ESTIMATED_COST } from "@/lib/pulse/keyword-lab";
 
 export const dynamic = "force-dynamic";
 
 export default async function KeywordLabPage() {
   const session = await requireAdmin();
-  const [profiles, spend] = await Promise.all([loadProfiles(), spendSummary()]);
+  const profiles = await loadProfiles();
 
   return (
     <AdminShell session={session} active="/admin/pulse">
@@ -24,7 +23,7 @@ export default async function KeywordLabPage() {
             </div>
           }
         />
-        <KeywordLab initialProfiles={profiles} spend={spend} costs={ESTIMATED_COST} />
+        <KeywordLab initialProfiles={profiles} />
       </div>
     </AdminShell>
   );

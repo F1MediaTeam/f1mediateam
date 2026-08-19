@@ -20,11 +20,11 @@ import { useState, useMemo, useEffect } from "react";
 import {
   Search, Download, RefreshCw, TrendingUp, TrendingDown, Minus, AlertCircle,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronRight, ChevronDown, X, Plus,
-  Globe, FolderPlus, Target, ExternalLink, Loader2,
+  Globe, FolderPlus, Target, ExternalLink, ClipboardCopy, Check,
 } from "lucide-react";
-import { analyzeAction, rankCheckAction } from "@/app/admin/pulse/keyword-lab/actions";
+import { parseAnalysis, researchPrompt } from "@/lib/pulse/keyword-lab";
 import {
-  addKeywords, deleteKeyword, loadProfiles, saveCheck, saveKeywordUrl,
+  addKeywords, deleteKeyword, loadProfiles, saveKeywordUrl,
   type LabCheck, type LabKeyword, type LabProfile,
 } from "@/app/admin/pulse/keyword-lab/store";
 
@@ -35,7 +35,6 @@ interface Analysis {
   kw: string; vol: number; intent: string; kd: number; cpc: number;
   trend: string; related: Metric[];
 }
-interface Spend { monthUsd: number; budgetUsd: number }
 
 /* ------------------------------ helpers ------------------------------ */
 
@@ -61,11 +60,6 @@ const threeMoOf = (v: number) => v * 3;
 
 const hostOf = (u: string) => {
   try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; }
-};
-
-const normUrl = (u: string) => {
-  const s = String(u || "").trim();
-  return s && !/^https?:\/\//i.test(s) ? "https://" + s : s;
 };
 
 const dateShort = (iso: string) => {
@@ -199,17 +193,13 @@ function UrlCell({ value, onSave }: { value: string; onSave: (v: string) => void
 /* ------------------------------- main app ----------------------------- */
 
 export default function KeywordLab({
-  initialProfiles, spend, costs,
+  initialProfiles,
 }: {
   initialProfiles: LabProfile[];
-  spend: Spend;
-  costs: { analyze: number; rankCheck: number };
 }) {
   /* research state */
   const [input, setInput] = useState("");
-  const [lastQuery, setLastQuery] = useState("");
   const [data, setData] = useState<Analysis | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"all" | "questions">("all");
   const [group, setGroup] = useState<string | null>(null);
@@ -227,11 +217,10 @@ export default function KeywordLab({
   const [notice, setNotice] = useState<{ msg: string; viewSiteId?: string } | null>(null);
   const [picker, setPicker] = useState<{ items: Metric[] } | null>(null);
   const [pickerUrl, setPickerUrl] = useState("");
-  const [monthUsd, setMonthUsd] = useState(spend.monthUsd);
+  const [pasted, setPasted] = useState("");
+  const [copied, setCopied] = useState(false);
 
   /* tracking state */
-  const [checking, setChecking] = useState<Set<string>>(new Set());
-  const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
 
@@ -256,21 +245,41 @@ export default function KeywordLab({
 
   /* --------------------------- research: analyze ---------------------- */
 
-  async function analyze(raw: string) {
-    const q = String(raw || "").replace(/["\\]/g, "").trim();
-    if (!q || loading) return;
-    setLoading(true); setError(null); setLastQuery(q); setGroup(null); setTab("all");
-    setSelected(new Set()); setSortField("v"); setSortDir("desc"); setPicker(null); setView("research");
+  /**
+   * Read the response pasted back from Claude.
+   *
+   * The research runs where it is already free rather than through a key the
+   * portal would be billed for. Everything below this point is unchanged — the
+   * table does not know or care where the numbers arrived from.
+   */
+  function readPasted() {
+    setError(null);
+    const { result, error: err } = parseAnalysis(pasted);
+    if (err || !result) return setError(err ?? "Could not read that response.");
+    setData(result);
+    setGroup(null); setTab("all"); setSelected(new Set());
+    setSortField("v"); setSortDir("desc"); setPicker(null);
+  }
 
-    // The key lives on the server; this is the same call, one hop further back.
-    const res = await analyzeAction(q);
-    if (res.error || !res.result) {
-      setError(res.error ?? "Could not analyze that keyword. Check the phrase and try again.");
-    } else {
-      setData(res.result);
-      if (typeof res.costUsd === "number") setMonthUsd((m) => Math.round((m + res.costUsd!) * 1000) / 1000);
+  async function copyPrompt() {
+    const q = input.trim();
+    if (!q) return;
+    try {
+      await navigator.clipboard.writeText(researchPrompt(q));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      setError("Could not reach the clipboard — select the prompt and copy it manually.");
     }
-    setLoading(false);
+  }
+
+  function drillInto(k: string) {
+    // Drilling into a related keyword sets it up as the next thing to research
+    // rather than spending a call on it.
+    setInput(k);
+    setPasted("");
+    setData(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   /* --------------------------- derived state -------------------------- */
@@ -354,8 +363,6 @@ export default function KeywordLab({
     ], `keywords-${data.kw.replace(/\s+/g, "-")}.csv`);
   }
 
-  function drillInto(k: string) { setInput(k); analyze(k); }
-
   async function addKeywordsToProfile(pid: string, items: Metric[], targetRaw: string) {
     const prof = profiles.find((p) => p.id === pid);
     const res = await addKeywords({ siteId: pid, items, targetUrl: targetRaw });
@@ -382,35 +389,6 @@ export default function KeywordLab({
     await deleteKeyword(kwId);
     if (expanded === kwId) setExpanded(null);
     await refresh();
-  }
-
-  async function checkKeyword(kwSnap: { id: string; k: string; url: string }, domain: string) {
-    setChecking((s) => new Set(s).add(kwSnap.id));
-    try {
-      const res = await rankCheckAction({ keyword: kwSnap.k, targetUrl: normUrl(kwSnap.url), domain });
-      if (res.error || !res.check) throw new Error(res.error ?? "failed");
-      await saveCheck(kwSnap.id, res.check);
-      if (typeof res.costUsd === "number") setMonthUsd((m) => Math.round((m + res.costUsd!) * 1000) / 1000);
-      await refresh();
-    } catch {
-      setNotice({ msg: `Rank check failed for "${kwSnap.k}". Try again in a moment.` });
-    } finally {
-      setChecking((s) => { const n = new Set(s); n.delete(kwSnap.id); return n; });
-    }
-  }
-
-  async function checkAll() {
-    const prof = profiles.find((p) => p.id === activeId);
-    if (!prof || !prof.keywords.length) return;
-    const list = prof.keywords.map((k) => ({ id: k.id, k: k.k, url: k.url }));
-    setBulk({ done: 0, total: list.length });
-    for (let i = 0; i < list.length; i++) {
-      await checkKeyword(list[i], prof.domain);
-      setBulk({ done: i + 1, total: list.length });
-      await new Promise((r) => setTimeout(r, 350));
-    }
-    setBulk(null);
-    setNotice({ msg: `Ranking check complete for ${prof.name}.` });
   }
 
   function exportTrackingCSV() {
@@ -472,7 +450,6 @@ export default function KeywordLab({
               <div className="flex-1 flex items-center bg-white border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-blue-200 focus-within:border-blue-400 min-w-48">
                 <Search className="w-4 h-4 text-gray-400 ml-3 shrink-0" />
                 <input value={input} onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") analyze(input); }}
                   placeholder="Enter a keyword, e.g. screen printing near me"
                   className="flex-1 px-3 py-2 text-sm outline-none bg-transparent min-w-0" />
                 {input && (
@@ -481,17 +458,15 @@ export default function KeywordLab({
                   </button>
                 )}
               </div>
-              <button onClick={() => analyze(input)} disabled={loading || !input.trim()}
-                className="px-4 py-2 rounded-md text-sm font-semibold text-white disabled:opacity-40" style={{ background: "#111827" }}>
-                {loading ? "Analyzing..." : "Analyze"}
+              <button onClick={copyPrompt} disabled={!input.trim()}
+                className="px-4 py-2 rounded-md text-sm font-semibold text-white disabled:opacity-40 inline-flex items-center gap-1.5"
+                style={{ background: "#111827" }}>
+                {copied ? <><Check className="w-4 h-4" /> Copied</> : <><ClipboardCopy className="w-4 h-4" /> Copy prompt</>}
               </button>
             </>
           )}
 
-          {/* What this has cost so far, so a bill is never a surprise. */}
-          <div className="text-xs text-gray-400 whitespace-nowrap ml-auto">
-            ${monthUsd.toFixed(2)} of ${spend.budgetUsd.toFixed(2)} this month
-          </div>
+          <div className="text-xs text-gray-400 whitespace-nowrap ml-auto">Free — nothing here bills</div>
         </div>
       </div>
 
@@ -513,45 +488,56 @@ export default function KeywordLab({
       )}
 
       {/* ---------------------------- error banner --------------------------- */}
-      {view === "research" && error && !loading && (
+      {view === "research" && error && (
         <div className="max-w-6xl mx-auto px-4 mt-4">
           <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-3 py-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
-            <button onClick={() => analyze(lastQuery || input)} className="ml-auto underline font-medium">Retry</button>
+            <button onClick={() => setError(null)} className="ml-auto underline font-medium">Dismiss</button>
           </div>
         </div>
       )}
 
       {/* ============================== RESEARCH ============================== */}
-      {view === "research" && loading && (
-        <div className="max-w-6xl mx-auto px-4 py-6">
-          <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
-            <RefreshCw className="w-4 h-4 animate-spin" />
-            <span>Modeling &quot;{lastQuery}&quot; - volume, intent, difficulty, and related terms...</span>
-          </div>
-          <div className="animate-pulse space-y-3">
-            <div className="h-28 bg-gray-200 rounded-lg" />
-            <div className="h-8 bg-gray-200 rounded w-1/3" />
-            {[...Array(10)].map((_, i) => <div key={i} className="h-9 bg-gray-200 rounded" />)}
-          </div>
-        </div>
-      )}
-
-      {view === "research" && !loading && !data && (
-        <div className="max-w-2xl mx-auto text-center py-20 px-4">
+      {view === "research" && !data && (
+        <div className="max-w-2xl mx-auto text-center py-16 px-4">
           <div className="w-14 h-14 mx-auto rounded-full bg-white border border-gray-200 flex items-center justify-center mb-5">
             <Search className="w-6 h-6 text-gray-400" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">Keyword research, on demand</h1>
           <p className="mt-3 text-gray-600">
-            Enter a word or phrase to get estimated search volume (weekly, monthly, and 3-month),
-            search intent, keyword difficulty, CPC, and related keyword ideas. Select the winners
-            and add them to a Site to track rankings.
+            Type a keyword above and press <span className="font-medium text-gray-800">Copy prompt</span>. Paste
+            it into Claude, then paste Claude&apos;s reply into the box below. You get estimated search volume,
+            intent, difficulty, CPC and related ideas — then pick the winners and add them to a site to track.
           </p>
+
+          <div className="mt-6 text-left bg-white border border-gray-200 rounded-lg p-4">
+            <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+              Paste Claude&apos;s reply
+            </div>
+            <textarea
+              value={pasted}
+              onChange={(e) => setPasted(e.target.value)}
+              rows={5}
+              placeholder={'{"kw":"screen printing near me","vol":2400,...}'}
+              className="w-full px-2.5 py-2 text-xs font-mono border border-gray-300 rounded-md outline-none focus:border-blue-400"
+            />
+            <button
+              onClick={readPasted}
+              disabled={!pasted.trim()}
+              className="mt-2 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold text-white disabled:opacity-40"
+              style={{ background: "#1d4ed8" }}
+            >
+              <Plus className="w-4 h-4" /> Load these keywords
+            </button>
+            <div className="text-xs text-gray-400 mt-2">
+              A reply that got cut off part-way still works — whatever came through is kept.
+            </div>
+          </div>
+
           <div className="mt-6 flex flex-wrap justify-center gap-2">
             {EXAMPLES.map((e) => (
-              <button key={e} onClick={() => drillInto(e)}
+              <button key={e} onClick={() => setInput(e)}
                 className="px-3 py-1.5 rounded-full border border-gray-300 bg-white text-sm text-gray-700 hover:border-gray-400 hover:bg-gray-50">
                 {e}
               </button>
@@ -563,7 +549,7 @@ export default function KeywordLab({
         </div>
       )}
 
-      {view === "research" && !loading && data && (
+      {view === "research" && data && (
         <div className="max-w-6xl mx-auto px-4 py-6">
           <div className="text-xs text-gray-500 flex items-center gap-1 mb-1">
             <span>Home</span><ChevronRight className="w-3 h-3" />
@@ -635,9 +621,9 @@ export default function KeywordLab({
                 style={{ background: "#1d4ed8" }}>
                 <Plus className="w-4 h-4" /> Add to Site{selected.size > 0 ? ` (${selected.size})` : ""}
               </button>
-              <button onClick={() => analyze(data.kw)}
+              <button onClick={() => { setInput(data.kw); setPasted(""); setData(null); }}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
-                <RefreshCw className="w-4 h-4" /> Update metrics
+                <RefreshCw className="w-4 h-4" /> Run again
               </button>
               <button onClick={exportCSV}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
@@ -856,14 +842,9 @@ export default function KeywordLab({
                         </a>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button onClick={checkAll} disabled={bulk !== null || activeProfile.keywords.length === 0}
-                          title={`About $${(activeProfile.keywords.length * costs.rankCheck).toFixed(2)} for ${activeProfile.keywords.length} keywords`}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold text-white disabled:opacity-40"
-                          style={{ background: "#1d4ed8" }}>
-                          {bulk
-                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Checking {bulk.done}/{bulk.total}...</>
-                            : <><RefreshCw className="w-4 h-4" /> Check all rankings · ${(activeProfile.keywords.length * costs.rankCheck).toFixed(2)}</>}
-                        </button>
+                        <span className="text-xs text-gray-400">
+                          Positions update nightly from Search Console
+                        </span>
                         <button onClick={exportTrackingCSV} disabled={activeProfile.keywords.length === 0}
                           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">
                           <Download className="w-4 h-4" /> Export
@@ -913,12 +894,9 @@ export default function KeywordLab({
                                     checks={checks}
                                     best={bestVals.length ? Math.min(...bestVals) : null}
                                     isOpen={expanded === k.id}
-                                    busy={checking.has(k.id)}
-                                    bulkRunning={bulk !== null}
                                     domain={activeProfile.domain}
                                     onToggle={() => setExpanded(expanded === k.id ? null : k.id)}
                                     onUrlSave={(url) => setKeywordUrl(k.id, url)}
-                                    onCheck={() => checkKeyword({ id: k.id, k: k.k, url: k.url }, activeProfile.domain)}
                                     onRemove={() => removeKeyword(k.id)}
                                   />
                                 );
@@ -953,11 +931,11 @@ export default function KeywordLab({
 /* -------------------- tracking row + expandable detail ------------------- */
 
 function FragmentRow({
-  k, last, checks, best, isOpen, busy, bulkRunning, domain, onToggle, onUrlSave, onCheck, onRemove,
+  k, last, checks, best, isOpen, domain, onToggle, onUrlSave, onRemove,
 }: {
   k: LabKeyword; last: LabCheck | undefined; checks: LabCheck[]; best: number | null;
-  isOpen: boolean; busy: boolean; bulkRunning: boolean; domain: string;
-  onToggle: () => void; onUrlSave: (url: string) => void; onCheck: () => void; onRemove: () => void;
+  isOpen: boolean; domain: string;
+  onToggle: () => void; onUrlSave: (url: string) => void; onRemove: () => void;
 }) {
   return (
     <>
@@ -989,10 +967,6 @@ function FragmentRow({
         </td>
         <td className="px-3 py-2">
           <div className="flex items-center justify-end gap-1">
-            <button onClick={onCheck} disabled={busy || bulkRunning} title="Check ranking now"
-              className="p-1.5 rounded border border-gray-200 text-gray-500 hover:text-blue-600 hover:border-blue-300 disabled:opacity-40">
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            </button>
             <button onClick={onRemove} title="Stop tracking"
               className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-300">
               <X className="w-4 h-4" />

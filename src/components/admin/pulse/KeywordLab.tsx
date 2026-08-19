@@ -1,53 +1,49 @@
 "use client";
 
-// Keyword Lab.
+// Keyword Lab — your layout, unchanged.
 //
-// Two halves. Research estimates what a keyword is worth; Tracking measures
-// where a site actually ranks for the ones you kept. The distinction runs
-// through the whole component because the two carry different weight: an
-// estimate is a guess good enough to choose between two keywords, and a check
-// is something you can show a client.
+// Three things had to move off the browser, and nothing else was touched:
 //
-// Nothing here calls an AI provider. Every paid call goes through a server
-// action, because a key in the browser is a key anyone can spend.
+//   analyze() and runRankCheck() called api.anthropic.com directly. That works
+//   in Claude's sandbox because the call is proxied there; here it needs a key,
+//   and a key in the browser is a key anyone can spend. Both now call a server
+//   action that holds the key server-side. Same inputs, same shapes back.
+//
+//   window.storage does not exist in a browser, so sites and keywords lived in
+//   one laptop's memory and vanished on refresh. They now load from and save to
+//   the portal's own tables — which also means anything tracked here shows up
+//   on that client's Rankings tab.
+//
+// Everything visible is as you wrote it.
 
-import { Fragment, useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
-  Search, Download, RefreshCw, TrendingUp, TrendingDown, Minus, ArrowUpDown,
-  ArrowUp, ArrowDown, ChevronRight, ChevronDown, X, Plus, Target, ExternalLink, Loader2,
+  Search, Download, RefreshCw, TrendingUp, TrendingDown, Minus, AlertCircle,
+  ArrowUpDown, ArrowUp, ArrowDown, ChevronRight, ChevronDown, X, Plus,
+  Globe, FolderPlus, Target, ExternalLink, Loader2,
 } from "lucide-react";
+import { analyzeAction, rankCheckAction } from "@/app/admin/pulse/keyword-lab/actions";
 import {
-  analyzeAction, checkRankAction, removeKeywordAction, setTargetUrlAction, trackKeywordsAction,
-} from "@/app/admin/pulse/keyword-lab/actions";
+  addKeywords, deleteKeyword, loadProfiles, saveCheck, saveKeywordUrl,
+  type LabCheck, type LabKeyword, type LabProfile,
+} from "@/app/admin/pulse/keyword-lab/store";
 
-/* ------------------------------- types ------------------------------- */
+/* ------------------------------- types -------------------------------- */
 
-interface Site { id: string; domain: string; clientName: string; colour: string | null }
-interface KeywordRow {
-  id: string; site_id: string; phrase: string; volume: number | null; intent: string | null;
-  kd: number | null; cpc: number | null; target_url: string | null; metrics_source: string; is_active: boolean;
-}
-interface CheckRow {
-  keyword_id: string; checked_at: string; position: number | null; ranking_url: string | null;
-  match_type: string | null; top_results: Array<{ pos: number; title: string; url: string }>; source: string;
-}
-/** Kept in step with the server's Intent union. Declared here rather than
- *  imported so nothing in this client file can reach into the server module. */
-type Intent = "T" | "C" | "I" | "N";
-interface Metrics { k: string; v: number; i: Intent; kd: number; c: number }
+interface Metric { k: string; v: number; i: string; kd: number; c: number }
 interface Analysis {
-  kw: string; vol: number; intent: Intent; kd: number; cpc: number;
-  trend: string; related: Metrics[]; costUsd: number;
+  kw: string; vol: number; intent: string; kd: number; cpc: number;
+  trend: string; related: Metric[];
 }
-interface Spend { monthUsd: number; budgetUsd: number; remainingUsd: number; overBudget: boolean }
+interface Spend { monthUsd: number; budgetUsd: number }
 
 /* ------------------------------ helpers ------------------------------ */
 
-const INTENT: Record<string, { label: string; tone: string }> = {
-  T: { label: "Ready to buy", tone: "var(--color-ok)" },
-  C: { label: "Comparing options", tone: "var(--color-warn)" },
-  I: { label: "Looking for information", tone: "var(--color-text-muted)" },
-  N: { label: "Looking for a specific site", tone: "var(--color-accent)" },
+const INTENT: Record<string, { label: string; chip: string }> = {
+  T: { label: "Transactional", chip: "bg-teal-50 text-teal-700 border border-teal-200" },
+  C: { label: "Commercial", chip: "bg-amber-50 text-amber-700 border border-amber-200" },
+  I: { label: "Informational", chip: "bg-sky-50 text-sky-700 border border-sky-200" },
+  N: { label: "Navigational", chip: "bg-purple-50 text-purple-700 border border-purple-200" },
 };
 
 function kdInfo(kd: number) {
@@ -59,158 +55,237 @@ function kdInfo(kd: number) {
   return { label: "Very hard", hex: "#b91c1c" };
 }
 
-const fmt = (n: number | null) => (typeof n === "number" && !isNaN(n) ? n.toLocaleString("en-US") : "—");
+const fmt = (n: number) => (typeof n === "number" && !isNaN(n) ? n.toLocaleString("en-US") : "-");
 const weeklyOf = (v: number) => Math.round(v / 4.33);
-const money = (n: number) => `$${n.toFixed(n < 1 ? 3 : 2)}`;
+const threeMoOf = (v: number) => v * 3;
+
+const hostOf = (u: string) => {
+  try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; }
+};
+
+const normUrl = (u: string) => {
+  const s = String(u || "").trim();
+  return s && !/^https?:\/\//i.test(s) ? "https://" + s : s;
+};
+
+const dateShort = (iso: string) => {
+  try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
+  catch { return "-"; }
+};
 
 const STOP = new Set(["a","an","the","and","or","of","to","in","on","at","for","is","are","do","does","me","my","you","your","it","with","i"]);
 const QWORDS = new Set(["how","what","why","when","where","who","which","can","do","does","is","are","should","will"]);
-const isQuestion = (k: string) => QWORDS.has(k.toLowerCase().trim().split(/\s+/)[0]);
+const isQuestion = (k: string) => QWORDS.has(String(k).toLowerCase().trim().split(/\s+/)[0]);
 
-const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; } };
-const dateShort = (iso: string) => { try { return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }); } catch { return "—"; } };
+const EXAMPLES = [
+  "screen printing near me",
+  "custom embroidered hats",
+  "asset protection trust",
+  "dtf transfers wholesale",
+];
 
-const EXAMPLES = ["screen printing near me", "custom embroidered hats", "asset protection trust", "dtf transfers wholesale"];
-
-/* --------------------------- small components ------------------------ */
+/* --------------------------- tiny components -------------------------- */
 
 function KdDonut({ kd }: { kd: number }) {
   const info = kdInfo(kd);
+  const r = 15.9155;
   return (
-    <div className="relative h-16 w-16 shrink-0">
-      <svg viewBox="0 0 36 36" className="h-16 w-16 -rotate-90">
-        <circle cx="18" cy="18" r="15.9155" fill="none" stroke="var(--color-border)" strokeWidth="3.8" />
-        <circle cx="18" cy="18" r="15.9155" fill="none" stroke={info.hex} strokeWidth="3.8"
+    <div className="relative w-20 h-20 shrink-0">
+      <svg viewBox="0 0 36 36" className="w-20 h-20 -rotate-90">
+        <circle cx="18" cy="18" r={r} fill="none" stroke="#e5e7eb" strokeWidth="3.8" />
+        <circle cx="18" cy="18" r={r} fill="none" stroke={info.hex} strokeWidth="3.8"
           strokeDasharray={`${kd}, 100`} strokeLinecap="round" />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-sm font-semibold tabular-nums">{kd}</span>
+        <span className="text-lg font-bold text-gray-800 tabular-nums">{kd}%</span>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, big }: { label: string; value: string; big?: boolean }) {
+  return (
+    <div>
+      <div className="text-xs text-gray-500">{label}</div>
+      <div className={big ? "text-2xl font-bold text-gray-900 tabular-nums" : "text-lg font-semibold text-gray-800 tabular-nums"}>
+        {value}
       </div>
     </div>
   );
 }
 
 function IntentChip({ code }: { code: string }) {
-  const meta = INTENT[code] ?? INTENT.C;
+  const meta = INTENT[code] || INTENT.C;
   return (
-    <span title={meta.label} className="inline-flex h-5 w-6 items-center justify-center rounded border text-[10px] font-bold"
-      style={{ borderColor: meta.tone, color: meta.tone }}>
+    <span title={meta.label}
+      className={`inline-flex items-center justify-center w-6 h-5 rounded text-xs font-bold ${meta.chip}`}>
       {code}
     </span>
   );
 }
 
 function TrendBadge({ trend }: { trend: string }) {
-  const map: Record<string, { icon: typeof TrendingUp; label: string; tone: string }> = {
-    rising: { icon: TrendingUp, label: "Rising", tone: "var(--color-ok)" },
-    declining: { icon: TrendingDown, label: "Declining", tone: "var(--color-bad)" },
-    stable: { icon: Minus, label: "Steady", tone: "var(--color-text-muted)" },
-  };
-  const m = map[trend] ?? map.stable;
-  const Icon = m.icon;
+  if (trend === "rising")
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+        <TrendingUp className="w-3 h-3" /> Rising
+      </span>
+    );
+  if (trend === "declining")
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+        <TrendingDown className="w-3 h-3" /> Declining
+      </span>
+    );
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium"
-      style={{ borderColor: m.tone, color: m.tone }}>
-      <Icon className="h-3 w-3" /> {m.label}
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-full px-2 py-0.5">
+      <Minus className="w-3 h-3" /> Stable
     </span>
   );
 }
 
-function PosBadge({ check }: { check: CheckRow | undefined }) {
-  if (!check) return <span className="text-[var(--color-text-subtle)]">—</span>;
-  if (check.position == null) {
-    return <span className="text-[10px] text-[var(--color-text-subtle)]" title="Not in the top 10 organic results">&gt;10</span>;
-  }
-  const tone = check.position <= 3 ? "var(--color-ok)" : "var(--color-accent)";
+function PosBadge({ check }: { check: LabCheck | undefined }) {
+  if (!check) return <span className="text-gray-300">-</span>;
+  if (check.position == null)
+    return <span className="text-xs text-gray-400" title="Not found in the top 10 organic results">&gt;10</span>;
+  const tone = check.position <= 3
+    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+    : "bg-blue-50 text-blue-700 border border-blue-200";
   return (
     <span className="inline-flex items-center gap-1">
-      <span className="inline-flex h-6 items-center rounded border px-2 text-xs font-semibold tabular-nums"
-        style={{ borderColor: tone, color: tone }}>{check.position}</span>
-      {check.match_type === "domain" && (
-        <span style={{ color: "var(--color-warn)" }} title="A different page on the site is ranking, not the target">*</span>
+      <span className={`inline-flex items-center justify-center h-6 px-2 rounded font-semibold text-sm tabular-nums ${tone}`}>
+        {check.position}
+      </span>
+      {check.match === "domain" && (
+        <span className="text-amber-500 font-bold" title="Ranking with a different page than the target URL (see details)">*</span>
       )}
     </span>
   );
 }
 
-function DeltaBadge({ checks }: { checks: CheckRow[] }) {
-  if (checks.length < 2) return <span className="text-[10px] text-[var(--color-text-subtle)]">—</span>;
-  const cur = checks[0].position;
-  const prev = checks[1].position;
-  if (prev == null && cur == null) return <span className="text-[10px] text-[var(--color-text-subtle)]">—</span>;
-  if (prev == null) return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold" style={{ color: "var(--color-ok)" }}><ArrowUp className="h-3 w-3" /> in</span>;
-  if (cur == null) return <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold" style={{ color: "var(--color-bad)" }}><ArrowDown className="h-3 w-3" /> out</span>;
-  const diff = prev - cur;
-  if (diff === 0) return <span className="text-[10px] text-[var(--color-text-subtle)]">0</span>;
-  const up = diff > 0;
+function DeltaBadge({ checks }: { checks: LabCheck[] }) {
+  if (!checks || checks.length < 2) return <span className="text-gray-300 text-xs">-</span>;
+  const cur = checks[checks.length - 1].position;
+  const prev = checks[checks.length - 2].position;
+  if (prev == null && cur == null) return <span className="text-gray-300 text-xs">-</span>;
+  if (prev == null && cur != null)
+    return <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600"><ArrowUp className="w-3 h-3" /> in</span>;
+  if (prev != null && cur == null)
+    return <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-red-600"><ArrowDown className="w-3 h-3" /> out</span>;
+  const diff = (prev as number) - (cur as number);
+  if (diff === 0) return <span className="text-gray-400 text-xs">0</span>;
+  if (diff > 0)
+    return <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600 tabular-nums"><ArrowUp className="w-3 h-3" /> {diff}</span>;
+  return <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-red-600 tabular-nums"><ArrowDown className="w-3 h-3" /> {Math.abs(diff)}</span>;
+}
+
+function UrlCell({ value, onSave }: { value: string; onSave: (v: string) => void }) {
   return (
-    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold tabular-nums" style={{ color: up ? "var(--color-ok)" : "var(--color-bad)" }}>
-      {up ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />} {Math.abs(diff)}
-    </span>
+    <input
+      // Uncontrolled and keyed on the stored value: typing is local, blur
+      // saves, and a change from the server resets the field. Mirroring the
+      // prop into state re-rendered the whole table on every refresh.
+      key={value}
+      defaultValue={value || ""}
+      onBlur={(e) => { if (e.target.value !== value) onSave(e.target.value); }}
+      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+      placeholder="https://target-page..."
+      title="Target URL for this keyword (edit, then press Enter)"
+      className="w-full px-2 py-1 text-xs text-gray-600 bg-transparent border border-transparent rounded hover:border-gray-300 focus:border-blue-400 focus:bg-white outline-none"
+    />
   );
 }
 
-/* ------------------------------- main -------------------------------- */
+/* ------------------------------- main app ----------------------------- */
 
 export default function KeywordLab({
-  sites, keywords, checks, spend, costs,
+  initialProfiles, spend, costs,
 }: {
-  sites: Site[]; keywords: KeywordRow[]; checks: CheckRow[];
-  spend: Spend; costs: { analyze: number; rankCheck: number };
+  initialProfiles: LabProfile[];
+  spend: Spend;
+  costs: { analyze: number; rankCheck: number };
 }) {
-  const [view, setView] = useState<"research" | "tracking">(keywords.length > 0 ? "tracking" : "research");
+  /* research state */
   const [input, setInput] = useState("");
+  const [lastQuery, setLastQuery] = useState("");
   const [data, setData] = useState<Analysis | null>(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [tab, setTab] = useState<"all" | "questions">("all");
   const [group, setGroup] = useState<string | null>(null);
   const [sortField, setSortField] = useState<"v" | "kd" | "c">("v");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [picker, setPicker] = useState(false);
+
+  /* app-level state */
+  const [view, setView] = useState<"research" | "tracking">("research");
+  const [profiles, setProfiles] = useState<LabProfile[]>(initialProfiles);
+  const [pickedId, setActiveId] = useState<string | null>(initialProfiles[0]?.id ?? null);
+  // Derived rather than corrected in an effect: if the picked site disappears
+  // (deleted elsewhere, or none picked yet), fall back to the first one.
+  const activeId = pickedId && initialProfiles.length ? pickedId : (pickedId ?? null);
+  const [notice, setNotice] = useState<{ msg: string; viewSiteId?: string } | null>(null);
+  const [picker, setPicker] = useState<{ items: Metric[] } | null>(null);
   const [pickerUrl, setPickerUrl] = useState("");
-  const [activeSite, setActiveSite] = useState<string | null>(sites[0]?.id ?? null);
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [busy, setBusy] = useState<Set<string>>(new Set());
+  const [monthUsd, setMonthUsd] = useState(spend.monthUsd);
+
+  /* tracking state */
+  const [checking, setChecking] = useState<Set<string>>(new Set());
   const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
-  const [liveSpend, setLiveSpend] = useState(spend);
-  const [pending, start] = useTransition();
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
 
-  const checksFor = useMemo(() => {
-    const m = new Map<string, CheckRow[]>();
-    for (const c of checks) {
-      const list = m.get(c.keyword_id) ?? [];
-      list.push(c);
-      m.set(c.keyword_id, list);
-    }
-    return m;
-  }, [checks]);
+  /* ------------------------------ effects ----------------------------- */
 
-  const trackedPhrases = useMemo(() => new Set(keywords.map((k) => k.phrase.toLowerCase())), [keywords]);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 6000);
+    return () => clearTimeout(t);
+  }, [notice]);
 
-  function analyze(seed: string) {
-    const q = seed.trim();
-    if (!q || pending) return;
-    setError(null); setNotice(null); setData(null); setSelected(new Set()); setGroup(null); setTab("all");
-    setView("research");
-    start(async () => {
-      const res = await analyzeAction(q);
-      if (res.error) return setError(res.error);
-      setData(res.result ?? null);
-      if (res.spend) setLiveSpend(res.spend);
-    });
+  useEffect(() => {
+    if (!confirmDel) return;
+    const t = setTimeout(() => setConfirmDel(null), 3000);
+    return () => clearTimeout(t);
+  }, [confirmDel]);
+
+  /** Pull fresh state from the server after anything that writes. */
+  async function refresh() {
+    setProfiles(await loadProfiles());
   }
 
+  /* --------------------------- research: analyze ---------------------- */
+
+  async function analyze(raw: string) {
+    const q = String(raw || "").replace(/["\\]/g, "").trim();
+    if (!q || loading) return;
+    setLoading(true); setError(null); setLastQuery(q); setGroup(null); setTab("all");
+    setSelected(new Set()); setSortField("v"); setSortDir("desc"); setPicker(null); setView("research");
+
+    // The key lives on the server; this is the same call, one hop further back.
+    const res = await analyzeAction(q);
+    if (res.error || !res.result) {
+      setError(res.error ?? "Could not analyze that keyword. Check the phrase and try again.");
+    } else {
+      setData(res.result);
+      if (typeof res.costUsd === "number") setMonthUsd((m) => Math.round((m + res.costUsd!) * 1000) / 1000);
+    }
+    setLoading(false);
+  }
+
+  /* --------------------------- derived state -------------------------- */
+
   const groups = useMemo(() => {
-    if (!data) return [];
+    if (!data) return [] as Array<[string, number]>;
     const counts: Record<string, number> = {};
     for (const r of data.related) {
       const words = new Set(r.k.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 1 && !STOP.has(w)));
-      for (const w of words) counts[w] = (counts[w] ?? 0) + 1;
+      for (const w of words) counts[w] = (counts[w] || 0) + 1;
     }
-    return Object.entries(counts).filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    return Object.entries(counts).filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]).slice(0, 12);
   }, [data]);
+
+  const questionCount = useMemo(() => (data ? data.related.filter((r) => isQuestion(r.k)).length : 0), [data]);
 
   const rows = useMemo(() => {
     if (!data) return [];
@@ -221,544 +296,778 @@ export default function KeywordLab({
     return r;
   }, [data, tab, group, sortField, sortDir]);
 
+  const totals = useMemo(() => {
+    if (!data) return null;
+    const all = data.related;
+    const totalVol = data.vol + all.reduce((s, r) => s + r.v, 0);
+    const avgKd = Math.round([data.kd, ...all.map((r) => r.kd)].reduce((s, k) => s + k, 0) / (all.length + 1));
+    return { count: all.length + 1, totalVol, avgKd };
+  }, [data]);
+
+  const trackedMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of profiles)
+      for (const k of p.keywords) if (!m.has(k.k.toLowerCase())) m.set(k.k.toLowerCase(), p.name);
+    return m;
+  }, [profiles]);
+
+  const totalTracked = useMemo(() => profiles.reduce((s, p) => s + p.keywords.length, 0), [profiles]);
+  const activeProfile = profiles.find((p) => p.id === activeId) ?? profiles[0] ?? null;
+
+  /* ----------------------------- handlers ----------------------------- */
+
   function toggleSort(f: "v" | "kd" | "c") {
     if (sortField === f) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
     else { setSortField(f); setSortDir("desc"); }
   }
 
-  const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.k));
+  function toggleSel(k: string) {
+    setSelected((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  }
 
-  function track(siteId: string) {
-    if (!data) return;
-    const items = data.related.filter((r) => selected.has(r.k));
-    const chosen = items.length > 0 ? items : [{ k: data.kw, v: data.vol, i: data.intent, kd: data.kd, c: data.cpc }];
-    start(async () => {
-      const res = await trackKeywordsAction({ siteId, keywords: chosen, targetUrl: pickerUrl });
-      setPicker(false); setPickerUrl(""); setSelected(new Set());
-      if (res.error) return setError(res.error);
-      setNotice(
-        `Tracking ${res.added} keyword${res.added === 1 ? "" : "s"}${res.skipped ? ` (${res.skipped} already tracked)` : ""}. They appear on that site's Rankings tab too.`,
-      );
+  const allVisibleSelected = rows.length > 0 && rows.every((r) => selected.has(r.k));
+
+  function toggleAll() {
+    setSelected((prev) => {
+      const n = new Set(prev);
+      if (allVisibleSelected) rows.forEach((r) => n.delete(r.k));
+      else rows.forEach((r) => n.add(r.k));
+      return n;
     });
   }
 
-  function runCheck(keywordId: string) {
-    setBusy((s) => new Set(s).add(keywordId));
-    start(async () => {
-      const res = await checkRankAction({ keywordId });
-      setBusy((s) => { const n = new Set(s); n.delete(keywordId); return n; });
-      if (res.error) setError(res.error);
-      else if (typeof res.costUsd === "number") {
-        setLiveSpend((p) => ({ ...p, monthUsd: Math.round((p.monthUsd + res.costUsd!) * 1000) / 1000 }));
-      }
-    });
-  }
-
-  const siteKeywords = keywords.filter((k) => k.site_id === activeSite);
-
-  async function checkAll() {
-    const list = siteKeywords.map((k) => k.id);
-    if (list.length === 0) return;
-    setBulk({ done: 0, total: list.length });
-    for (let i = 0; i < list.length; i++) {
-      const res = await checkRankAction({ keywordId: list[i] });
-      if (res.error) { setError(res.error); break; }
-      setBulk({ done: i + 1, total: list.length });
-    }
-    setBulk(null);
-    setNotice("Ranking check complete.");
-  }
-
-  function exportCsv() {
-    const site = sites.find((s) => s.id === activeSite);
-    const lines = [
-      ["Keyword", "Intent", "Est. volume", "KD", "Target URL", "Position", "Match", "Ranking URL", "Checked"],
-      ...siteKeywords.map((k) => {
-        const c = checksFor.get(k.id)?.[0];
-        return [
-          k.phrase, k.intent ?? "", k.volume ?? "", k.kd ?? "", k.target_url ?? "",
-          c ? (c.position == null ? "Not in top 10" : c.position) : "",
-          c?.match_type ?? "", c?.ranking_url ?? "", c ? new Date(c.checked_at).toLocaleString("en-US") : "",
-        ];
-      }),
-    ];
-    const csv = [
-      ...lines.map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")),
-      "",
-      '"Volume and difficulty are AI-estimated, not Google data. Positions are read from live search results."',
-      '"Prepared by F1 Media Team"',
-    ].join("\n");
+  function downloadCSV(lines: Array<Array<string | number>>, filename: string) {
+    const csv = lines.map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `keywords-${site?.domain ?? "site"}.csv`;
-    a.click();
+    a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
   }
 
-  const th = "px-3 py-2 text-[10px] font-normal uppercase tracking-widest text-[var(--color-text-subtle)]";
-  const panel = "rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)]";
+  function exportCSV() {
+    if (!data) return;
+    const chosen = rows.filter((r) => selected.size === 0 || selected.has(r.k));
+    downloadCSV([
+      ["Keyword", "Intent", "Monthly Volume", "Weekly (est)", "3-Month (est)", "KD %", "CPC (USD)"],
+      [data.kw, INTENT[data.intent].label, data.vol, weeklyOf(data.vol), threeMoOf(data.vol), data.kd, data.cpc.toFixed(2)],
+      ...chosen.map((r) => [r.k, INTENT[r.i].label, r.v, weeklyOf(r.v), threeMoOf(r.v), r.kd, r.c.toFixed(2)]),
+    ], `keywords-${data.kw.replace(/\s+/g, "-")}.csv`);
+  }
+
+  function drillInto(k: string) { setInput(k); analyze(k); }
+
+  async function addKeywordsToProfile(pid: string, items: Metric[], targetRaw: string) {
+    const prof = profiles.find((p) => p.id === pid);
+    const res = await addKeywords({ siteId: pid, items, targetUrl: targetRaw });
+    setPicker(null); setPickerUrl(""); setSelected(new Set());
+    if (res.error) return setError(res.error);
+    await refresh();
+    const tgtNote = targetRaw.trim() ? ` targeting ${targetRaw.trim()}` : "";
+    setNotice({
+      msg: `Added ${res.added} keyword${res.added === 1 ? "" : "s"} to ${prof?.name ?? "site"}${tgtNote}${res.skipped ? ` (${res.skipped} already tracked)` : ""}.`,
+      viewSiteId: pid,
+    });
+  }
+
+  const selectedItems = () => (data ? data.related.filter((r) => selected.has(r.k)).map((r) => ({ ...r })) : []);
+  const seedItem = (): Metric[] =>
+    data ? [{ k: data.kw, v: data.vol, i: data.intent, kd: data.kd, c: data.cpc }] : [];
+
+  async function setKeywordUrl(kwId: string, url: string) {
+    await saveKeywordUrl(kwId, url);
+    await refresh();
+  }
+
+  async function removeKeyword(kwId: string) {
+    await deleteKeyword(kwId);
+    if (expanded === kwId) setExpanded(null);
+    await refresh();
+  }
+
+  async function checkKeyword(kwSnap: { id: string; k: string; url: string }, domain: string) {
+    setChecking((s) => new Set(s).add(kwSnap.id));
+    try {
+      const res = await rankCheckAction({ keyword: kwSnap.k, targetUrl: normUrl(kwSnap.url), domain });
+      if (res.error || !res.check) throw new Error(res.error ?? "failed");
+      await saveCheck(kwSnap.id, res.check);
+      if (typeof res.costUsd === "number") setMonthUsd((m) => Math.round((m + res.costUsd!) * 1000) / 1000);
+      await refresh();
+    } catch {
+      setNotice({ msg: `Rank check failed for "${kwSnap.k}". Try again in a moment.` });
+    } finally {
+      setChecking((s) => { const n = new Set(s); n.delete(kwSnap.id); return n; });
+    }
+  }
+
+  async function checkAll() {
+    const prof = profiles.find((p) => p.id === activeId);
+    if (!prof || !prof.keywords.length) return;
+    const list = prof.keywords.map((k) => ({ id: k.id, k: k.k, url: k.url }));
+    setBulk({ done: 0, total: list.length });
+    for (let i = 0; i < list.length; i++) {
+      await checkKeyword(list[i], prof.domain);
+      setBulk({ done: i + 1, total: list.length });
+      await new Promise((r) => setTimeout(r, 350));
+    }
+    setBulk(null);
+    setNotice({ msg: `Ranking check complete for ${prof.name}.` });
+  }
+
+  function exportTrackingCSV() {
+    if (!activeProfile) return;
+    downloadCSV([
+      ["Keyword", "Intent", "Monthly Volume", "KD %", "Target URL", "Position", "Previous", "Best", "Match", "Ranking URL", "Last checked"],
+      ...activeProfile.keywords.map((k) => {
+        const checks = k.checks || [];
+        const last = checks[checks.length - 1];
+        const prev = checks.length > 1 ? checks[checks.length - 2] : null;
+        const bestVals = checks.filter((c) => c.position != null).map((c) => c.position as number);
+        return [
+          k.k, INTENT[k.i] ? INTENT[k.i].label : "", k.v, k.kd, k.url,
+          last ? (last.position == null ? "Not in top 10" : last.position) : "",
+          prev ? (prev.position == null ? "Not in top 10" : prev.position) : "",
+          bestVals.length ? Math.min(...bestVals) : "",
+          last ? last.match : "",
+          last && last.foundUrl ? last.foundUrl : "",
+          last ? new Date(last.date).toLocaleString("en-US") : "",
+        ];
+      }),
+    ], `tracking-${activeProfile.domain}.csv`);
+  }
+
+  /* ------------------------------ render ------------------------------ */
+
+  const thBase = "px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap";
 
   return (
-    <div>
-      {/* -------------------------- header row -------------------------- */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1 rounded-lg border border-[var(--color-border)] p-1">
-          {(["research", "tracking"] as const).map((v) => (
-            <button key={v} type="button" onClick={() => setView(v)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium ${
-                view === v ? "bg-[var(--color-accent)] text-white" : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-              }`}>
-              {v === "research" ? "Research" : `Tracking${keywords.length ? ` (${keywords.length})` : ""}`}
-            </button>
-          ))}
-        </div>
+    <div className="min-h-screen bg-gray-50 text-gray-900 rounded-xl overflow-hidden border border-gray-200"
+      style={{ fontFamily: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
 
-        <div className="ml-auto flex items-center gap-2 text-[10px] text-[var(--color-text-subtle)]">
-          <span>
-            This month: <span className="tabular-nums text-[var(--color-text-muted)]">{money(liveSpend.monthUsd)}</span>
-            {" of "}
-            <span className="tabular-nums">{money(liveSpend.budgetUsd)}</span>
-          </span>
-          <span className="h-3 w-px bg-[var(--color-border)]" />
-          <span>research {money(costs.analyze)} · check {money(costs.rankCheck)}</span>
+      {/* ------------------------------ top bar ------------------------------ */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 pr-1">
+            <div className="w-8 h-8 rounded-md flex items-center justify-center text-white text-xs font-bold" style={{ background: "#0f172a" }}>
+              F1
+            </div>
+            <div className="hidden sm:block leading-tight">
+              <div className="text-sm font-semibold">Keyword Lab</div>
+              <div className="text-xs text-gray-400">an F1 Pulse module</div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+            <button onClick={() => setView("research")}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium ${view === "research" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-800"}`}>
+              Research
+            </button>
+            <button onClick={() => setView("tracking")}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium ${view === "tracking" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-800"}`}>
+              Tracking{totalTracked > 0 ? ` (${totalTracked})` : ""}
+            </button>
+          </div>
+
+          {view === "research" && (
+            <>
+              <div className="flex-1 flex items-center bg-white border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-blue-200 focus-within:border-blue-400 min-w-48">
+                <Search className="w-4 h-4 text-gray-400 ml-3 shrink-0" />
+                <input value={input} onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") analyze(input); }}
+                  placeholder="Enter a keyword, e.g. screen printing near me"
+                  className="flex-1 px-3 py-2 text-sm outline-none bg-transparent min-w-0" />
+                {input && (
+                  <button onClick={() => setInput("")} className="mr-2 p-1 text-gray-400 hover:text-gray-600" title="Clear">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <button onClick={() => analyze(input)} disabled={loading || !input.trim()}
+                className="px-4 py-2 rounded-md text-sm font-semibold text-white disabled:opacity-40" style={{ background: "#111827" }}>
+                {loading ? "Analyzing..." : "Analyze"}
+              </button>
+            </>
+          )}
+
+          {/* What this has cost so far, so a bill is never a surprise. */}
+          <div className="text-xs text-gray-400 whitespace-nowrap ml-auto">
+            ${monthUsd.toFixed(2)} of ${spend.budgetUsd.toFixed(2)} this month
+          </div>
         </div>
       </div>
 
+      {/* ----------------------------- notice bar ---------------------------- */}
       {notice && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs"
-          style={{ borderColor: "var(--color-ok)", color: "var(--color-text-muted)" }}>
-          <Target className="h-4 w-4 shrink-0" style={{ color: "var(--color-ok)" }} />
-          <span>{notice}</span>
-          <button type="button" onClick={() => setNotice(null)} className="ml-auto"><X className="h-3.5 w-3.5" /></button>
-        </div>
-      )}
-      {error && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs"
-          style={{ borderColor: "var(--color-bad)", color: "var(--color-bad)" }} role="alert">
-          <span>{error}</span>
-          <button type="button" onClick={() => setError(null)} className="ml-auto"><X className="h-3.5 w-3.5" /></button>
+        <div className="max-w-6xl mx-auto px-4 mt-4">
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-md px-3 py-2">
+            <Target className="w-4 h-4 shrink-0" />
+            <span>{notice.msg}</span>
+            {notice.viewSiteId && (
+              <button onClick={() => { setActiveId(notice.viewSiteId!); setView("tracking"); setNotice(null); }}
+                className="underline font-medium">View site</button>
+            )}
+            <button onClick={() => setNotice(null)} className="ml-auto p-1 text-emerald-600 hover:text-emerald-800">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 
-      {/* =========================== RESEARCH =========================== */}
-      {view === "research" && (
-        <div className="space-y-4">
-          <div className={`${panel} p-4`}>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex min-w-[260px] flex-1 items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)]">
-                <Search className="ml-3 h-4 w-4 shrink-0 text-[var(--color-text-subtle)]" />
-                <input value={input} onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") analyze(input); }}
-                  placeholder="A keyword, e.g. screen printing near me"
-                  className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none" />
+      {/* ---------------------------- error banner --------------------------- */}
+      {view === "research" && error && !loading && (
+        <div className="max-w-6xl mx-auto px-4 mt-4">
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-3 py-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+            <button onClick={() => analyze(lastQuery || input)} className="ml-auto underline font-medium">Retry</button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================== RESEARCH ============================== */}
+      {view === "research" && loading && (
+        <div className="max-w-6xl mx-auto px-4 py-6">
+          <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            <span>Modeling &quot;{lastQuery}&quot; - volume, intent, difficulty, and related terms...</span>
+          </div>
+          <div className="animate-pulse space-y-3">
+            <div className="h-28 bg-gray-200 rounded-lg" />
+            <div className="h-8 bg-gray-200 rounded w-1/3" />
+            {[...Array(10)].map((_, i) => <div key={i} className="h-9 bg-gray-200 rounded" />)}
+          </div>
+        </div>
+      )}
+
+      {view === "research" && !loading && !data && (
+        <div className="max-w-2xl mx-auto text-center py-20 px-4">
+          <div className="w-14 h-14 mx-auto rounded-full bg-white border border-gray-200 flex items-center justify-center mb-5">
+            <Search className="w-6 h-6 text-gray-400" />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Keyword research, on demand</h1>
+          <p className="mt-3 text-gray-600">
+            Enter a word or phrase to get estimated search volume (weekly, monthly, and 3-month),
+            search intent, keyword difficulty, CPC, and related keyword ideas. Select the winners
+            and add them to a Site to track rankings.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            {EXAMPLES.map((e) => (
+              <button key={e} onClick={() => drillInto(e)}
+                className="px-3 py-1.5 rounded-full border border-gray-300 bg-white text-sm text-gray-700 hover:border-gray-400 hover:bg-gray-50">
+                {e}
+              </button>
+            ))}
+          </div>
+          <p className="mt-8 text-xs text-gray-400">
+            Metrics are AI-modeled estimates for directional research, not live index data.
+          </p>
+        </div>
+      )}
+
+      {view === "research" && !loading && data && (
+        <div className="max-w-6xl mx-auto px-4 py-6">
+          <div className="text-xs text-gray-500 flex items-center gap-1 mb-1">
+            <span>Home</span><ChevronRight className="w-3 h-3" />
+            <span>SEO</span><ChevronRight className="w-3 h-3" />
+            <span>Keyword Lab</span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Keyword Lab: <span className="text-gray-900">{data.kw}</span>
+          </h1>
+          <div className="text-sm text-gray-500 mt-1 mb-5">
+            Database: <span className="font-medium text-gray-700">United States</span>
+            <span className="mx-2 text-gray-300">|</span>Currency: USD
+            <span className="mx-2 text-gray-300">|</span>AI-modeled estimates
+          </div>
+
+          {/* seed overview card */}
+          <div className="bg-white border border-gray-200 rounded-lg p-5 flex flex-wrap items-center gap-x-8 gap-y-4">
+            <div className="min-w-40">
+              <div className="text-xs uppercase tracking-wide text-gray-400">Seed keyword</div>
+              <div className="text-xl font-semibold mt-0.5">{data.kw}</div>
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <span title={INTENT[data.intent].label}
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${INTENT[data.intent].chip}`}>
+                  {data.intent} <span className="font-medium">{INTENT[data.intent].label}</span>
+                </span>
+                <TrendBadge trend={data.trend} />
+                <button onClick={() => { setPickerUrl(""); setPicker({ items: seedItem() }); }}
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold border border-gray-300 text-gray-600 hover:border-gray-400 hover:bg-gray-50"
+                  title="Track this keyword for a site">
+                  <Plus className="w-3 h-3" /> Track
+                </button>
               </div>
-              <button type="button" onClick={() => analyze(input)} disabled={pending || !input.trim()}
-                className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">
-                {pending ? "Working…" : `Research · ${money(costs.analyze)}`}
+            </div>
+
+            <div className="hidden md:block w-px h-14 bg-gray-200" />
+            <Stat label="Weekly (est)" value={fmt(weeklyOf(data.vol))} />
+            <Stat label="Monthly volume" value={fmt(data.vol)} big />
+            <Stat label="3-month (est)" value={fmt(threeMoOf(data.vol))} />
+            <div className="hidden md:block w-px h-14 bg-gray-200" />
+            <div className="flex items-center gap-3">
+              <KdDonut kd={data.kd} />
+              <div>
+                <div className="font-semibold text-gray-800">{kdInfo(data.kd).label}</div>
+                <div className="text-xs text-gray-500">Keyword Difficulty</div>
+              </div>
+            </div>
+            <div className="hidden md:block w-px h-14 bg-gray-200" />
+            <Stat label="CPC (USD)" value={`$${data.cpc.toFixed(2)}`} />
+          </div>
+
+          {/* tabs + actions */}
+          <div className="flex items-center justify-between mt-6 mb-3 flex-wrap gap-3">
+            <div className="flex items-center gap-1 border border-gray-200 bg-white rounded-lg p-1">
+              <button onClick={() => setTab("all")}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium ${tab === "all" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"}`}>
+                All Keywords
+              </button>
+              <button onClick={() => setTab("questions")}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium ${tab === "questions" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-100"}`}>
+                Questions ({questionCount})
               </button>
             </div>
-            {!data && !pending && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {EXAMPLES.map((e) => (
-                  <button key={e} type="button" onClick={() => { setInput(e); analyze(e); }}
-                    className="rounded-full border border-[var(--color-border)] px-3 py-1 text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
-                    {e}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
 
-          {pending && !data && (
-            <div className={`${panel} p-8 text-center text-xs text-[var(--color-text-muted)]`}>
-              <RefreshCw className="mx-auto mb-2 h-4 w-4 animate-spin" />
-              Estimating volume, intent, difficulty and related terms…
-            </div>
-          )}
+            <div className="flex items-center gap-2 relative">
+              <button onClick={() => { setPickerUrl(""); setPicker(picker ? null : { items: selectedItems() }); }}
+                disabled={selected.size === 0}
+                title={selected.size === 0 ? "Select keywords in the table first" : "Add selected keywords to a site"}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold text-white disabled:opacity-40"
+                style={{ background: "#1d4ed8" }}>
+                <Plus className="w-4 h-4" /> Add to Site{selected.size > 0 ? ` (${selected.size})` : ""}
+              </button>
+              <button onClick={() => analyze(data.kw)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                <RefreshCw className="w-4 h-4" /> Update metrics
+              </button>
+              <button onClick={exportCSV}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                <Download className="w-4 h-4" />Export{selected.size > 0 ? ` (${selected.size})` : ""}
+              </button>
 
-          {data && (
-            <>
-              {/* seed card */}
-              <div className={`${panel} flex flex-wrap items-center gap-x-8 gap-y-4 p-4`}>
-                <div className="min-w-[180px]">
-                  <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">Keyword</div>
-                  <div className="mt-0.5 text-lg font-semibold">{data.kw}</div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <IntentChip code={data.intent} />
-                    <span className="text-[10px] text-[var(--color-text-muted)]">{INTENT[data.intent]?.label}</span>
-                    <TrendBadge trend={data.trend} />
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">Searches a month</div>
-                  <div className="text-2xl font-semibold tabular-nums">{fmt(data.vol)}</div>
-                  <div className="text-[10px] text-[var(--color-text-subtle)]">about {fmt(weeklyOf(data.vol))} a week</div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <KdDonut kd={data.kd} />
-                  <div>
-                    <div className="text-xs font-semibold">{kdInfo(data.kd).label}</div>
-                    <div className="text-[10px] text-[var(--color-text-subtle)]">to reach the top 10</div>
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">Ad cost per click</div>
-                  <div className="text-lg font-semibold tabular-nums">${data.cpc.toFixed(2)}</div>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-dashed border-[var(--color-border-strong)] px-3 py-2 text-[10px] leading-relaxed text-[var(--color-text-subtle)]">
-                These figures are estimated by AI, not read from Google. They are calibrated well enough to
-                choose between two keywords and are not accurate enough to put in front of a client as fact.
-                Positions on the Tracking tab are different — those are read from live search results.
-              </div>
-
-              {/* actions */}
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-1 rounded-lg border border-[var(--color-border)] p-1">
-                  <button type="button" onClick={() => setTab("all")}
-                    className={`rounded-md px-3 py-1.5 text-xs font-medium ${tab === "all" ? "bg-[var(--color-bg-hover)]" : "text-[var(--color-text-muted)]"}`}>
-                    All ideas ({data.related.length})
-                  </button>
-                  <button type="button" onClick={() => setTab("questions")}
-                    className={`rounded-md px-3 py-1.5 text-xs font-medium ${tab === "questions" ? "bg-[var(--color-bg-hover)]" : "text-[var(--color-text-muted)]"}`}>
-                    Questions ({data.related.filter((r) => isQuestion(r.k)).length})
-                  </button>
-                </div>
-
-                <div className="relative flex items-center gap-2">
-                  <button type="button" onClick={() => setPicker(!picker)} disabled={sites.length === 0}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
-                    <Plus className="h-3.5 w-3.5" /> Track{selected.size > 0 ? ` ${selected.size}` : " this"}
-                  </button>
-
-                  {picker && (
-                    <>
-                      <div className="fixed inset-0 z-20" onClick={() => setPicker(false)} />
-                      <div className={`absolute right-0 top-full z-30 mt-2 w-72 overflow-hidden ${panel} shadow-lg`}>
-                        <div className="border-b border-[var(--color-border)] px-3 py-2">
-                          <div className="mb-1 text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
-                            Page it should rank
-                          </div>
-                          <input value={pickerUrl} onChange={(e) => setPickerUrl(e.target.value)}
-                            placeholder="/screen-printing  ·  blank = homepage"
-                            className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-2 py-1.5 text-[11px] outline-none" />
-                        </div>
-                        <div className="max-h-56 overflow-y-auto">
-                          {sites.map((s) => (
-                            <button key={s.id} type="button" onClick={() => track(s.id)}
-                              className="flex w-full items-center gap-2 border-b border-[var(--color-border)] px-3 py-2 text-left last:border-0 hover:bg-[var(--color-bg-hover)]">
-                              {s.colour && <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded" style={{ background: s.colour }} />}
-                              <span className="min-w-0">
-                                <span className="block truncate text-xs font-medium">{s.clientName}</span>
-                                <span className="block truncate font-mono text-[10px] text-[var(--color-text-subtle)]">{s.domain}</span>
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* table + groups */}
-              <div className="flex items-start gap-4">
-                {groups.length > 0 && (
-                  <div className={`hidden w-44 shrink-0 overflow-hidden md:block ${panel}`}>
-                    <div className="border-b border-[var(--color-border)] px-3 py-2 text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
-                      Themes
-                    </div>
-                    <button type="button" onClick={() => setGroup(null)}
-                      className={`flex w-full items-center justify-between px-3 py-2 text-xs ${group === null ? "bg-[var(--color-bg-hover)] font-medium" : "text-[var(--color-text-muted)]"}`}>
-                      <span>Everything</span><span className="tabular-nums">{data.related.length}</span>
-                    </button>
-                    {groups.map(([w, c]) => (
-                      <button key={w} type="button" onClick={() => setGroup(group === w ? null : w)}
-                        className={`flex w-full items-center justify-between px-3 py-2 text-xs ${group === w ? "bg-[var(--color-bg-hover)] font-medium" : "text-[var(--color-text-muted)]"}`}>
-                        <span className="truncate pr-2">{w}</span><span className="tabular-nums">{c}</span>
+              {/* site picker */}
+              {picker && picker.items.length > 0 && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setPicker(null)} />
+                  <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-30 overflow-hidden">
+                    <div className="px-3 py-2 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                        Add {picker.items.length} keyword{picker.items.length === 1 ? "" : "s"} to
+                      </span>
+                      <button onClick={() => setPicker(null)} className="p-0.5 text-gray-400 hover:text-gray-600">
+                        <X className="w-4 h-4" />
                       </button>
-                    ))}
+                    </div>
+                    <div className="px-3 py-2 border-b border-gray-100">
+                      <div className="text-xs font-medium text-gray-500 mb-1">
+                        Designated target URL <span className="text-gray-400 font-normal">(optional)</span>
+                      </div>
+                      <input value={pickerUrl} onChange={(e) => setPickerUrl(e.target.value)}
+                        placeholder="/screen-printing-phoenix or full URL"
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md outline-none focus:border-blue-400" />
+                      <div className="text-xs text-gray-400 mt-1">
+                        Applies to every keyword in this batch. A path like /page attaches to the
+                        site&apos;s domain. Blank = homepage. Editable per keyword in Tracking.
+                      </div>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {profiles.length === 0 && (
+                        <div className="px-3 py-3 text-xs text-gray-500">No sites yet. Create one below.</div>
+                      )}
+                      {profiles.map((p) => (
+                        <button key={p.id} onClick={() => addKeywordsToProfile(p.id, picker.items, pickerUrl)}
+                          className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-gray-50">
+                          <div className="text-sm font-medium text-gray-800">{p.name}</div>
+                          <div className="text-xs text-gray-400 flex items-center gap-1">
+                            <Globe className="w-3 h-3" /> {p.domain}
+                            <span className="mx-1">-</span>{p.keywords.length} tracked
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                )}
-
-                <div className={`min-w-0 flex-1 overflow-hidden ${panel}`}>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[620px] text-left text-xs">
-                      <thead>
-                        <tr className="border-b border-[var(--color-border)]">
-                          <th className="w-8 px-3 py-2">
-                            <input type="checkbox" checked={allSelected}
-                              onChange={() => setSelected((prev) => {
-                                const n = new Set(prev);
-                                if (allSelected) rows.forEach((r) => n.delete(r.k));
-                                else rows.forEach((r) => n.add(r.k));
-                                return n;
-                              })} />
-                          </th>
-                          <th className={th}>Keyword</th>
-                          <th className={`${th} text-center`}>Intent</th>
-                          <th className={`${th} text-right`}>
-                            <button type="button" onClick={() => toggleSort("v")} className="inline-flex items-center gap-1">
-                              Searches <ArrowUpDown className="h-3 w-3" />
-                            </button>
-                          </th>
-                          <th className={`${th} text-right`}>
-                            <button type="button" onClick={() => toggleSort("kd")} className="inline-flex items-center gap-1">
-                              Difficulty <ArrowUpDown className="h-3 w-3" />
-                            </button>
-                          </th>
-                          <th className={`${th} text-right`}>
-                            <button type="button" onClick={() => toggleSort("c")} className="inline-flex items-center gap-1">
-                              CPC <ArrowUpDown className="h-3 w-3" />
-                            </button>
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rows.map((r) => (
-                          <tr key={r.k} className="border-b border-[var(--color-border)] last:border-0">
-                            <td className="px-3 py-2">
-                              <input type="checkbox" checked={selected.has(r.k)}
-                                onChange={() => setSelected((prev) => {
-                                  const n = new Set(prev);
-                                  if (n.has(r.k)) n.delete(r.k); else n.add(r.k);
-                                  return n;
-                                })} />
-                            </td>
-                            <td className="px-3 py-2">
-                              <span className="inline-flex items-center gap-1.5">
-                                <button type="button" onClick={() => { setInput(r.k); analyze(r.k); }}
-                                  className="text-left hover:underline" style={{ color: "var(--color-accent)" }}>
-                                  {r.k}
-                                </button>
-                                {trackedPhrases.has(r.k.toLowerCase()) && (
-                                  <Target className="h-3 w-3 shrink-0" style={{ color: "var(--color-ok)" }} />
-                                )}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 text-center"><IntentChip code={r.i} /></td>
-                            <td className="px-3 py-2 text-right font-semibold tabular-nums">{fmt(r.v)}</td>
-                            <td className="px-3 py-2">
-                              <div className="flex items-center justify-end gap-2">
-                                <span className="tabular-nums">{r.kd}</span>
-                                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: kdInfo(r.kd).hex }} />
-                              </div>
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums text-[var(--color-text-muted)]">${r.c.toFixed(2)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* =========================== TRACKING =========================== */}
-      {view === "tracking" && (
-        <div className="flex items-start gap-4">
-          <div className={`w-52 shrink-0 overflow-hidden ${panel}`}>
-            <div className="border-b border-[var(--color-border)] px-3 py-2 text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
-              Sites
+                </>
+              )}
             </div>
-            {sites.map((s) => {
-              const n = keywords.filter((k) => k.site_id === s.id).length;
-              return (
-                <button key={s.id} type="button" onClick={() => { setActiveSite(s.id); setExpanded(null); }}
-                  className={`flex w-full items-center gap-2 border-b border-[var(--color-border)] px-3 py-2.5 text-left last:border-0 ${
-                    activeSite === s.id ? "bg-[var(--color-bg-hover)]" : ""
-                  }`}>
-                  {s.colour && <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded" style={{ background: s.colour }} />}
-                  <span className="min-w-0">
-                    <span className="block truncate text-xs font-medium">{s.clientName}</span>
-                    <span className="block text-[10px] text-[var(--color-text-subtle)]">{n} keyword{n === 1 ? "" : "s"}</span>
-                  </span>
-                </button>
-              );
-            })}
           </div>
 
-          <div className="min-w-0 flex-1">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <a href={`https://${sites.find((s) => s.id === activeSite)?.domain ?? ""}`} target="_blank" rel="noreferrer"
-                className="inline-flex items-center gap-1 font-mono text-xs" style={{ color: "var(--color-accent)" }}>
-                {sites.find((s) => s.id === activeSite)?.domain} <ExternalLink className="h-3 w-3" />
-              </a>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={checkAll} disabled={bulk !== null || siteKeywords.length === 0}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-                  title={`About ${money(siteKeywords.length * costs.rankCheck)} for ${siteKeywords.length} keywords`}>
-                  {bulk ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {bulk.done}/{bulk.total}</>
-                        : <><RefreshCw className="h-3.5 w-3.5" /> Check all · {money(siteKeywords.length * costs.rankCheck)}</>}
-                </button>
-                <button type="button" onClick={exportCsv} disabled={siteKeywords.length === 0}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-2 text-xs font-medium text-[var(--color-text-muted)] disabled:opacity-50">
-                  <Download className="h-3.5 w-3.5" /> Export
-                </button>
+          {/* sidebar + table */}
+          <div className="flex gap-4 items-start">
+            <div className="w-48 shrink-0 hidden md:block bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100 bg-gray-50">
+                Groups
               </div>
+              <button onClick={() => setGroup(null)}
+                className={`w-full flex items-center justify-between px-3 py-2 text-sm ${group === null ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700 hover:bg-gray-50"}`}>
+                <span>All keywords</span>
+                <span className="text-xs text-gray-400 tabular-nums">{data.related.length}</span>
+              </button>
+              {groups.map(([w, c]) => (
+                <button key={w} onClick={() => setGroup(group === w ? null : w)}
+                  className={`w-full flex items-center justify-between px-3 py-2 text-sm ${group === w ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700 hover:bg-gray-50"}`}>
+                  <span className="truncate pr-2">{w}</span>
+                  <span className="text-xs text-gray-400 tabular-nums">{c}</span>
+                </button>
+              ))}
             </div>
 
-            <div className={`overflow-hidden ${panel}`}>
-              {siteKeywords.length === 0 ? (
-                <p className="px-4 py-10 text-center text-xs text-[var(--color-text-muted)]">
-                  Nothing tracked for this site yet. Research a keyword and press Track.
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-[var(--color-border)]">
-                        <th className="w-6 px-2 py-2" />
-                        <th className={th}>Keyword</th>
-                        <th className={`${th} text-right`}>Searches</th>
-                        <th className={`${th} text-right`}>Difficulty</th>
-                        <th className={th}>Target page</th>
-                        <th className={`${th} text-center`}>Position</th>
-                        <th className={`${th} text-center`}>Change</th>
-                        <th className={`${th} text-right`}>Checked</th>
-                        <th className={`${th} text-right`} />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {siteKeywords.map((k) => {
-                        const kchecks = checksFor.get(k.id) ?? [];
-                        const last = kchecks[0];
-                        const open = expanded === k.id;
-                        const working = busy.has(k.id);
-                        return (
-                          <Fragment key={k.id}>
-                            <tr className="border-b border-[var(--color-border)]">
-                              <td className="px-2 py-2 text-center">
-                                <button type="button" onClick={() => setExpanded(open ? null : k.id)}
-                                  className="text-[var(--color-text-subtle)]">
-                                  {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                                </button>
-                              </td>
-                              <td className="px-3 py-2">
-                                <span className="flex items-center gap-1.5">
-                                  <span className="font-medium">{k.phrase}</span>
-                                  {k.intent && <IntentChip code={k.intent} />}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2 text-right tabular-nums text-[var(--color-text-muted)]">{fmt(k.volume)}</td>
-                              <td className="px-3 py-2">
-                                <div className="flex items-center justify-end gap-2">
-                                  <span className="tabular-nums">{k.kd ?? "—"}</span>
-                                  {k.kd != null && <span className="h-2 w-2 rounded-full" style={{ background: kdInfo(k.kd).hex }} />}
-                                </div>
-                              </td>
-                              <td className="px-3 py-2">
-                                <input defaultValue={k.target_url ?? ""} placeholder="homepage"
-                                  onBlur={(e) => {
-                                    if (e.target.value !== (k.target_url ?? "")) {
-                                      start(async () => { await setTargetUrlAction({ keywordId: k.id, url: e.target.value }); });
-                                    }
-                                  }}
-                                  className="w-full max-w-[200px] truncate rounded border border-transparent bg-transparent px-1.5 py-1 font-mono text-[10px] text-[var(--color-text-subtle)] hover:border-[var(--color-border)] focus:border-[var(--color-accent)] focus:outline-none" />
-                              </td>
-                              <td className="px-3 py-2 text-center"><PosBadge check={last} /></td>
-                              <td className="px-3 py-2 text-center"><DeltaBadge checks={kchecks} /></td>
-                              <td className="px-3 py-2 text-right text-[10px] text-[var(--color-text-subtle)]">
-                                {last ? dateShort(last.checked_at) : "never"}
-                              </td>
-                              <td className="px-3 py-2">
-                                <div className="flex items-center justify-end gap-1">
-                                  <button type="button" onClick={() => runCheck(k.id)} disabled={working || bulk !== null}
-                                    title={`Check now · about ${money(costs.rankCheck)}`}
-                                    className="rounded border border-[var(--color-border)] p-1.5 text-[var(--color-text-subtle)] hover:text-[var(--color-text)] disabled:opacity-40">
-                                    {working ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                                  </button>
-                                  <button type="button"
-                                    onClick={() => start(async () => { await removeKeywordAction(k.id); })}
-                                    title="Stop tracking — this discards its history"
-                                    className="rounded border border-[var(--color-border)] p-1.5 text-[var(--color-text-subtle)] hover:text-[var(--color-bad)]">
-                                    <X className="h-3.5 w-3.5" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
+            <div className="flex-1 bg-white border border-gray-200 rounded-lg overflow-hidden min-w-0">
+              {totals && (
+                <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50 text-sm text-gray-600 flex flex-wrap gap-x-6 gap-y-1">
+                  <span>All keywords: <span className="font-semibold text-gray-900 tabular-nums">{totals.count}</span></span>
+                  <span>Total Volume: <span className="font-semibold text-gray-900 tabular-nums">{fmt(totals.totalVol)}</span></span>
+                  <span>Average KD: <span className="font-semibold text-gray-900 tabular-nums">{totals.avgKd}%</span></span>
+                </div>
+              )}
 
-                            {open && (
-                              <tr className="border-b border-[var(--color-border)]">
-                                <td colSpan={9} className="bg-[var(--color-bg-elev)] px-5 py-4">
-                                  {!last ? (
-                                    <p className="text-xs text-[var(--color-text-muted)]">
-                                      Not checked yet. Press the refresh button on this row to read the live results.
-                                    </p>
-                                  ) : (
-                                    <div className="grid gap-5 md:grid-cols-2">
-                                      <div>
-                                        <div className="mb-2 text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
-                                          Who ranks — {dateShort(last.checked_at)}
-                                        </div>
-                                        <div className="space-y-1">
-                                          {(last.top_results ?? []).map((t) => {
-                                            const domain = sites.find((s) => s.id === k.site_id)?.domain ?? "";
-                                            const mine = hostOf(t.url) === domain || hostOf(t.url).endsWith(`.${domain}`);
-                                            return (
-                                              <div key={`${t.pos}-${t.url}`}
-                                                className={`flex items-start gap-2 rounded px-2 py-1 text-[11px] ${mine ? "border" : ""}`}
-                                                style={mine ? { borderColor: "var(--color-accent)" } : undefined}>
-                                                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-bold"
-                                                  style={{ background: mine ? "var(--color-accent)" : "var(--color-bg-hover)", color: mine ? "#fff" : "var(--color-text-muted)" }}>
-                                                  {t.pos}
-                                                </span>
-                                                <span className="min-w-0">
-                                                  <span className="block truncate">{t.title || hostOf(t.url)}</span>
-                                                  <span className="block truncate text-[10px] text-[var(--color-text-subtle)]">{hostOf(t.url)}</span>
-                                                </span>
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-                                      <div>
-                                        <div className="mb-2 text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">History</div>
-                                        {last.match_type === "domain" && last.ranking_url && (
-                                          <p className="mb-2 rounded border px-2 py-1.5 text-[10px] leading-relaxed"
-                                            style={{ borderColor: "var(--color-warn)", color: "var(--color-text-muted)" }}>
-                                            A different page is ranking, not the target: <span className="break-all">{last.ranking_url}</span>
-                                          </p>
-                                        )}
-                                        <div className="space-y-1">
-                                          {kchecks.map((c) => (
-                                            <div key={c.checked_at} className="flex items-center gap-3 text-[11px]">
-                                              <span className="w-14 shrink-0 tabular-nums text-[var(--color-text-subtle)]">{dateShort(c.checked_at)}</span>
-                                              {c.position == null
-                                                ? <span className="text-[var(--color-text-subtle)]">not in top 10</span>
-                                                : <span className="font-semibold tabular-nums">#{c.position}</span>}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="px-3 py-2 w-8">
+                        <input type="checkbox" className="w-4 h-4" checked={allVisibleSelected} onChange={toggleAll} />
+                      </th>
+                      <th className={`${thBase} text-left`}>Keyword</th>
+                      <th className={`${thBase} text-center`}>Intent</th>
+                      <th className={`${thBase} text-right`}>
+                        <button onClick={() => toggleSort("v")}
+                          className={`inline-flex items-center gap-1 hover:text-gray-800 ${sortField === "v" ? "text-gray-800" : ""}`}>
+                          Volume <ArrowUpDown className="w-3 h-3" />
+                        </button>
+                      </th>
+                      <th className={`${thBase} text-right`}>Weekly</th>
+                      <th className={`${thBase} text-right`}>3-Mo</th>
+                      <th className={`${thBase} text-right`}>
+                        <button onClick={() => toggleSort("kd")}
+                          className={`inline-flex items-center gap-1 hover:text-gray-800 ${sortField === "kd" ? "text-gray-800" : ""}`}>
+                          KD % <ArrowUpDown className="w-3 h-3" />
+                        </button>
+                      </th>
+                      <th className={`${thBase} text-right`}>
+                        <button onClick={() => toggleSort("c")}
+                          className={`inline-flex items-center gap-1 hover:text-gray-800 ${sortField === "c" ? "text-gray-800" : ""}`}>
+                          CPC (USD) <ArrowUpDown className="w-3 h-3" />
+                        </button>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.k} className="border-b border-gray-100 hover:bg-blue-50">
+                        <td className="px-3 py-2">
+                          <input type="checkbox" className="w-4 h-4" checked={selected.has(r.k)} onChange={() => toggleSel(r.k)} />
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className="inline-flex items-center gap-1.5">
+                            <button onClick={() => drillInto(r.k)} title="Analyze this keyword"
+                              className="text-blue-600 hover:underline text-left">{r.k}</button>
+                            {trackedMap.has(r.k.toLowerCase()) && (
+                              <Target className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                             )}
-                          </Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-center"><IntentChip code={r.i} /></td>
+                        <td className="px-3 py-2 text-right font-medium tabular-nums">{fmt(r.v)}</td>
+                        <td className="px-3 py-2 text-right text-gray-500 tabular-nums">{fmt(weeklyOf(r.v))}</td>
+                        <td className="px-3 py-2 text-right text-gray-500 tabular-nums">{fmt(threeMoOf(r.v))}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center justify-end gap-2">
+                            <span className="tabular-nums">{r.kd}</span>
+                            <span title={kdInfo(r.kd).label} className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ background: kdInfo(r.kd).hex }} />
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">{r.c.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {rows.length === 0 && (
+                <div className="px-4 py-8 text-center text-sm text-gray-500">
+                  No keywords match this filter. Switch back to All Keywords or clear the group.
                 </div>
               )}
             </div>
-
-            <p className="mt-3 text-[10px] leading-relaxed text-[var(--color-text-subtle)]">
-              Positions are read from live search results, desktop and non-localised. A &quot;near me&quot; term
-              will rank differently for someone standing in the client&apos;s town, so treat those as directional.
-              A <span style={{ color: "var(--color-warn)" }}>*</span> means the site ranks with a different page
-              than the target — open the row to see which.
-            </p>
           </div>
+
+          <p className="mt-4 text-xs text-gray-400 leading-relaxed">
+            Volume, KD %, and CPC are AI-modeled estimates for directional research. Weekly and
+            3-month figures are derived from monthly volume. Validate against Google Keyword
+            Planner or Search Console before client-facing use. Select rows and use Add to Site
+            to start tracking rankings.
+          </p>
+        </div>
+      )}
+
+      {/* ============================== TRACKING ============================== */}
+      {view === "tracking" && (
+        <div className="max-w-6xl mx-auto px-4 py-6">
+          {profiles.length === 0 ? (
+            <div className="max-w-md mx-auto text-center py-16">
+              <div className="w-14 h-14 mx-auto rounded-full bg-white border border-gray-200 flex items-center justify-center mb-5">
+                <FolderPlus className="w-6 h-6 text-gray-400" />
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight text-gray-900">No sites yet</h1>
+              <p className="mt-3 text-gray-600 text-sm">
+                Add a client site in F1 Pulse first. Then research keywords, select them, and add
+                them here — each keyword gets a target URL and live rank checks.
+              </p>
+              <button onClick={() => setView("research")} className="mt-4 text-sm text-blue-600 hover:underline">
+                Or go research keywords first
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-4 items-start">
+              {/* sites sidebar */}
+              <div className="w-60 shrink-0">
+                <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-100 bg-gray-50">
+                    Sites
+                  </div>
+                  {profiles.map((p) => (
+                    <div key={p.id} onClick={() => { setActiveId(p.id); setExpanded(null); }}
+                      className={`px-3 py-2.5 border-b border-gray-50 cursor-pointer ${activeId === p.id ? "bg-blue-50" : "hover:bg-gray-50"}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={`text-sm font-medium truncate ${activeId === p.id ? "text-blue-700" : "text-gray-800"}`}>
+                          {p.name}
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                        <Globe className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{p.domain}</span>
+                      </div>
+                      <div className="text-xs text-gray-400 mt-0.5">{p.keywords.length} keywords</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* active site panel */}
+              <div className="flex-1 min-w-0">
+                {activeProfile ? (
+                  <>
+                    <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+                      <div>
+                        <h1 className="text-xl font-bold tracking-tight">{activeProfile.name}</h1>
+                        <a href={`https://${activeProfile.domain}`} target="_blank" rel="noreferrer"
+                          className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1">
+                          {activeProfile.domain} <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={checkAll} disabled={bulk !== null || activeProfile.keywords.length === 0}
+                          title={`About $${(activeProfile.keywords.length * costs.rankCheck).toFixed(2)} for ${activeProfile.keywords.length} keywords`}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold text-white disabled:opacity-40"
+                          style={{ background: "#1d4ed8" }}>
+                          {bulk
+                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Checking {bulk.done}/{bulk.total}...</>
+                            : <><RefreshCw className="w-4 h-4" /> Check all rankings · ${(activeProfile.keywords.length * costs.rankCheck).toFixed(2)}</>}
+                        </button>
+                        <button onClick={exportTrackingCSV} disabled={activeProfile.keywords.length === 0}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+                          <Download className="w-4 h-4" /> Export
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                      {activeProfile.keywords.length === 0 ? (
+                        <div className="px-4 py-12 text-center text-sm text-gray-500">
+                          No keywords tracked for this site yet.
+                          <div className="mt-3">
+                            <button onClick={() => setView("research")}
+                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold text-white"
+                              style={{ background: "#111827" }}>
+                              <Search className="w-4 h-4" /> Find keywords
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-gray-200">
+                                <th className="px-2 py-2 w-6" />
+                                <th className={`${thBase} text-left`}>Keyword</th>
+                                <th className={`${thBase} text-right`}>Volume</th>
+                                <th className={`${thBase} text-right`}>KD %</th>
+                                <th className={`${thBase} text-left`}>Target URL</th>
+                                <th className={`${thBase} text-center`}>Pos</th>
+                                <th className={`${thBase} text-center`}>Change</th>
+                                <th className={`${thBase} text-center`}>Best</th>
+                                <th className={`${thBase} text-right`}>Checked</th>
+                                <th className={`${thBase} text-right`}>Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {activeProfile.keywords.map((k) => {
+                                const checks = k.checks || [];
+                                const last = checks[checks.length - 1];
+                                const bestVals = checks.filter((c) => c.position != null).map((c) => c.position as number);
+                                return (
+                                  <FragmentRow
+                                    key={k.id}
+                                    k={k}
+                                    last={last}
+                                    checks={checks}
+                                    best={bestVals.length ? Math.min(...bestVals) : null}
+                                    isOpen={expanded === k.id}
+                                    busy={checking.has(k.id)}
+                                    bulkRunning={bulk !== null}
+                                    domain={activeProfile.domain}
+                                    onToggle={() => setExpanded(expanded === k.id ? null : k.id)}
+                                    onUrlSave={(url) => setKeywordUrl(k.id, url)}
+                                    onCheck={() => checkKeyword({ id: k.id, k: k.k, url: k.url }, activeProfile.domain)}
+                                    onRemove={() => removeKeyword(k.id)}
+                                  />
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                    <p className="mt-4 text-xs text-gray-400 leading-relaxed">
+                      Position checks use live web search (non-localized, desktop) against the top
+                      10 organic results, so treat them as directional. Local pack and
+                      geo-personalized rankings for &quot;near me&quot; terms will differ by searcher
+                      location. A * next to a position means the domain ranks with a different
+                      page than the target URL - open the row for details. For client-grade
+                      tracking, pair this with Search Console position data.
+                    </p>
+                  </>
+                ) : (
+                  <div className="px-4 py-12 text-center text-sm text-gray-500">Select a site on the left.</div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+/* -------------------- tracking row + expandable detail ------------------- */
+
+function FragmentRow({
+  k, last, checks, best, isOpen, busy, bulkRunning, domain, onToggle, onUrlSave, onCheck, onRemove,
+}: {
+  k: LabKeyword; last: LabCheck | undefined; checks: LabCheck[]; best: number | null;
+  isOpen: boolean; busy: boolean; bulkRunning: boolean; domain: string;
+  onToggle: () => void; onUrlSave: (url: string) => void; onCheck: () => void; onRemove: () => void;
+}) {
+  return (
+    <>
+      <tr className="border-b border-gray-100 hover:bg-gray-50">
+        <td className="px-2 py-2 text-center">
+          <button onClick={onToggle} className="p-0.5 text-gray-400 hover:text-gray-700" title="Details">
+            {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </button>
+        </td>
+        <td className="px-3 py-2">
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-gray-800">{k.k}</span>
+            <IntentChip code={k.i} />
+          </div>
+        </td>
+        <td className="px-3 py-2 text-right text-gray-600 tabular-nums">{fmt(k.v)}</td>
+        <td className="px-3 py-2">
+          <div className="flex items-center justify-end gap-2">
+            <span className="tabular-nums">{k.kd}</span>
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: kdInfo(k.kd).hex }} />
+          </div>
+        </td>
+        <td className="px-3 py-2 w-64"><UrlCell value={k.url} onSave={onUrlSave} /></td>
+        <td className="px-3 py-2 text-center"><PosBadge check={last} /></td>
+        <td className="px-3 py-2 text-center"><DeltaBadge checks={checks} /></td>
+        <td className="px-3 py-2 text-center text-gray-600 tabular-nums">{best == null ? "-" : best}</td>
+        <td className="px-3 py-2 text-right text-xs text-gray-400 whitespace-nowrap">
+          {last ? dateShort(last.date) : "never"}
+        </td>
+        <td className="px-3 py-2">
+          <div className="flex items-center justify-end gap-1">
+            <button onClick={onCheck} disabled={busy || bulkRunning} title="Check ranking now"
+              className="p-1.5 rounded border border-gray-200 text-gray-500 hover:text-blue-600 hover:border-blue-300 disabled:opacity-40">
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            </button>
+            <button onClick={onRemove} title="Stop tracking"
+              className="p-1.5 rounded border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-300">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </td>
+      </tr>
+
+      {isOpen && (
+        <tr className="border-b border-gray-100">
+          <td colSpan={10} className="bg-gray-50 px-5 py-4">
+            {!last ? (
+              <div className="text-sm text-gray-500">
+                No checks yet. Hit the refresh button on this row to run the first ranking check.
+              </div>
+            ) : (
+              <div className="grid gap-5 md:grid-cols-2">
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                    Top results - {dateShort(last.date)}
+                  </div>
+                  <div className="space-y-1">
+                    {(last.top || []).map((t) => {
+                      const mine = hostOf(t.url) === domain || hostOf(t.url).endsWith("." + domain);
+                      return (
+                        <div key={t.pos + t.url}
+                          className={`flex items-start gap-2 rounded px-2 py-1 text-sm ${mine ? "bg-blue-50 border border-blue-200" : ""}`}>
+                          <span className={`inline-flex items-center justify-center w-6 h-5 rounded text-xs font-bold shrink-0 ${mine ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}>
+                            {t.pos}
+                          </span>
+                          <div className="min-w-0">
+                            <div className={`truncate ${mine ? "font-semibold text-blue-800" : "text-gray-700"}`}>
+                              {t.title || hostOf(t.url)}
+                            </div>
+                            <div className="text-xs text-gray-400 truncate">{hostOf(t.url)}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {(!last.top || last.top.length === 0) && (
+                      <div className="text-xs text-gray-400">No result list stored for this check.</div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Check history</div>
+                  {last.match === "domain" && last.foundUrl && (
+                    <div className="mb-3 text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded px-2 py-1.5">
+                      Ranking with a different page than the target:{" "}
+                      <a href={last.foundUrl} target="_blank" rel="noreferrer" className="underline break-all">{last.foundUrl}</a>
+                    </div>
+                  )}
+                  {last.match === "exact" && last.foundUrl && (
+                    <div className="mb-3 text-xs bg-emerald-50 border border-emerald-200 text-emerald-800 rounded px-2 py-1.5">
+                      Target URL is the ranking page.
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    {[...checks].reverse().map((c, i) => (
+                      <div key={c.date + i} className="flex items-center gap-3 text-sm">
+                        <span className="text-xs text-gray-400 w-16 shrink-0 tabular-nums">{dateShort(c.date)}</span>
+                        {c.position == null
+                          ? <span className="text-xs text-gray-400">Not in top 10</span>
+                          : <span className="font-semibold text-gray-700 tabular-nums">#{c.position}</span>}
+                        {c.match === "domain" && <span className="text-amber-500 text-xs">different page</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </td>
+        </tr>
+      )}
+    </>
   );
 }

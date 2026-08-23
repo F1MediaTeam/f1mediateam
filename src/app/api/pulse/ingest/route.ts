@@ -226,6 +226,29 @@ export async function POST(request: NextRequest) {
       return OK();
     }
 
+    // What the visitor ran into: a broken script, a dead page, a dead click,
+    // or a page that was slow on their actual device. Untrusted like every
+    // other field here — capped, typed, and never reflected back.
+    if (kind === "sg") {
+      const SIGNALS = ["js_error", "not_found", "rage_click", "scroll_depth", "slow_page"];
+      const signalKind = str(body.s, 20);
+      if (!signalKind || !SIGNALS.includes(signalKind)) return OK();
+
+      const rawValue = typeof body.n === "number" && Number.isFinite(body.n) ? body.n : null;
+      await supabase.from("pulse_signals").insert({
+        site_id: site.id,
+        path,
+        kind: signalKind,
+        detail: str(body.d, 300),
+        // Clamped rather than trusted: this arrives from a page we do not
+        // control, and an absurd number would otherwise poison every average
+        // computed from this column.
+        value: rawValue === null ? null : Math.max(0, Math.min(rawValue, 3_600_000)),
+        session_hash: session,
+      });
+      return OK();
+    }
+
     if (kind === "end") {
       const engagement = typeof body.e === "number" && body.e >= 0 ? Math.round(body.e) : null;
       if (engagement !== null) {
@@ -246,6 +269,20 @@ export async function POST(request: NextRequest) {
             .update({ engagement_ms: Math.min(engagement, 1_800_000) })
             .eq("id", row.id);
         }
+      }
+
+      // How far down the page they got. Only recorded when the page was long
+      // enough to scroll — the tag sends 0 for a short page, and averaging
+      // those in would report every site as unread.
+      const scroll = typeof body.m === "number" ? Math.round(body.m) : 0;
+      if (scroll > 0) {
+        await supabase.from("pulse_signals").insert({
+          site_id: site.id,
+          path,
+          kind: "scroll_depth",
+          value: Math.max(0, Math.min(scroll, 100)),
+          session_hash: session,
+        });
       }
 
       const vitals = body.v;

@@ -29,6 +29,7 @@ import {
   type Range,
 } from "@/lib/pulse/dashboard";
 import PulseHeader from "@/components/admin/pulse/PulseHeader";
+import { signalsPanel } from "@/lib/pulse/signals";
 import PullReportButton from "@/components/admin/pulse/PullReportButton";
 import RefreshButton from "@/components/admin/pulse/RefreshButton";
 import Sparkline from "@/components/admin/pulse/Sparkline";
@@ -47,7 +48,7 @@ import { installGuide, PRIVACY_SENTENCE, locationLabels } from "@/lib/pulse/onbo
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["traffic", "rankings", "backlinks", "ai", "health", "index", "opportunities", "competitors", "local", "search", "setup"] as const;
+const TABS = ["traffic", "rankings", "backlinks", "ai", "health", "visitors", "index", "opportunities", "competitors", "local", "search", "setup"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
   traffic: "Traffic",
@@ -55,6 +56,7 @@ const TAB_LABEL: Record<Tab, string> = {
   backlinks: "Backlinks",
   ai: "AI visibility",
   health: "Site health",
+  visitors: "Visitor issues",
   index: "Index health",
   opportunities: "Opportunities",
   competitors: "Competitors",
@@ -104,6 +106,46 @@ function Panel({
         {right}
       </div>
       {children}
+    </div>
+  );
+}
+
+/** The four incident lists share a shape: where, what, how often, how many people. */
+function SignalTable({
+  rows,
+  detailLabel,
+}: {
+  rows: Array<{ path: string; detail: string | null; count: number; people: number; lastSeen: string }>;
+  detailLabel: string;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[40rem] text-sm">
+        <thead>
+          <tr className="text-left text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
+            <th className="pb-2 pr-3 font-medium">Page</th>
+            <th className="pb-2 pr-3 font-medium">{detailLabel}</th>
+            <th className="pb-2 pr-3 font-medium">Times</th>
+            <th className="pb-2 font-medium">People</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={`${r.path}|${r.detail ?? ""}`} className="border-t border-[var(--color-border)]">
+              <td className="py-2 pr-3">
+                <span className="block max-w-[16rem] truncate text-xs">{r.path}</span>
+              </td>
+              <td className="py-2 pr-3">
+                <span className="block max-w-[22rem] truncate text-xs text-[var(--color-text-muted)]">
+                  {r.detail ?? "—"}
+                </span>
+              </td>
+              <td className="py-2 pr-3 tabular-nums">{r.count}</td>
+              <td className="py-2 tabular-nums text-[var(--color-text-muted)]">{r.people}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -189,6 +231,7 @@ export default async function PulseSitePage({
   const referrals =
     tab === "backlinks" || tab === "ai" ? await referralPanel(siteId, site.domain) : null;
   const indexHealth = tab === "index" ? await indexPanel(siteId) : null;
+  const signals = tab === "visitors" ? await signalsPanel(siteId) : null;
 
   const tabHref = (t: Tab) => `/admin/pulse/${siteId}?tab=${t}${t === "traffic" ? `&range=${range}` : ""}`;
 
@@ -913,6 +956,191 @@ export default async function PulseSitePage({
                 </div>
               )}
             </Panel>
+          </div>
+        ) : null}
+
+        {/* ---------------- Visitor issues ---------------- */}
+        {tab === "visitors" && signals ? (
+          <div className="space-y-4">
+            <Panel
+              title="What real visitors ran into"
+              right={
+                <span className="text-[10px] text-[var(--color-text-subtle)]">
+                  last {signals.windowDays} days · measured
+                </span>
+              }
+            >
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                Reported by the tag on this site, from people who were actually on it. A crawler
+                tells you what exists and Google tells you what it indexed — only this tells you
+                what happened to the person who showed up. Nothing here is estimated.
+              </p>
+              {signals.noData ? (
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Nothing reported yet. Either the tag has not been installed, or nobody has hit a
+                  problem since it was — the two look the same from here, so check the Setup tab
+                  if the site has traffic.
+                </p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Headline label="Script errors" value={signals.totals.errors} now={signals.totals.errors} before={0} />
+                  <Headline label="Dead pages hit" value={signals.totals.notFound} now={signals.totals.notFound} before={0} />
+                  <Headline label="Dead clicks" value={signals.totals.rageClicks} now={signals.totals.rageClicks} before={0} />
+                  <Headline label="Slow loads" value={signals.totals.slowPages} now={signals.totals.slowPages} before={0} />
+                </div>
+              )}
+            </Panel>
+
+            {signals.errors.length > 0 ? (
+              <Panel title="Their site is throwing errors">
+                <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                  Script errors on real visits. These break buttons, forms and checkouts, and a
+                  client almost never finds them on their own — their browser works.
+                </p>
+                <SignalTable rows={signals.errors} detailLabel="Error" />
+              </Panel>
+            ) : null}
+
+            {signals.notFound.length > 0 ? (
+              <Panel title="Dead pages people actually reached">
+                <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                  Someone landed on a page that does not exist. A crawl can never find these — it
+                  follows the sitemap, and these come from old links out on the web. The detail
+                  column is where they came from, which is usually the thing worth fixing.
+                </p>
+                <SignalTable rows={signals.notFound} detailLabel="Came from" />
+              </Panel>
+            ) : null}
+
+            {signals.rageClicks.length > 0 ? (
+              <Panel title="Things that look clickable and are not">
+                <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                  Three clicks in the same spot inside half a second. People do that when they
+                  expect something to happen and nothing does.
+                </p>
+                <SignalTable rows={signals.rageClicks} detailLabel="Element" />
+              </Panel>
+            ) : null}
+
+            {signals.slowPages.length > 0 ? (
+              <Panel title="Slow for real people">
+                <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                  Pages that took over four seconds to show their main content on a visitor&rsquo;s
+                  own device. A speed test measures a robot in a datacentre; this measures customers.
+                </p>
+                <SignalTable rows={signals.slowPages} detailLabel="Metric" />
+              </Panel>
+            ) : null}
+
+            {signals.scroll.length > 0 ? (
+              <Panel title="How far down people actually get">
+                <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                  The median visitor on each page, so one parked tab cannot report a page as fully
+                  read. A low number on a long page means the content below is not being seen.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[30rem] text-sm">
+                    <thead>
+                      <tr className="text-left text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
+                        <th className="pb-2 pr-3 font-medium">Page</th>
+                        <th className="pb-2 pr-3 font-medium">Median scroll</th>
+                        <th className="pb-2 font-medium">Views</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {signals.scroll.map((r) => (
+                        <tr key={r.path} className="border-t border-[var(--color-border)]">
+                          <td className="py-2 pr-3">
+                            <span className="block max-w-[22rem] truncate text-xs">{r.path}</span>
+                          </td>
+                          <td className="py-2 pr-3 tabular-nums">{r.median}%</td>
+                          <td className="py-2 tabular-nums text-[var(--color-text-muted)]">{r.views}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Panel>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* ---------------- Visitor issues ---------------- */}
+        {tab === "visitors" && signals ? (
+          <div className="space-y-4">
+            <Panel
+              title="What real visitors ran into"
+              right={<span className="text-[10px] text-[var(--color-text-subtle)]">last {signals.windowDays} days · measured</span>}
+            >
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                Reported by the tag on this site, from people who were actually on it. A crawler
+                tells you what exists and Google tells you what it indexed — only this tells you
+                what happened to the person who showed up.
+              </p>
+              {signals.noData ? (
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Nothing reported yet. Either nobody has hit a problem, or the tag is not
+                  installed — those look identical from here, so check Setup if the site has traffic.
+                </p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div><div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">Script errors</div><div className="mt-1 text-2xl font-semibold tabular-nums">{signals.totals.errors}</div></div>
+                  <div><div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">Dead pages hit</div><div className="mt-1 text-2xl font-semibold tabular-nums">{signals.totals.notFound}</div></div>
+                  <div><div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">Dead clicks</div><div className="mt-1 text-2xl font-semibold tabular-nums">{signals.totals.rageClicks}</div></div>
+                  <div><div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">Slow loads</div><div className="mt-1 text-2xl font-semibold tabular-nums">{signals.totals.slowPages}</div></div>
+                </div>
+              )}
+            </Panel>
+
+            {signals.errors.length > 0 ? (
+              <Panel title="Their site is throwing errors">
+                <p className="mb-3 text-xs text-[var(--color-text-muted)]">These break buttons, forms and checkouts. A client rarely finds them — their own browser works.</p>
+                <SignalTable rows={signals.errors} detailLabel="Error" />
+              </Panel>
+            ) : null}
+
+            {signals.notFound.length > 0 ? (
+              <Panel title="Dead pages people actually reached">
+                <p className="mb-3 text-xs text-[var(--color-text-muted)]">A crawl can never find these — it follows the sitemap, and these come from old links out on the web.</p>
+                <SignalTable rows={signals.notFound} detailLabel="Came from" />
+              </Panel>
+            ) : null}
+
+            {signals.rageClicks.length > 0 ? (
+              <Panel title="Things that look clickable and are not">
+                <p className="mb-3 text-xs text-[var(--color-text-muted)]">Three clicks in the same spot inside half a second.</p>
+                <SignalTable rows={signals.rageClicks} detailLabel="Element" />
+              </Panel>
+            ) : null}
+
+            {signals.slowPages.length > 0 ? (
+              <Panel title="Slow for real people">
+                <p className="mb-3 text-xs text-[var(--color-text-muted)]">Over four seconds to show the main content, on a visitor&rsquo;s own device.</p>
+                <SignalTable rows={signals.slowPages} detailLabel="Metric" />
+              </Panel>
+            ) : null}
+
+            {signals.scroll.length > 0 ? (
+              <Panel title="How far down people actually get">
+                <p className="mb-3 text-xs text-[var(--color-text-muted)]">Median visitor per page, so one parked tab cannot report a page as fully read.</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[30rem] text-sm">
+                    <thead><tr className="text-left text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
+                      <th className="pb-2 pr-3 font-medium">Page</th><th className="pb-2 pr-3 font-medium">Median scroll</th><th className="pb-2 font-medium">Views</th>
+                    </tr></thead>
+                    <tbody>
+                      {signals.scroll.map((r) => (
+                        <tr key={r.path} className="border-t border-[var(--color-border)]">
+                          <td className="py-2 pr-3"><span className="block max-w-[22rem] truncate text-xs">{r.path}</span></td>
+                          <td className="py-2 pr-3 tabular-nums">{r.median}%</td>
+                          <td className="py-2 tabular-nums text-[var(--color-text-muted)]">{r.views}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Panel>
+            ) : null}
           </div>
         ) : null}
 

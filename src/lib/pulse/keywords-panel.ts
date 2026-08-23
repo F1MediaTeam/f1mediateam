@@ -51,7 +51,11 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
       .select("id, phrase, target_url, volume, intent")
       .eq("site_id", siteId)
       .eq("is_active", true),
-    supabase.from("pulse_sites").select("gsc_connected").eq("id", siteId).maybeSingle(),
+    // Whether Search Console is connected is a fact about the CLIENT, not a
+    // flag on the site row. pulse_sites.gsc_connected was added for the Index
+    // Inspector and nothing has ever set it, so reading it made the panel
+    // announce "not connected" over a table of 956 measured keywords.
+    supabase.from("pulse_sites").select("client_id").eq("id", siteId).maybeSingle(),
     // Which page Google actually ranks for each query, newest window first.
     supabase
       .from("pulse_search_terms")
@@ -187,6 +191,18 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
     };
   });
 
+  const clientId = (site as { client_id: string } | null)?.client_id ?? null;
+  let gscConnected = false;
+  if (clientId) {
+    const { data: token } = await supabase
+      .from("connector_tokens")
+      .select("id")
+      .eq("client_id", clientId)
+      .eq("provider", "gsc")
+      .maybeSingle();
+    gscConnected = Boolean(token);
+  }
+
   return {
     tracked,
     ranking,
@@ -200,6 +216,6 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
       clicks: ranking.reduce((s, r) => s + r.clicks, 0),
     },
     lastUpdated,
-    gscConnected: Boolean((site as { gsc_connected?: boolean } | null)?.gsc_connected),
+    gscConnected,
   };
 }

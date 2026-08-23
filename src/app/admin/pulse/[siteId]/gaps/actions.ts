@@ -38,3 +38,76 @@ export async function trackGapAction(formData: FormData): Promise<void> {
   await trackGap(siteId, phrase);
   revalidatePath(`/admin/pulse/${siteId}`);
 }
+
+/** Add one keyword by hand, with the page it should rank. */
+export async function addTrackedAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const siteId = String(formData.get("siteId") ?? "");
+  const phrase = String(formData.get("phrase") ?? "").trim();
+  if (!siteId || !phrase) return;
+
+  const { createServiceClient } = await import("@/lib/supabase/server");
+  const supabase = await createServiceClient();
+  const { data: site } = await supabase.from("pulse_sites").select("domain").eq("id", siteId).maybeSingle();
+  const domain = (site as { domain: string } | null)?.domain ?? "";
+
+  const raw = String(formData.get("targetUrl") ?? "").trim();
+  const target = !raw
+    ? `https://${domain}/`
+    : raw.startsWith("/")
+      ? `https://${domain}${raw}`
+      : /^https?:\/\//i.test(raw)
+        ? raw
+        : `https://${raw}`;
+
+  await supabase.from("pulse_keywords").upsert(
+    {
+      site_id: siteId,
+      phrase: phrase.slice(0, 200),
+      location_code: 2840,
+      device: "desktop",
+      is_active: true,
+      target_url: target,
+      metrics_source: "measured",
+    },
+    { onConflict: "site_id,phrase,location_code,device" },
+  );
+  revalidatePath(`/admin/pulse/${siteId}`);
+}
+
+/** Change which page a tracked keyword is meant to rank. */
+export async function setTargetAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const siteId = String(formData.get("siteId") ?? "");
+  const keywordId = String(formData.get("keywordId") ?? "");
+  const raw = String(formData.get("targetUrl") ?? "").trim();
+  if (!siteId || !keywordId) return;
+
+  const { createServiceClient } = await import("@/lib/supabase/server");
+  const supabase = await createServiceClient();
+  const { data: site } = await supabase.from("pulse_sites").select("domain").eq("id", siteId).maybeSingle();
+  const domain = (site as { domain: string } | null)?.domain ?? "";
+
+  const target = !raw
+    ? null
+    : raw.startsWith("/")
+      ? `https://${domain}${raw}`
+      : /^https?:\/\//i.test(raw)
+        ? raw
+        : `https://${raw}`;
+
+  await supabase.from("pulse_keywords").update({ target_url: target }).eq("id", keywordId);
+  revalidatePath(`/admin/pulse/${siteId}`);
+}
+
+/** Stop working on a keyword. Kept rather than deleted, so history survives. */
+export async function untrackAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const siteId = String(formData.get("siteId") ?? "");
+  const keywordId = String(formData.get("keywordId") ?? "");
+  if (!siteId || !keywordId) return;
+  const { createServiceClient } = await import("@/lib/supabase/server");
+  const supabase = await createServiceClient();
+  await supabase.from("pulse_keywords").update({ is_active: false }).eq("id", keywordId);
+  revalidatePath(`/admin/pulse/${siteId}`);
+}

@@ -34,6 +34,7 @@ import { keywordsPanel } from "@/lib/pulse/keywords-panel";
 import { livePanel } from "@/lib/pulse/live";
 import { findOpportunities } from "@/lib/pulse/keyword-gaps";
 import KeywordGaps from "@/components/admin/pulse/KeywordGaps";
+import TrackedKeywords from "@/components/admin/pulse/TrackedKeywords";
 import KeywordsPanel from "@/components/admin/pulse/KeywordsPanel";
 import PullReportButton from "@/components/admin/pulse/PullReportButton";
 import RefreshButton from "@/components/admin/pulse/RefreshButton";
@@ -1098,6 +1099,18 @@ export default async function PulseSitePage({
                 <KeywordsPanel data={keywords} domain={site.domain} />
               </Panel>
             ) : null}
+
+            <Panel
+              title="Keywords we're working on"
+              right={<span className="text-[10px] text-[var(--color-text-subtle)]">{keywords.totals.trackedCount} tracked</span>}
+            >
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                The keywords chosen for this client, each with the page it is meant to rank. Separate
+                from the full list below, which is everything Google happens to show this site for —
+                this is the deliberate part, and the part worth showing a client.
+              </p>
+              <TrackedKeywords siteId={siteId} domain={site.domain} tracked={keywords.tracked} />
+            </Panel>
 
             {kwOpportunities.length > 0 ? (
               <Panel

@@ -30,6 +30,8 @@ import {
 } from "@/lib/pulse/dashboard";
 import PulseHeader from "@/components/admin/pulse/PulseHeader";
 import { signalsPanel } from "@/lib/pulse/signals";
+import { keywordsPanel } from "@/lib/pulse/keywords-panel";
+import KeywordsPanel from "@/components/admin/pulse/KeywordsPanel";
 import PullReportButton from "@/components/admin/pulse/PullReportButton";
 import RefreshButton from "@/components/admin/pulse/RefreshButton";
 import Sparkline from "@/components/admin/pulse/Sparkline";
@@ -48,11 +50,12 @@ import { installGuide, PRIVACY_SENTENCE, locationLabels } from "@/lib/pulse/onbo
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["traffic", "rankings", "backlinks", "ai", "health", "visitors", "index", "opportunities", "competitors", "local", "search", "setup"] as const;
+const TABS = ["traffic", "rankings", "keywords", "backlinks", "ai", "health", "visitors", "index", "opportunities", "competitors", "local", "search", "setup"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
   traffic: "Traffic",
   rankings: "Rankings",
+  keywords: "Keyword Lab",
   backlinks: "Backlinks",
   ai: "AI visibility",
   health: "Site health",
@@ -232,6 +235,7 @@ export default async function PulseSitePage({
     tab === "backlinks" || tab === "ai" ? await referralPanel(siteId, site.domain) : null;
   const indexHealth = tab === "index" ? await indexPanel(siteId) : null;
   const signals = tab === "visitors" ? await signalsPanel(siteId) : null;
+  const keywords = tab === "keywords" ? await keywordsPanel(siteId) : null;
 
   const tabHref = (t: Tab) => `/admin/pulse/${siteId}?tab=${t}${t === "traffic" ? `&range=${range}` : ""}`;
 
@@ -956,6 +960,88 @@ export default async function PulseSitePage({
                 </div>
               )}
             </Panel>
+          </div>
+        ) : null}
+
+        {/* ---------------- Keyword Lab ---------------- */}
+        {tab === "keywords" && keywords ? (
+          <div className="space-y-4">
+            <Panel
+              title="Every keyword this site appears for"
+              right={
+                <span className="text-[10px] text-[var(--color-text-subtle)]">
+                  last 28 days · Google-measured
+                </span>
+              }
+            >
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                Search Console&rsquo;s own record of the searches this site showed up for, and where
+                it ranked, down past position 90. Nothing here is estimated and nothing is bought —
+                these are Google&rsquo;s figures for this client&rsquo;s own property.
+              </p>
+              {!keywords.gscConnected ? (
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Search Console is not connected for this site, so there is nothing to show. Connect
+                  it on the Setup tab.
+                </p>
+              ) : keywords.totals.rankingCount === 0 ? (
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Connected, but no query data has arrived yet. Search Console runs about two days
+                  behind, and a new property can take longer.
+                </p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  <div><div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">Keywords</div><div className="mt-1 text-2xl font-semibold tabular-nums">{keywords.totals.rankingCount.toLocaleString()}</div></div>
+                  <div><div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">Top 3</div><div className="mt-1 text-2xl font-semibold tabular-nums" style={{ color: "var(--color-up)" }}>{keywords.totals.top3}</div></div>
+                  <div><div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">Top 10</div><div className="mt-1 text-2xl font-semibold tabular-nums">{keywords.totals.top10}</div></div>
+                  <div><div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">Page 2</div><div className="mt-1 text-2xl font-semibold tabular-nums">{keywords.totals.page2}</div></div>
+                  <div><div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">Impressions</div><div className="mt-1 text-2xl font-semibold tabular-nums">{keywords.totals.impressions.toLocaleString()}</div></div>
+                  <div><div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">Clicks</div><div className="mt-1 text-2xl font-semibold tabular-nums">{keywords.totals.clicks.toLocaleString()}</div></div>
+                </div>
+              )}
+            </Panel>
+
+            {keywords.totals.rankingCount > 0 ? (
+              <Panel title="Keyword Lab">
+                <KeywordsPanel data={keywords} domain={site.domain} />
+              </Panel>
+            ) : null}
+
+            {keywords.totals.page2 > 0 ? (
+              <Panel title="Closest to the front page">
+                <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                  {keywords.totals.page2} keywords sit between position 11 and 20 — already earning
+                  impressions, just below where anybody clicks. These are usually the cheapest wins
+                  on the whole list.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[34rem] text-sm">
+                    <thead>
+                      <tr className="text-left text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
+                        <th className="pb-2 pr-3 font-medium">Keyword</th>
+                        <th className="pb-2 pr-3 font-medium">Position</th>
+                        <th className="pb-2 pr-3 font-medium">Impressions</th>
+                        <th className="pb-2 font-medium">Clicks</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {keywords.ranking
+                        .filter((r) => r.position > 10 && r.position <= 20)
+                        .sort((a, b) => b.impressions - a.impressions)
+                        .slice(0, 15)
+                        .map((r) => (
+                          <tr key={r.phrase} className="border-t border-[var(--color-border)]">
+                            <td className="py-2 pr-3"><span className="block max-w-[22rem] truncate">{r.phrase}</span></td>
+                            <td className="py-2 pr-3 tabular-nums">{r.position.toFixed(1)}</td>
+                            <td className="py-2 pr-3 tabular-nums">{r.impressions.toLocaleString()}</td>
+                            <td className="py-2 tabular-nums text-[var(--color-text-muted)]">{r.clicks}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Panel>
+            ) : null}
           </div>
         ) : null}
 

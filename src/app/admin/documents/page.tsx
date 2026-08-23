@@ -9,6 +9,7 @@
 // ?dir=<folderId> for the subfolder within it — so everything is linkable and
 // the page stays a server component.
 
+import { backfillOnboardingDocsAction } from "@/app/admin/actions";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth/session";
 import { data } from "@/lib/data";
@@ -87,6 +88,20 @@ export default async function AdminDocuments({
             Store pricing sheets, tier breakdowns, and contracts — one folder per client plus a shared
             F1 Media Team folder, with subfolders to organise inside each. Admin only.
           </p>
+          {/* Packets submitted before the two systems were connected are stored
+              where nobody looks. This files them, and does nothing on a second
+              run, so it is safe to press whenever. */}
+          <form action={backfillOnboardingDocsAction} className="mt-3">
+            <button
+              type="submit"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            >
+              File completed onboarding packets
+            </button>
+            <span className="ml-2 text-xs text-[var(--color-text-subtle)]">
+              Puts each client&rsquo;s signed packet into their On-Boarding folder. Safe to run twice.
+            </span>
+          </form>
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[240px_1fr] items-start">

@@ -936,3 +936,30 @@ export async function setAssignmentAction(input: {
   revalidatePath("/admin", "layout");
   return { error: ok ? null : "Couldn't save that assignment." };
 }
+
+/**
+ * File every submitted onboarding packet into its client's Documents library.
+ *
+ * Exists because the two systems were only introduced to each other today, so
+ * packets submitted before then are stored nowhere anybody looks. Idempotent,
+ * so it can be run whenever without producing duplicates.
+ */
+export async function backfillOnboardingDocsAction(): Promise<void> {
+  await requireAdmin();
+  const service = await createServiceClient();
+  const { data: rows } = await service.from("client_onboarding").select("client_id");
+  const { fileOnboardingIntoDocuments } = await import("@/lib/file-onboarding-doc");
+
+  for (const r of ((rows as Array<{ client_id: string }>) ?? [])) {
+    try {
+      const result = await fileOnboardingIntoDocuments(r.client_id);
+      if (!result.filed && result.reason !== "Already filed.") {
+        console.warn(`[onboarding backfill] ${r.client_id}: ${result.reason}`);
+      }
+    } catch (err) {
+      // One client failing must not stop the rest.
+      console.error(`[onboarding backfill] ${r.client_id} threw:`, err);
+    }
+  }
+  revalidatePath("/admin/documents");
+}

@@ -463,10 +463,17 @@ export async function submitOnboardingAction(formData: FormData) {
   // also satisfy the legacy disclaimer for callers that still check it
   await data.recordDisclaimer(session.user_id, DISCLAIMER_VERSION);
 
-  // PDF is no longer pre-rendered on submit — the client portal's Settings
-  // page links to /api/onboarding-pdf which renders on demand from this row.
-  // We still keep submit-time meta on `parsed._submit_meta` so the on-demand
-  // render can label the timestamp with the right timezone / location.
+  // The Settings page still renders on demand from this row. What was missing
+  // is a copy anywhere anyone else would look: the Documents library has an
+  // On-Boarding folder per client and nothing had ever put anything in one.
+  // Best-effort — a filing failure must not lose a submitted packet.
+  try {
+    const { fileOnboardingIntoDocuments } = await import("@/lib/file-onboarding-doc");
+    await fileOnboardingIntoDocuments(session.client_id);
+  } catch (err) {
+    console.error("[onboarding] could not file the packet into Documents:", err);
+  }
+
   void row;
 
   // Brand assets are uploaded independently — if PDF generation fails for

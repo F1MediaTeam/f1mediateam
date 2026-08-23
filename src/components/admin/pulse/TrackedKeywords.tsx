@@ -17,9 +17,9 @@ function PositionCell({ position }: { position: number | null }) {
     return (
       <span
         className="text-xs text-[var(--color-text-subtle)]"
-        title="Search Console has not recorded this site appearing for this search yet"
+        title="Search Console has recorded no impressions for this exact phrase"
       >
-        not ranking yet
+        no data yet
       </span>
     );
   const tone = position <= 3 ? "var(--color-up)" : position <= 10 ? "var(--color-accent)" : undefined;
@@ -130,8 +130,20 @@ export default function TrackedKeywords({
             </thead>
             <tbody>
               {tracked.map((k) => (
-                <tr key={k.id} className="border-b border-[var(--color-border)] last:border-0">
-                  <td className="px-3 py-2 font-medium">{k.phrase}</td>
+                <tr key={k.id} className="border-b border-[var(--color-border)] last:border-0 align-top">
+                  <td className="px-3 py-2 font-medium">
+                    {k.phrase}
+                    {k.nearMatch ? (
+                      <div className="mt-1 text-xs font-normal leading-relaxed text-[var(--color-text-muted)]">
+                        Nobody searches this exact phrase, but this site ranks{" "}
+                        <strong style={{ color: k.nearMatch.position <= 10 ? "var(--color-up)" : undefined }}>
+                          #{k.nearMatch.position.toFixed(1)}
+                        </strong>{" "}
+                        for <strong>&ldquo;{k.nearMatch.phrase}&rdquo;</strong>
+                        {k.nearMatch.impressions ? ` (${k.nearMatch.impressions} impressions)` : ""}.
+                      </div>
+                    ) : null}
+                  </td>
                   <td className="px-3 py-2 w-72"><TargetCell siteId={siteId} id={k.id} value={k.targetUrl} /></td>
                   <td className="px-3 py-2"><PositionCell position={k.position} /></td>
                   <td className="px-3 py-2 tabular-nums">{k.impressions.toLocaleString()}</td>

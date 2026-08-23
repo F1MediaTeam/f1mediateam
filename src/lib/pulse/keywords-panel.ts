@@ -168,6 +168,26 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
 
   const byPhrase = new Map(ranking.map((r) => [r.phrase.toLowerCase(), r]));
 
+  // For a tracked keyword with no data of its own, the closest search the site
+  // DOES appear for. Scored on shared words, then on how well it ranks — a
+  // strong position on a near-miss phrase is the thing worth knowing.
+  const findNear = (phrase: string) => {
+    const want = new Set(
+      phrase.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2),
+    );
+    if (want.size === 0) return null;
+    let best: { row: RankingKeyword; score: number } | null = null;
+    for (const r of ranking) {
+      const words = r.phrase.toLowerCase().split(/[^a-z0-9]+/);
+      const overlap = words.filter((w) => want.has(w)).length;
+      // Two shared words is the floor; one is a coincidence.
+      if (overlap < 2) continue;
+      const score = overlap * 100 - r.position;
+      if (!best || score > best.score) best = { row: r, score };
+    }
+    return best ? best.row : null;
+  };
+
   const tracked: TrackedKeyword[] = (
     (kws as Array<{
       id: string;
@@ -178,10 +198,18 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
     }>) ?? []
   ).map((k) => {
     const m = byPhrase.get(k.phrase.toLowerCase());
+    const near = m ? null : findNear(k.phrase);
     return {
       id: k.id,
       phrase: k.phrase,
-      targetUrl: k.target_url,
+      // Fall back to the page Google actually ranks. Somebody tracking a
+      // keyword has already said which page matters; making them retype a URL
+      // the data already knows is busywork.
+      targetUrl: k.target_url ?? m?.rankingPage ?? null,
+      rankingPage: m?.rankingPage ?? null,
+      nearMatch: near
+        ? { phrase: near.phrase, position: near.position, impressions: near.impressions, page: near.rankingPage }
+        : null,
       position: m ? m.position : null,
       clicks: m ? m.clicks : 0,
       impressions: m ? m.impressions : 0,

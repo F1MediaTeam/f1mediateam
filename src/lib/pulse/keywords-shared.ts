@@ -86,6 +86,17 @@ export interface TrackedKeyword {
   /** Estimated monthly searches when Search Console has data for it. */
   estVolume: number | null;
   intent: Intent;
+  /** The page Google ranks for it, when it ranks at all. */
+  rankingPage: string | null;
+  /**
+   * A search the site DOES appear for that is close to this one.
+   *
+   * Tracked keywords are often the phrasing an agency would write down, while
+   * people type something slightly different — and the site can be ranking
+   * second for the version nobody wrote down. Without this, that row reads
+   * "not ranking yet" and the win stays invisible.
+   */
+  nearMatch: { phrase: string; position: number; impressions: number; page: string | null } | null;
 }
 
 export interface KeywordsPanel {

@@ -53,7 +53,7 @@ export default async function AdminDashboard() {
   const allowed = await visibleClientIds(session);
   const clients = filterClients(allClients, allowed);
   const canSee = allowed === null ? null : new Set(allowed);
-  const tasks = canSee ? allTasks.filter((t) => canSee.has(t.client_id)) : allTasks;
+  const tasks = canSee ? allTasks.filter((t) => !t.client_id || canSee.has(t.client_id)) : allTasks;
   const events = canSee
     ? allEvents.filter((e) => !e.client_id || canSee.has(e.client_id))
     : allEvents;
@@ -335,7 +335,7 @@ function TaskColumn({
                   <div className="min-w-0">
                     <div className="text-sm font-medium leading-snug">{t.title}</div>
                     <div className="mt-1 flex items-center gap-2 text-[11px] text-[var(--color-text-muted)]">
-                      <span className="font-mono">{clientName(t.client_id)}</span>
+                      <span className="font-mono">{t.client_id ? clientName(t.client_id) : "F1 Media (internal)"}</span>
                       {t.due_date ? <span>· due {formatDate(t.due_date)}</span> : null}
                     </div>
                     {t.notes ? (

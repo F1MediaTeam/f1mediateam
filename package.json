@@ -9,7 +9,8 @@
     "lint": "eslint",
     "privacy": "node scripts/privacy-check.mjs",
     "origin": "node scripts/origin-check.mjs",
-    "checks": "npm run privacy && npm run origin"
+    "checks": "npm run privacy && npm run origin && npm run reply",
+    "reply": "node scripts/reply-check.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

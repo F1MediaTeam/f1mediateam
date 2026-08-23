@@ -65,11 +65,15 @@ export default function AdminTaskAddModal({ action, clients }: Props) {
                 ×
               </button>
             </div>
-            <p className="text-xs text-[var(--color-text-muted)] mb-4">Assign work to a client.</p>
+            <p className="text-xs text-[var(--color-text-muted)] mb-4">Work for a client, or for F1 Media itself.</p>
             <form action={action} onSubmit={() => setOpen(false)} className="space-y-3.5" encType="multipart/form-data">
               <div>
                 <label className="block text-[11px] uppercase tracking-widest text-[var(--color-text-muted)] mb-1.5">Client</label>
-                <select name="client_id" required defaultValue={clients[0]?.id ?? ""} className={field}>
+                <select name="client_id" required defaultValue="" className={field}>
+                  {/* Internal is the first option and the default. Most of what
+                      goes on this list is F1 Media's own work, and making a
+                      client mandatory is what left the table empty. */}
+                  <option value="">F1 Media (internal)</option>
                   {clients.map((c) => (
                     <option key={c.id} value={c.id}>{c.company_name}</option>
                   ))}

@@ -61,12 +61,18 @@ export type TaskStatus = "open" | "done";
 
 export interface Task {
   id: UUID;
-  client_id: UUID;
+  /** The client this is for, or null when it is internal F1 Media work. */
+  client_id: UUID | null;
   title: string;
   notes: string | null;
   due_date: ISODate | null;
   status: TaskStatus;
   assigned_by: UUID | null;
+  /** Staff this is assigned to. Same shape as calendar_events.assignee_ids. */
+  assignee_ids: UUID[];
+  /** Short handle shown in the daily email, e.g. 7 renders as "T-7", so a
+   *  reply can name a task without anyone typing a uuid. */
+  ref: number | null;
   created_at: ISODateTime;
   updated_at: ISODateTime;
 }

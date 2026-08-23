@@ -327,21 +327,26 @@ export async function createClientRow(input: {
 export async function listTasks(filter?: {
   clientId?: UUID;
   status?: Task["status"];
+  /** Only internal work — the tasks that belong to no client. */
+  internalOnly?: boolean;
 }): Promise<Task[]> {
   const supabase = await createClient();
   let q = supabase.from("tasks").select("*");
   if (filter?.clientId) q = q.eq("client_id", filter.clientId);
+  if (filter?.internalOnly) q = q.is("client_id", null);
   if (filter?.status) q = q.eq("status", filter.status);
   const { data } = await q;
   return (data as Task[]) ?? [];
 }
 
 export async function createTask(input: {
-  client_id: UUID;
+  /** null for internal F1 Media work that belongs to no client. */
+  client_id: UUID | null;
   title: string;
   notes?: string | null;
   due_date?: string | null;
   assigned_by?: UUID | null;
+  assignee_ids?: UUID[];
 }): Promise<Task | null> {
   const supabase = await createClient();
   const { data } = await supabase
@@ -352,6 +357,7 @@ export async function createTask(input: {
       notes: input.notes ?? null,
       due_date: input.due_date ?? null,
       assigned_by: input.assigned_by ?? null,
+      assignee_ids: input.assignee_ids ?? [],
     })
     .select()
     .single();

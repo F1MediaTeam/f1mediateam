@@ -28,11 +28,12 @@ async function adminSenderName(userId: string): Promise<string> {
 
 export async function createTaskAction(formData: FormData) {
   const session = await requireAdmin();
-  const client_id = String(formData.get("client_id") ?? "");
+  // Empty means internal work — F1 Media's own, belonging to no client.
+  const client_id = String(formData.get("client_id") ?? "") || null;
   const title = String(formData.get("title") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const due_date = String(formData.get("due_date") ?? "").trim() || null;
-  if (!client_id || !title) return;
+  if (!title) return;
   await data.createTask({
     client_id,
     title,
@@ -40,11 +41,15 @@ export async function createTaskAction(formData: FormData) {
     due_date,
     assigned_by: session.user_id,
   });
-  const { persistAttachments } = await import("@/lib/attachments");
-  await persistAttachments({ formData, client_id, uploaded_by: session.user_id, category: "task" });
+  // Attachments hang off a client folder, so an internal task has nowhere to
+  // put them. Skipped rather than crashing on a null id.
+  if (client_id) {
+    const { persistAttachments } = await import("@/lib/attachments");
+    await persistAttachments({ formData, client_id, uploaded_by: session.user_id, category: "task" });
+  }
   revalidatePath("/admin");
   revalidatePath("/admin/calendar");
-  revalidatePath(`/admin/clients/${client_id}`);
+  if (client_id) revalidatePath(`/admin/clients/${client_id}`);
 }
 
 export async function toggleTaskAction(formData: FormData) {

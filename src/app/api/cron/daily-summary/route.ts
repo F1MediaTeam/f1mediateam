@@ -123,18 +123,53 @@ export async function GET(req: Request) {
     );
   }
 
+  // The whole open list, not just what is already late.
+  //
+  // This used to filter to `due_date <= today`, which meant the one question
+  // the email was supposed to answer — what is still left — was the one thing
+  // it left out. A task with no due date was invisible forever, and most of
+  // the real list has no due date.
+  //
+  // Every line carries its T-ref so a reply can name it. That is the whole
+  // mechanism behind replying to this email to update the list.
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Phoenix" });
-  const { data: dueTasks } = await supabase
+  const { data: openTasks } = await supabase
     .from("tasks")
-    .select("title,due_date,client_id")
+    .select("ref,title,due_date,client_id")
     .eq("status", "open")
-    .lte("due_date", today);
-  if (dueTasks?.length) {
+    .order("due_date", { ascending: true, nullsFirst: false })
+    .order("ref", { ascending: true });
+
+  if (openTasks?.length) {
+    const who = (id: string | null) => (id ? (nameOf.get(id) ?? "?") : "F1 Media");
+    const line = (t: { ref: number | null; title: string; due_date: string | null; client_id: string | null }) =>
+      `• ${t.ref ? `T-${t.ref} ` : ""}${t.title} — ${who(t.client_id)}` +
+      (t.due_date ? ` · due ${t.due_date}${t.due_date < today ? " (OVERDUE)" : ""}` : "");
+
+    // Ordered by how much they should bother you, not by when they were made.
+    const overdue = openTasks.filter((t) => t.due_date && t.due_date < today);
+    const dueToday = openTasks.filter((t) => t.due_date === today);
+    const later = openTasks.filter((t) => t.due_date && t.due_date > today);
+    const undated = openTasks.filter((t) => !t.due_date);
+
+    const groups: Array<[string, typeof openTasks]> = [
+      ["Overdue", overdue],
+      ["Due today", dueToday],
+      ["Coming up", later],
+      ["No date set", undated],
+    ];
+
+    const body = groups
+      .filter(([, rows]) => rows.length > 0)
+      .map(([label, rows]) => `${label} (${rows.length}):\n` + rows.map(line).join("\n"))
+      .join("\n\n");
+
     adminSections.push(
-      `Tasks due or overdue (${dueTasks.length}):\n` +
-        dueTasks
-          .map((t) => `• "${t.title}" (${nameOf.get(t.client_id) ?? "?"}) — due ${t.due_date}`)
-          .join("\n"),
+      `Still open (${openTasks.length}):\n\n${body}\n\n` +
+        `Reply to this email to change the list. One instruction per line:\n` +
+        `  done T-7            — close it\n` +
+        `  add Fix the calendar — new task\n` +
+        `  note T-7 waiting on the logo`,
     );
   }
 

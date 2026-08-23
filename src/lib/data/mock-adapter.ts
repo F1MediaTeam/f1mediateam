@@ -220,7 +220,7 @@ export function listTasks(filter?: { clientId?: UUID; status?: Task["status"] })
 }
 
 export function createTask(input: {
-  client_id: UUID;
+  client_id: UUID | null;
   title: string;
   notes?: string | null;
   due_date?: string | null;
@@ -230,6 +230,8 @@ export function createTask(input: {
     const t: Task = {
       id: `task-${uid()}`,
       client_id: input.client_id,
+      assignee_ids: [],
+      ref: null,
       title: input.title,
       notes: input.notes ?? null,
       due_date: input.due_date ?? null,

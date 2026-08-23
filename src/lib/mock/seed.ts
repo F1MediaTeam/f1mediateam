@@ -105,6 +105,8 @@ export const seedClients: Client[] = [
 export const seedTasks: Task[] = [
   {
     id: "task-001",
+    assignee_ids: [],
+    ref: null,
     client_id: DEMO_CLIENT_A_ID,
     title: "Publish January blog post — heat-pump rebates",
     notes: "Draft is in Google Drive; needs final image.",
@@ -116,6 +118,8 @@ export const seedTasks: Task[] = [
   },
   {
     id: "task-002",
+    assignee_ids: [],
+    ref: null,
     client_id: DEMO_CLIENT_A_ID,
     title: "Refresh GSC keyword report",
     notes: null,
@@ -127,6 +131,8 @@ export const seedTasks: Task[] = [
   },
   {
     id: "task-003",
+    assignee_ids: [],
+    ref: null,
     client_id: DEMO_CLIENT_B_ID,
     title: "Send monthly performance email",
     notes: "Use template B; CC owner.",
@@ -138,6 +144,8 @@ export const seedTasks: Task[] = [
   },
   {
     id: "task-004",
+    assignee_ids: [],
+    ref: null,
     client_id: DEMO_CLIENT_B_ID,
     title: "QA new landing page",
     notes: "Check mobile breakpoints.",
@@ -149,6 +157,8 @@ export const seedTasks: Task[] = [
   },
   {
     id: "task-005",
+    assignee_ids: [],
+    ref: null,
     client_id: DEMO_CLIENT_A_ID,
     title: "Approve homepage copy edits",
     notes: null,

@@ -32,6 +32,8 @@ import PulseHeader from "@/components/admin/pulse/PulseHeader";
 import { signalsPanel } from "@/lib/pulse/signals";
 import { keywordsPanel } from "@/lib/pulse/keywords-panel";
 import { livePanel } from "@/lib/pulse/live";
+import { findOpportunities } from "@/lib/pulse/keyword-gaps";
+import KeywordGaps from "@/components/admin/pulse/KeywordGaps";
 import KeywordsPanel from "@/components/admin/pulse/KeywordsPanel";
 import PullReportButton from "@/components/admin/pulse/PullReportButton";
 import RefreshButton from "@/components/admin/pulse/RefreshButton";
@@ -239,6 +241,8 @@ export default async function PulseSitePage({
   const signals = tab === "visitors" ? await signalsPanel(siteId) : null;
   const keywords = tab === "keywords" ? await keywordsPanel(siteId) : null;
   const live = tab === "live" ? await livePanel(siteId) : null;
+  // Computed from the keyword data already loaded — no extra query, no network.
+  const kwOpportunities = keywords ? findOpportunities(keywords.ranking) : [];
 
   const tabHref = (t: Tab) => `/admin/pulse/${siteId}?tab=${t}${t === "traffic" ? `&range=${range}` : ""}`;
 
@@ -1095,41 +1099,65 @@ export default async function PulseSitePage({
               </Panel>
             ) : null}
 
-            {keywords.totals.page2 > 0 ? (
-              <Panel title="Closest to the front page">
+            {kwOpportunities.length > 0 ? (
+              <Panel
+                title="Low-hanging fruit"
+                right={<span className="text-[10px] text-[var(--color-text-subtle)]">computed from measured data</span>}
+              >
                 <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
-                  {keywords.totals.page2} keywords sit between position 11 and 20 — already earning
-                  impressions, just below where anybody clicks. These are usually the cheapest wins
-                  on the whole list.
+                  Searches Google <em>already</em> shows this site for, hundreds of times, at a
+                  position nobody clicks. The demand is proven — Google measured it — so the only
+                  thing missing is a few places. Ranked by the clicks a month each would add if it
+                  reached position five, which is why a big keyword already sitting at position two
+                  is not at the top: there is nothing left to win on it.
                 </p>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[34rem] text-sm">
+                  <table className="w-full min-w-[44rem] text-sm">
                     <thead>
                       <tr className="text-left text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
                         <th className="pb-2 pr-3 font-medium">Keyword</th>
                         <th className="pb-2 pr-3 font-medium">Position</th>
                         <th className="pb-2 pr-3 font-medium">Impressions</th>
-                        <th className="pb-2 font-medium">Clicks</th>
+                        <th className="pb-2 pr-3 font-medium">Clicks now</th>
+                        <th className="pb-2 pr-3 font-medium">Could gain</th>
+                        <th className="pb-2 font-medium">Why</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {keywords.ranking
-                        .filter((r) => r.position > 10 && r.position <= 20)
-                        .sort((a, b) => b.impressions - a.impressions)
-                        .slice(0, 15)
-                        .map((r) => (
-                          <tr key={r.phrase} className="border-t border-[var(--color-border)]">
-                            <td className="py-2 pr-3"><span className="block max-w-[22rem] truncate">{r.phrase}</span></td>
-                            <td className="py-2 pr-3 tabular-nums">{r.position.toFixed(1)}</td>
-                            <td className="py-2 pr-3 tabular-nums">{r.impressions.toLocaleString()}</td>
-                            <td className="py-2 tabular-nums text-[var(--color-text-muted)]">{r.clicks}</td>
-                          </tr>
-                        ))}
+                      {kwOpportunities.map((o) => (
+                        <tr key={o.phrase} className="border-t border-[var(--color-border)]">
+                          <td className="py-2 pr-3"><span className="block max-w-[16rem] truncate font-medium">{o.phrase}</span></td>
+                          <td className="py-2 pr-3 tabular-nums">{o.position.toFixed(1)}</td>
+                          <td className="py-2 pr-3 tabular-nums">{o.impressions.toLocaleString()}</td>
+                          <td className="py-2 pr-3 tabular-nums text-[var(--color-text-muted)]">{o.clicks}</td>
+                          <td className="py-2 pr-3 tabular-nums font-semibold" style={{ color: "var(--color-up)" }}>
+                            +{o.clicksIfImproved}
+                          </td>
+                          <td className="py-2 text-xs text-[var(--color-text-muted)]">
+                            <span className="block max-w-[22rem]">{o.reason}</span>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
+                <p className="mt-3 text-xs text-[var(--color-text-subtle)]">
+                  Position, impressions and clicks are Google&rsquo;s own figures. &ldquo;Could gain&rdquo;
+                  is computed from those using an industry-average click curve — directional, and
+                  useful for ranking these against each other rather than as a promise.
+                </p>
               </Panel>
             ) : null}
+
+            <Panel title="Keywords we're missing">
+              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                The list above is demand this site already captures. This is the other half: searches
+                people make around these same topics that the site does <strong>not</strong> show up
+                for at all. Ideas come from Google&rsquo;s own autocomplete, seeded with this
+                client&rsquo;s strongest keywords, so they stay in the business they are actually in.
+              </p>
+              <KeywordGaps siteId={siteId} />
+            </Panel>
           </div>
         ) : null}
 

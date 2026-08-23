@@ -31,7 +31,15 @@ Run the invariant tests with `npm run checks`.
 
 ## Open
 
-### 1. Task list, daily email, and reply-to-update — **highest priority**
+### 1. Task list, daily email, and reply-to-update — **built; blocked on DNS**
+Done and deployed: internal tasks, the T-ref handles, the full open list in the
+end-of-day email, the reply endpoint and parser. The list is live as T-1..T-15
+in the database.
+
+Not working yet: replies cannot arrive, because `f1mediateam.com` has no MX
+record and so cannot receive mail at all. See `docs/inbound-email-setup.md`.
+
+Original scope, for the record:
 Garrett's concern is that the list will not keep tabs. So the list itself
 becomes a feature of the app rather than a habit:
 - `build_tasks` table (internal tasks — `client_id` nullable, unlike the

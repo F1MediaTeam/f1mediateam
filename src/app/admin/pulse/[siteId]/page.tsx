@@ -32,6 +32,8 @@ import PulseHeader from "@/components/admin/pulse/PulseHeader";
 import { signalsPanel } from "@/lib/pulse/signals";
 import { keywordsPanel } from "@/lib/pulse/keywords-panel";
 import { livePanel } from "@/lib/pulse/live";
+import { authorityReport } from "@/lib/pulse/authority";
+import AuthorityPanel from "@/components/admin/pulse/AuthorityPanel";
 import { findOpportunities } from "@/lib/pulse/keyword-gaps";
 import KeywordLabTabs from "@/components/admin/pulse/KeywordLabTabs";
 import PullReportButton from "@/components/admin/pulse/PullReportButton";
@@ -52,13 +54,14 @@ import { installGuide, PRIVACY_SENTENCE, locationLabels } from "@/lib/pulse/onbo
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["traffic", "live", "rankings", "keywords", "backlinks", "ai", "health", "visitors", "index", "opportunities", "competitors", "local", "search", "setup"] as const;
+const TABS = ["traffic", "live", "rankings", "keywords", "authority", "backlinks", "ai", "health", "visitors", "index", "opportunities", "competitors", "local", "search", "setup"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
   traffic: "Traffic",
   live: "Live now",
   rankings: "Rankings",
   keywords: "Keyword Lab",
+  authority: "Authority",
   backlinks: "Backlinks",
   ai: "AI visibility",
   health: "Site health",
@@ -240,6 +243,7 @@ export default async function PulseSitePage({
   const signals = tab === "visitors" ? await signalsPanel(siteId) : null;
   const keywords = tab === "keywords" ? await keywordsPanel(siteId) : null;
   const live = tab === "live" ? await livePanel(siteId) : null;
+  const authority = tab === "authority" ? await authorityReport(siteId) : null;
   // Computed from the keyword data already loaded — no extra query, no network.
   const kwOpportunities = keywords ? findOpportunities(keywords.ranking) : [];
 
@@ -1051,6 +1055,25 @@ export default async function PulseSitePage({
                 </p>
               </Panel>
             )}
+          </div>
+        ) : null}
+
+        {/* ---------------- Authority ---------------- */}
+        {tab === "authority" && authority ? (
+          <div className="space-y-4">
+            <Panel
+              title="Authority score"
+              right={<span className="text-[10px] text-[var(--color-text-subtle)]">computed · inputs labelled</span>}
+            >
+              <p className="mb-4 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                How much ranking power this domain carries, from its link profile and the traffic it
+                actually earns. The engine weights links and traffic 60/40 and penalises a link
+                profile that produces no visitors — a shape that usually means the links were bought
+                rather than earned. Every input below says where it came from, because the score is
+                only as trustworthy as its weakest one.
+              </p>
+              <AuthorityPanel report={authority} siteId={siteId} />
+            </Panel>
           </div>
         ) : null}
 

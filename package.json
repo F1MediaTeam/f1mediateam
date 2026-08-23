@@ -9,9 +9,10 @@
     "lint": "eslint",
     "privacy": "node scripts/privacy-check.mjs",
     "origin": "node scripts/origin-check.mjs",
-    "checks": "npm run privacy && npm run origin && npm run reply && npm run recurrence",
+    "checks": "npm run privacy && npm run origin && npm run reply && npm run recurrence && npm run seoquake",
     "reply": "node scripts/reply-check.mjs",
-    "recurrence": "node scripts/recurrence-check.mjs"
+    "recurrence": "node scripts/recurrence-check.mjs",
+    "seoquake": "node scripts/seoquake-check.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

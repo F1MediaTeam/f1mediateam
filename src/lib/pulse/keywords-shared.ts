@@ -45,6 +45,47 @@ function visibilityAt(position: number): number {
  * the number — which is why it is labelled estimated everywhere it appears and
  * never sits in the same column as a measured one.
  */
+/** Words in a URL path or a phrase, minus the ones that carry no meaning. */
+function slugWords(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/^https?:\/\/[^/]+/, "")
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 2 && !PAGE_STOP.has(w));
+}
+
+const PAGE_STOP = new Set(["page", "www", "com", "html", "php", "index", "the", "and", "for"]);
+
+/**
+ * The page on this site that best matches a keyword.
+ *
+ * Exact slug matching finds about a fifth of them — "custom polos" lands on
+ * /page/custom-polos and stops there. Scoring on shared words finds the rest:
+ * "custom uniforms tempe az" has no page of its own but /page/custom-uniforms-
+ * tempe shares three, which is almost certainly the page somebody built for it.
+ *
+ * Ties break toward the shorter path, because a shorter URL that matches the
+ * same words is the more specific page rather than a longer one that happens
+ * to contain them.
+ */
+export function suggestPageFor(phrase: string, pages: string[]): string | null {
+  const want = slugWords(phrase);
+  if (want.length === 0) return null;
+  const need = Math.min(2, want.length);
+
+  let best: { url: string; score: number; len: number } | null = null;
+  for (const url of pages) {
+    const have = new Set(slugWords(url));
+    const overlap = want.filter((w) => have.has(w)).length;
+    if (overlap < need) continue;
+    const len = url.length;
+    if (!best || overlap > best.score || (overlap === best.score && len < best.len)) {
+      best = { url, score: overlap, len };
+    }
+  }
+  return best ? best.url : null;
+}
+
 export function estimateVolume(impressions: number, position: number, windowDays = 28): number {
   if (impressions <= 0) return 0;
   const perWindow = impressions / visibilityAt(position);
@@ -97,6 +138,14 @@ export interface TrackedKeyword {
    * "not ranking yet" and the win stays invisible.
    */
   nearMatch: { phrase: string; position: number; impressions: number; page: string | null } | null;
+  /**
+   * A page on the client's own site that looks like it was built for this
+   * keyword, found by matching words in the phrase against words in the URL.
+   *
+   * Precision Graphics tracks "screen printing tempe az" and has a page at
+   * /page/screen-printing-tempe-az. Nobody should have to paste that in.
+   */
+  suggestedPage: string | null;
 }
 
 export interface KeywordsPanel {

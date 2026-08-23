@@ -19,7 +19,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 export type { Intent, HistoryPoint, RankingKeyword, TrackedKeyword, KeywordsPanel } from "./keywords-shared";
 export { classifyIntent, relatedTo, isQuestion, keywordGroups, trendOf, STOP } from "./keywords-shared";
 import type { Intent, HistoryPoint, RankingKeyword, TrackedKeyword, KeywordsPanel } from "./keywords-shared";
-import { classifyIntent, estimateVolume } from "./keywords-shared";
+import { classifyIntent, estimateVolume, suggestPageFor } from "./keywords-shared";
 
 
 
@@ -188,6 +188,20 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
     return best ? best.row : null;
   };
 
+  const { data: pageRows } = await supabase
+    .from("pulse_search_terms")
+    .select("term")
+    .eq("site_id", siteId)
+    .eq("dimension", "page")
+    .limit(20_000);
+
+  const sitePages = [
+    ...new Set([
+      ...(((pageRows as Array<{ term: string }>) ?? []).map((r) => r.term)),
+      ...rankingPages.values(),
+    ]),
+  ].filter(Boolean);
+
   const tracked: TrackedKeyword[] = (
     (kws as Array<{
       id: string;
@@ -210,6 +224,9 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
       nearMatch: near
         ? { phrase: near.phrase, position: near.position, impressions: near.impressions, page: near.rankingPage }
         : null,
+      // Only worth computing when nothing better is already known.
+      suggestedPage:
+        k.target_url || m?.rankingPage ? null : suggestPageFor(k.phrase, sitePages),
       position: m ? m.position : null,
       clicks: m ? m.clicks : 0,
       impressions: m ? m.impressions : 0,

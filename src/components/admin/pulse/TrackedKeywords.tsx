@@ -26,38 +26,106 @@ function PositionCell({ position }: { position: number | null }) {
   return <span className="font-semibold tabular-nums" style={{ color: tone }}>{position.toFixed(1)}</span>;
 }
 
-function TargetCell({ siteId, id, value }: { siteId: string; id: string; value: string | null }) {
-  const [v, setV] = useState(value ?? "");
+/**
+ * The page for this keyword, as a link you can open.
+ *
+ * Reads in priority order: the page somebody assigned, the page Google
+ * actually ranks, then a page on the site whose URL matches the keyword. The
+ * last two are labelled, because "we found this" and "you chose this" are
+ * different claims and a client report should not blur them.
+ *
+ * Click the link to open the page; click the pencil to change it.
+ */
+function TargetCell({
+  siteId,
+  domain,
+  id,
+  phrase,
+  assigned,
+  ranking,
+  suggested,
+}: {
+  siteId: string;
+  domain: string;
+  id: string;
+  phrase: string;
+  assigned: string | null;
+  ranking: string | null;
+  suggested: string | null;
+}) {
+  const resolved = assigned ?? ranking ?? suggested;
+  const source: "assigned" | "ranking" | "found" | null = assigned
+    ? "assigned"
+    : ranking
+      ? "ranking"
+      : suggested
+        ? "found"
+        : null;
+
+  const [editing, setEditing] = useState(!resolved);
+  const [v, setV] = useState(resolved ?? "");
   const [saving, setSaving] = useState(false);
 
   async function save() {
-    if (v === (value ?? "")) return;
     setSaving(true);
     const fd = new FormData();
     fd.set("siteId", siteId);
     fd.set("keywordId", id);
-    fd.set("targetUrl", v);
+    fd.set("targetUrl", v.trim());
     await setTargetAction(fd);
     setSaving(false);
+    setEditing(false);
   }
 
+  if (editing) {
+    return (
+      <span className="flex items-center gap-1">
+        <input
+          autoFocus
+          value={v}
+          onChange={(e) => setV(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+          placeholder={`/page-name — blank means ${domain}`}
+          className="w-56 rounded border border-[var(--color-accent)] bg-[var(--color-bg-elev)] px-2 py-1 text-xs outline-none"
+        />
+        {saving ? <Loader2 size={11} className="animate-spin text-[var(--color-text-subtle)]" /> : null}
+      </span>
+    );
+  }
+
+  const pretty =
+    (resolved ?? "").replace(/^https?:\/\//, "").replace(/^www\./, "").replace(domain, "") || "/";
+
   return (
-    <span className="flex items-center gap-1">
-      <input
-        value={v}
-        onChange={(e) => setV(e.target.value)}
-        onBlur={save}
-        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-        placeholder="/page-that-should-rank"
-        className="w-full rounded border border-transparent bg-transparent px-2 py-1 text-xs text-[var(--color-text-muted)] outline-none hover:border-[var(--color-border)] focus:border-[var(--color-accent)]"
-      />
-      {saving ? <Loader2 size={12} className="animate-spin text-[var(--color-text-subtle)]" /> : null}
-      {v && !saving ? (
-        <a href={v.startsWith("http") ? v : undefined} target="_blank" rel="noreferrer"
-           className="text-[var(--color-text-subtle)] hover:text-[var(--color-accent)]" title="Open">
-          <ExternalLink size={12} />
-        </a>
+    <span className="flex items-center gap-1.5">
+      <a
+        href={resolved ?? "#"}
+        target="_blank"
+        rel="noreferrer"
+        title={resolved ?? phrase}
+        className="block max-w-[15rem] truncate text-xs text-[var(--color-accent)] hover:underline"
+      >
+        {pretty}
+      </a>
+      <ExternalLink size={10} className="shrink-0 text-[var(--color-text-subtle)]" />
+      {source === "ranking" ? (
+        <span title="This is the page Google currently ranks for this search"
+              className="shrink-0 rounded px-1 text-[9px] font-semibold uppercase"
+              style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>ranking</span>
       ) : null}
+      {source === "found" ? (
+        <span title="Matched from this site's own pages by the words in the URL — confirm it is the right one"
+              className="shrink-0 rounded px-1 text-[9px] font-semibold uppercase"
+              style={{ background: "rgba(217,164,65,.18)", color: "#d9a441" }}>found</span>
+      ) : null}
+      <button
+        onClick={() => setEditing(true)}
+        title="Change the page"
+        className="shrink-0 text-[10px] text-[var(--color-text-subtle)] hover:text-[var(--color-text)] print:hidden"
+      >
+        edit
+      </button>
     </span>
   );
 }
@@ -121,7 +189,7 @@ export default function TrackedKeywords({
             <thead>
               <tr className="border-b border-[var(--color-border)] text-left text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
                 <th className="px-3 py-2 font-medium">Keyword</th>
-                <th className="px-3 py-2 font-medium">Page that should rank</th>
+                <th className="px-3 py-2 font-medium">Page</th>
                 <th className="px-3 py-2 font-medium">Position</th>
                 <th className="px-3 py-2 font-medium">Impressions</th>
                 <th className="px-3 py-2 font-medium">Clicks</th>
@@ -144,7 +212,17 @@ export default function TrackedKeywords({
                       </div>
                     ) : null}
                   </td>
-                  <td className="px-3 py-2 w-72"><TargetCell siteId={siteId} id={k.id} value={k.targetUrl} /></td>
+                  <td className="px-3 py-2 w-72">
+                    <TargetCell
+                      siteId={siteId}
+                      domain={domain}
+                      id={k.id}
+                      phrase={k.phrase}
+                      assigned={k.targetUrl}
+                      ranking={k.rankingPage}
+                      suggested={k.suggestedPage}
+                    />
+                  </td>
                   <td className="px-3 py-2"><PositionCell position={k.position} /></td>
                   <td className="px-3 py-2 tabular-nums">{k.impressions.toLocaleString()}</td>
                   <td className="px-3 py-2 tabular-nums text-[var(--color-text-muted)]">{k.clicks}</td>
@@ -166,9 +244,11 @@ export default function TrackedKeywords({
       )}
 
       <p className="text-xs text-[var(--color-text-subtle)]">
-        Position, impressions and clicks come from Search Console. &ldquo;Not ranking yet&rdquo; means
-        Google has not recorded this site appearing for that search — which is the honest state for a
-        keyword you have only just started working on.
+        Position, impressions and clicks come from Search Console. A page marked{" "}
+        <strong>ranking</strong> is the one Google currently shows for that search;{" "}
+        <strong>found</strong> means we matched a page on this site by the words in its URL — worth a
+        glance before you trust it. Click any page to open it, or edit to point the keyword somewhere
+        else.
       </p>
     </div>
   );

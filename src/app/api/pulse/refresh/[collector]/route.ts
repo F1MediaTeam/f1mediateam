@@ -19,6 +19,7 @@ import { runRanks } from "@/lib/pulse/collectors/ranks";
 import { runBacklinks } from "@/lib/pulse/collectors/backlinks";
 import { startCrawl, tickCrawl } from "@/lib/pulse/collectors/crawl";
 import { runSearch } from "@/lib/pulse/collectors/search";
+import { runQueryPages } from "@/lib/pulse/collectors/backfill";
 import { runBackfill } from "@/lib/pulse/collectors/backfill";
 import { runOpportunities } from "@/lib/pulse/collectors/opportunities";
 import { runPsi } from "@/lib/pulse/collectors/psi";
@@ -132,7 +133,13 @@ export async function POST(
       for (const s of sites) results.push(await runBackfill(s));
     } else if (collector === "search") {
       results = [];
-      for (const s of sites) results.push(await runSearch(s));
+      for (const s of sites) {
+        results.push(await runSearch(s));
+        // Query and page pairs come from the same connection over the same
+        // window. Refreshing search without them leaves the Keyword Lab able
+        // to say which page should rank and never which one does.
+        results.push(await runQueryPages(s));
+      }
     } else if (collector === "psi") {
       // Lighthouse is slow — tens of seconds per URL — so sites run one after
       // another rather than racing each other into the route's time ceiling.

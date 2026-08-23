@@ -14,6 +14,7 @@
 
 import { NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { looksLikeOwnPreview } from "@/lib/pulse/origin";
 import { sessionHash, visitorHash } from "@/lib/pulse/hash";
 
 export const runtime = "nodejs";
@@ -63,6 +64,14 @@ function rateLimited(key: string): boolean {
 // So the refusal itself gets recorded — the hostname only, no visitor data —
 // once per site per host per day. Same per-instance caveat as the rate limiter:
 // a cold start may re-report, which is a duplicate feed row, not a leak.
+//
+// Not every refusal is a problem, though. Hosted storefront platforms serve
+// each store from a preview hostname built out of the store's own name, and
+// the client clicking around their own admin fires the tag from there all day.
+// Rejecting it is correct — preview clicks are not customers, and counting
+// them would inflate the client's numbers — but calling it a warning 28 times
+// is crying wolf about the system working. Those get flagged as expected so
+// the feed still records them and nobody is emailed about them.
 const reportedOrigins = new Map<string, number>();
 function shouldReportOrigin(siteId: string, host: string): boolean {
   const key = `${siteId}:${host}:${Math.floor(Date.now() / 86_400_000)}`;
@@ -139,12 +148,15 @@ export async function POST(request: NextRequest) {
       // Still discarded, still a 204 — but now it is visible in the feed, so
       // "installed but no data" has an answer instead of being a dead end.
       if (origin && shouldReportOrigin(site.id as string, origin)) {
+        const expected = looksLikeOwnPreview(origin, site.domain as string);
         await supabase.from("pulse_feed_events").insert({
           site_id: site.id,
           kind: "tag_origin_rejected",
-          severity: "warning",
-          title: `Beacons rejected from ${origin}`,
-          payload: { host: origin, registered: site.domain },
+          severity: expected ? "info" : "warning",
+          title: expected
+            ? `Preview traffic from ${origin} not counted`
+            : `Beacons rejected from ${origin}`,
+          payload: { host: origin, registered: site.domain, expected },
         });
       }
       return OK();

@@ -47,6 +47,8 @@ export interface AlertResult {
   urgentSent: number;
   queued: number;
   considered: number;
+  /** Events folded into another alert rather than sent on their own. */
+  collapsed: number;
 }
 
 /**
@@ -56,30 +58,64 @@ export interface AlertResult {
  * stamps `notified_at`, and later passes skip anything stamped. That keeps
  * this idempotent — running the dispatcher twice in an hour cannot email the
  * same outage twice — without another migration.
+ *
+ * The window used to be three hours, which was right when this was expected to
+ * run hourly and silently wrong once it moved to a daily cron: events landing
+ * in the other twenty-one hours aged out of the window before anything looked
+ * at them, and because the window only ever moves forward they were never
+ * reconsidered. Not a delayed alert — no alert, ever. Found by counting the
+ * unstamped rows in production: eighty-one of them, going back ten days.
+ *
+ * So the window is now wide enough that a missed run cannot drop anything, and
+ * the stamp — not the clock — is what stops a repeat. Widening it alone would
+ * have turned the first run into a flood, which is presumably how it ended up
+ * narrow in the first place, so events are collapsed to one alert per site per
+ * kind. Twenty-four rejected-origin notices for one site is one thing worth
+ * knowing, not twenty-four; the newest speaks for the group and the rest are
+ * stamped silently.
  */
-export async function dispatchAlerts(sinceMinutes = 180): Promise<AlertResult> {
+export async function dispatchAlerts({
+  lookbackHours = 168,
+  maxUrgentEmails = 10,
+}: { lookbackHours?: number; maxUrgentEmails?: number } = {}): Promise<AlertResult> {
   const supabase = await createServiceClient();
-  const since = new Date(Date.now() - sinceMinutes * 60_000).toISOString();
+  const since = new Date(Date.now() - lookbackHours * 3_600_000).toISOString();
 
   const { data: rows } = await supabase
     .from("pulse_feed_events")
     .select("id, site_id, ts, kind, severity, title, payload")
     .gte("ts", since)
+    .is("payload->>notified_at", null)
     .order("ts", { ascending: false })
-    .limit(200);
+    .limit(500);
 
   const events =
     (rows as Array<{
       id: number;
       site_id: string;
+      ts: string;
       kind: string;
       severity: string;
       title: string;
       payload: Record<string, unknown>;
     }>) ?? [];
 
+  // The query already excludes stamped rows; this also covers a payload where
+  // the marker is present but not a string.
   const fresh = events.filter((e) => !e.payload?.notified_at);
-  if (fresh.length === 0) return { urgentSent: 0, queued: 0, considered: events.length };
+  if (fresh.length === 0) {
+    return { urgentSent: 0, queued: 0, considered: events.length, collapsed: 0 };
+  }
+
+  // One alert per site per kind. Rows arrive newest-first, so the first of
+  // each group is the one that speaks for it.
+  const groups = new Map<string, { lead: (typeof fresh)[number]; all: typeof fresh }>();
+  for (const e of fresh) {
+    const key = `${e.site_id}:${e.kind}`;
+    const g = groups.get(key);
+    if (g) g.all.push(e);
+    else groups.set(key, { lead: e, all: [e] });
+  }
 
   // One lookup for every site involved rather than one per event.
   const siteIds = [...new Set(fresh.map((e) => e.site_id))];
@@ -94,16 +130,44 @@ export async function dispatchAlerts(sinceMinutes = 180): Promise<AlertResult> {
   let urgentSent = 0;
   let queued = 0;
 
-  for (const e of fresh) {
+  for (const { lead: e, all } of groups.values()) {
     const site = sites.get(e.site_id);
     if (!site) continue;
 
+    // Stamped whatever happens below, so nothing is reconsidered tomorrow.
+    const stampAll = () =>
+      Promise.all(
+        all.map((row) =>
+          supabase
+            .from("pulse_feed_events")
+            .update({ payload: { ...row.payload, notified_at: new Date().toISOString() } })
+            .eq("id", row.id),
+        ),
+      );
+
+    // A refusal the ingest route already recognised as the client's own
+    // preview host. Recorded, never emailed — it is the whitelist working.
+    if (e.payload?.expected === true) {
+      await stampAll();
+      continue;
+    }
+
+    // "and 23 others" is the difference between a useful notice and a lie by
+    // omission, so the count travels with the alert whenever it is above one.
+    const more = all.length - 1;
+    const suffix = more > 0 ? ` (and ${more} more like it)` : "";
+
     if (URGENT.has(e.kind)) {
+      if (urgentSent >= maxUrgentEmails) {
+        // A backlog this size is itself the story; mailing all of it helps
+        // nobody. The rest stay unstamped so the next run picks them up.
+        continue;
+      }
       const subject = (SUBJECT[e.kind] ?? ((t: string) => t))(e.title, site.domain);
       await notifyAdmins({
         subject,
         heading: subject,
-        body: `${e.title}\n\nSite: ${site.domain}`,
+        body: `${e.title}${suffix}\n\nSite: ${site.domain}`,
         ctaLabel: "Open in F1 Pulse",
         ctaPath: `/admin/pulse/${e.site_id}`,
       });
@@ -114,13 +178,13 @@ export async function dispatchAlerts(sinceMinutes = 180): Promise<AlertResult> {
           client_id: site.client_id,
           audience: "admin",
           kind: "pulse_alert",
-          title: `${site.domain}: ${e.title}`,
+          title: `${site.domain}: ${e.title}${suffix}`,
           detail: null,
         },
         {
           subject: `${site.domain}: ${e.title}`,
           heading: e.title,
-          body: `Site: ${site.domain}`,
+          body: `Site: ${site.domain}${suffix ? `\n\n${more + 1} of these since ${new Date(all[all.length - 1].ts).toLocaleDateString("en-US")}.` : ""}`,
           ctaLabel: "Open in F1 Pulse",
           ctaPath: `/admin/pulse/${e.site_id}`,
         },
@@ -130,11 +194,13 @@ export async function dispatchAlerts(sinceMinutes = 180): Promise<AlertResult> {
       // Feed-only. Still stamped, so it is never reconsidered.
     }
 
-    await supabase
-      .from("pulse_feed_events")
-      .update({ payload: { ...e.payload, notified_at: new Date().toISOString() } })
-      .eq("id", e.id);
+    await stampAll();
   }
 
-  return { urgentSent, queued, considered: events.length };
+  return {
+    urgentSent,
+    queued,
+    considered: events.length,
+    collapsed: events.length - groups.size,
+  };
 }

@@ -40,8 +40,20 @@ interface Applied {
 }
 
 export async function POST(request: NextRequest) {
+  // The secret may arrive as a header or as ?key= on the URL.
+  //
+  // A header is the better place for a credential and is what a scripted
+  // caller should use. But inbound *email* providers generally do not let you
+  // set arbitrary headers on their webhook — Resend signs the request instead
+  // — so header-only auth would have made this endpoint unreachable by the
+  // exact thing it was built for. The query form exists so the URL alone is
+  // enough to configure it anywhere.
   const secret = process.env.INBOUND_WEBHOOK_SECRET;
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+  const presented =
+    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
+    request.nextUrl.searchParams.get("key") ??
+    "";
+  if (!secret || presented !== secret) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 

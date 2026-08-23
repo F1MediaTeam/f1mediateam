@@ -31,6 +31,7 @@ import {
 import PulseHeader from "@/components/admin/pulse/PulseHeader";
 import { signalsPanel } from "@/lib/pulse/signals";
 import { keywordsPanel } from "@/lib/pulse/keywords-panel";
+import { livePanel } from "@/lib/pulse/live";
 import KeywordsPanel from "@/components/admin/pulse/KeywordsPanel";
 import PullReportButton from "@/components/admin/pulse/PullReportButton";
 import RefreshButton from "@/components/admin/pulse/RefreshButton";
@@ -50,10 +51,11 @@ import { installGuide, PRIVACY_SENTENCE, locationLabels } from "@/lib/pulse/onbo
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["traffic", "rankings", "keywords", "backlinks", "ai", "health", "visitors", "index", "opportunities", "competitors", "local", "search", "setup"] as const;
+const TABS = ["traffic", "live", "rankings", "keywords", "backlinks", "ai", "health", "visitors", "index", "opportunities", "competitors", "local", "search", "setup"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABEL: Record<Tab, string> = {
   traffic: "Traffic",
+  live: "Live now",
   rankings: "Rankings",
   keywords: "Keyword Lab",
   backlinks: "Backlinks",
@@ -236,6 +238,7 @@ export default async function PulseSitePage({
   const indexHealth = tab === "index" ? await indexPanel(siteId) : null;
   const signals = tab === "visitors" ? await signalsPanel(siteId) : null;
   const keywords = tab === "keywords" ? await keywordsPanel(siteId) : null;
+  const live = tab === "live" ? await livePanel(siteId) : null;
 
   const tabHref = (t: Tab) => `/admin/pulse/${siteId}?tab=${t}${t === "traffic" ? `&range=${range}` : ""}`;
 
@@ -960,6 +963,91 @@ export default async function PulseSitePage({
                 </div>
               )}
             </Panel>
+          </div>
+        ) : null}
+
+        {/* ---------------- Live now ---------------- */}
+        {tab === "live" && live ? (
+          <div className="space-y-4">
+            <Panel
+              title={live.active === 1 ? "1 person on the site right now" : `${live.active} people on the site right now`}
+              right={<span className="text-[10px] text-[var(--color-text-subtle)]">last {live.windowMinutes} minutes · measured</span>}
+            >
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div><div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">On the site now</div><div className="mt-1 text-3xl font-semibold tabular-nums" style={{ color: live.active > 0 ? "var(--color-up)" : undefined }}>{live.active}</div></div>
+                <div><div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">Visitors, 24 hours</div><div className="mt-1 text-3xl font-semibold tabular-nums">{live.todayVisitors.toLocaleString()}</div></div>
+                <div><div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">Pageviews, 24 hours</div><div className="mt-1 text-3xl font-semibold tabular-nums">{live.todayPageviews.toLocaleString()}</div></div>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                Straight from the tag on this site — no third party involved. Location is resolved at
+                the edge before the beacon reaches us, so we know the city without ever holding an
+                address. Reload to refresh.
+              </p>
+            </Panel>
+
+            {live.visitors.length === 0 ? (
+              <Panel title="Nobody on the site at the moment">
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Anyone who arrives in the next few minutes will appear here.
+                </p>
+              </Panel>
+            ) : (
+              <Panel title="Who is here">
+                <div className="space-y-3">
+                  {live.visitors.map((v) => (
+                    <div key={v.sessionHash} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elev)] p-3">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <div className="text-sm font-semibold">
+                          {[v.city, v.region, v.country].filter(Boolean).join(", ") || "Location unknown"}
+                        </div>
+                        <div className="text-xs text-[var(--color-text-muted)]">
+                          {v.durationSeconds < 60
+                            ? `${v.durationSeconds}s on site`
+                            : `${Math.floor(v.durationSeconds / 60)}m ${v.durationSeconds % 60}s on site`}
+                          {v.device ? ` · ${v.device}` : ""}
+                          {v.arrivedFrom ? ` · from ${v.arrivedFrom}` : " · direct"}
+                        </div>
+                      </div>
+
+                      <div className="mt-2">
+                        <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
+                          Pages, in order
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-1 text-xs">
+                          {v.path.map((p, i) => (
+                            <span key={`${p}-${i}`} className="flex items-center gap-1">
+                              {i > 0 ? <span className="text-[var(--color-text-subtle)]">→</span> : null}
+                              <span className="rounded bg-[var(--color-bg-card)] px-1.5 py-0.5">{p}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {v.actions.length > 0 ? (
+                        <div className="mt-2">
+                          <div className="text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
+                            What they clicked
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-1 text-xs">
+                            {v.actions.map((a, i) => (
+                              <span key={`${a.kind}-${i}`} className="rounded px-1.5 py-0.5"
+                                    style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
+                                {a.kind.replace(/_/g, " ")}{a.target ? `: ${a.target}` : ""}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs text-[var(--color-text-subtle)]">
+                  Each card is one visit, identified by a per-site key that rotates daily and cannot
+                  be joined to another client&rsquo;s data or traced back to a person. No IP address is
+                  stored anywhere in F1 Pulse.
+                </p>
+              </Panel>
+            )}
           </div>
         ) : null}
 

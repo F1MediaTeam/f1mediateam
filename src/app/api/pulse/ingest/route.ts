@@ -171,7 +171,21 @@ export async function POST(request: NextRequest) {
 
     // Vercel resolves geography at the edge, so we never do a lookup against
     // the IP ourselves — one less place it could be recorded.
+    // Vercel resolved all three at the edge before this request arrived, so
+    // there is no lookup to do and no IP to keep in order to do it. City is as
+    // fine-grained as this gets, deliberately.
     const country = request.headers.get("x-vercel-ip-country") ?? null;
+    const region = request.headers.get("x-vercel-ip-country-region") ?? null;
+    const city = (() => {
+      const raw = request.headers.get("x-vercel-ip-city");
+      if (!raw) return null;
+      // Vercel percent-encodes city names with spaces or accents.
+      try {
+        return decodeURIComponent(raw).slice(0, 80);
+      } catch {
+        return raw.slice(0, 80);
+      }
+    })();
 
     const visitor = visitorHash(site.id as string, ip, ua);
     const session = sessionHash(visitor);
@@ -185,6 +199,8 @@ export async function POST(request: NextRequest) {
         path,
         referrer,
         referrer_domain: hostOf(referrer),
+        region,
+        city,
         utm_source: str(body.us, 120),
         utm_medium: str(body.um, 120),
         utm_campaign: str(body.uc, 120),

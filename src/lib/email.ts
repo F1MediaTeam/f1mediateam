@@ -93,10 +93,26 @@ export async function sendEmail(to: string, n: NotificationEmail): Promise<boole
     return false;
   }
   const from = process.env.EMAIL_FROM ?? "F1 Media Team <notifications@f1mediateam.com>";
+
+  // Where a reply should land.
+  //
+  // The From address is on a domain with no MX record, so replying to it goes
+  // nowhere — which is fine for a notification and fatal for the daily task
+  // email, whose whole point is that you can answer it. Setting EMAIL_REPLY_TO
+  // to an address that can actually receive mail is what closes that loop.
+  // Unset, behaviour is exactly as before.
+  const replyTo = process.env.EMAIL_REPLY_TO;
+
   const res = await fetch(RESEND_ENDPOINT, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to: [to], subject: n.subject, html: renderHtml(n) }),
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject: n.subject,
+      html: renderHtml(n),
+      ...(replyTo ? { reply_to: replyTo } : {}),
+    }),
   });
   if (!res.ok) {
     console.error("[email] Resend rejected:", res.status, await res.text().catch(() => ""));

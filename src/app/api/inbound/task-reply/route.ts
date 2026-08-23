@@ -26,6 +26,7 @@ import { NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { notifyAdmins } from "@/lib/email";
 import { newTextOnly } from "@/lib/email-reply";
+import { bodyOf, fetchReceivedEmail } from "@/lib/resend-inbound";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,7 +65,31 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const fromRaw = payload.from;
+  // Two shapes arrive here.
+  //
+  // Resend posts an `email.received` event carrying metadata only — no body —
+  // so the message has to be fetched by id afterwards. Anything else is
+  // assumed to be a direct { from, text } post, which is what a script or a
+  // different provider sends, and what makes this endpoint testable by hand.
+  let fromRaw: unknown = payload.from;
+  let rawText = String(payload.text ?? "");
+
+  if (payload.type === "email.received" && typeof payload.data === "object" && payload.data) {
+    const meta = payload.data as { email_id?: string; from?: string };
+    fromRaw = meta.from ?? fromRaw;
+    if (meta.email_id) {
+      const email = await fetchReceivedEmail(meta.email_id);
+      if (!email) {
+        return Response.json(
+          { error: "Could not retrieve the message body from Resend." },
+          { status: 502 },
+        );
+      }
+      fromRaw = email.from ?? fromRaw;
+      rawText = bodyOf(email);
+    }
+  }
+
   const from = (
     typeof fromRaw === "string"
       ? fromRaw
@@ -86,7 +111,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Sender is not an admin" }, { status: 403 });
   }
 
-  const text = newTextOnly(String(payload.text ?? ""));
+  const text = newTextOnly(rawText);
   if (!text) return Response.json({ ok: true, note: "Nothing to do — reply was empty." });
 
   const applied: Applied = { done: [], reopened: [], added: [], noted: [], unrecognised: [], notFound: [] };

@@ -33,9 +33,7 @@ import { signalsPanel } from "@/lib/pulse/signals";
 import { keywordsPanel } from "@/lib/pulse/keywords-panel";
 import { livePanel } from "@/lib/pulse/live";
 import { findOpportunities } from "@/lib/pulse/keyword-gaps";
-import KeywordGaps from "@/components/admin/pulse/KeywordGaps";
-import TrackedKeywords from "@/components/admin/pulse/TrackedKeywords";
-import KeywordsPanel from "@/components/admin/pulse/KeywordsPanel";
+import KeywordLabTabs from "@/components/admin/pulse/KeywordLabTabs";
 import PullReportButton from "@/components/admin/pulse/PullReportButton";
 import RefreshButton from "@/components/admin/pulse/RefreshButton";
 import Sparkline from "@/components/admin/pulse/Sparkline";
@@ -1094,82 +1092,13 @@ export default async function PulseSitePage({
               )}
             </Panel>
 
-            {keywords.totals.rankingCount > 0 ? (
-              <Panel title="Keyword Lab">
-                <KeywordsPanel data={keywords} domain={site.domain} />
-              </Panel>
-            ) : null}
-
-            <Panel
-              title="Keywords we're working on"
-              right={<span className="text-[10px] text-[var(--color-text-subtle)]">{keywords.totals.trackedCount} tracked</span>}
-            >
-              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
-                The keywords chosen for this client, each with the page it is meant to rank. Separate
-                from the full list below, which is everything Google happens to show this site for —
-                this is the deliberate part, and the part worth showing a client.
-              </p>
-              <TrackedKeywords siteId={siteId} domain={site.domain} tracked={keywords.tracked} />
-            </Panel>
-
-            {kwOpportunities.length > 0 ? (
-              <Panel
-                title="Low-hanging fruit"
-                right={<span className="text-[10px] text-[var(--color-text-subtle)]">computed from measured data</span>}
-              >
-                <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
-                  Searches Google <em>already</em> shows this site for, hundreds of times, at a
-                  position nobody clicks. The demand is proven — Google measured it — so the only
-                  thing missing is a few places. Ranked by the clicks a month each would add if it
-                  reached position five, which is why a big keyword already sitting at position two
-                  is not at the top: there is nothing left to win on it.
-                </p>
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[44rem] text-sm">
-                    <thead>
-                      <tr className="text-left text-[10px] uppercase tracking-widest text-[var(--color-text-subtle)]">
-                        <th className="pb-2 pr-3 font-medium">Keyword</th>
-                        <th className="pb-2 pr-3 font-medium">Position</th>
-                        <th className="pb-2 pr-3 font-medium">Impressions</th>
-                        <th className="pb-2 pr-3 font-medium">Clicks now</th>
-                        <th className="pb-2 pr-3 font-medium">Could gain</th>
-                        <th className="pb-2 font-medium">Why</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {kwOpportunities.map((o) => (
-                        <tr key={o.phrase} className="border-t border-[var(--color-border)]">
-                          <td className="py-2 pr-3"><span className="block max-w-[16rem] truncate font-medium">{o.phrase}</span></td>
-                          <td className="py-2 pr-3 tabular-nums">{o.position.toFixed(1)}</td>
-                          <td className="py-2 pr-3 tabular-nums">{o.impressions.toLocaleString()}</td>
-                          <td className="py-2 pr-3 tabular-nums text-[var(--color-text-muted)]">{o.clicks}</td>
-                          <td className="py-2 pr-3 tabular-nums font-semibold" style={{ color: "var(--color-up)" }}>
-                            +{o.clicksIfImproved}
-                          </td>
-                          <td className="py-2 text-xs text-[var(--color-text-muted)]">
-                            <span className="block max-w-[22rem]">{o.reason}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="mt-3 text-xs text-[var(--color-text-subtle)]">
-                  Position, impressions and clicks are Google&rsquo;s own figures. &ldquo;Could gain&rdquo;
-                  is computed from those using an industry-average click curve — directional, and
-                  useful for ranking these against each other rather than as a promise.
-                </p>
-              </Panel>
-            ) : null}
-
-            <Panel title="Keywords we're missing">
-              <p className="mb-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
-                The list above is demand this site already captures. This is the other half: searches
-                people make around these same topics that the site does <strong>not</strong> show up
-                for at all. Ideas come from Google&rsquo;s own autocomplete, seeded with this
-                client&rsquo;s strongest keywords, so they stay in the business they are actually in.
-              </p>
-              <KeywordGaps siteId={siteId} />
+            <Panel title="Keyword Lab">
+              <KeywordLabTabs
+                data={keywords}
+                opportunities={kwOpportunities}
+                siteId={siteId}
+                domain={site.domain}
+              />
             </Panel>
           </div>
         ) : null}

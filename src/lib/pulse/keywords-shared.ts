@@ -15,6 +15,42 @@ export interface HistoryPoint {
   impressions: number;
 }
 
+/**
+ * Share of searchers who ever lay eyes on a given position.
+ *
+ * Almost everyone who searches sees page one, a quarter go to page two, and
+ * the tail falls away fast after that. These are industry-average figures, not
+ * measurements, and they exist for one purpose: turning an impression count
+ * into an estimate of how many people searched at all.
+ */
+function visibilityAt(position: number): number {
+  if (position <= 10) return 1.0;
+  if (position <= 20) return 0.25;
+  if (position <= 30) return 0.12;
+  if (position <= 50) return 0.06;
+  return 0.03;
+}
+
+/**
+ * Roughly how many people search this a month.
+ *
+ * Not a vendor's number and not a guess pulled from nothing: impressions are
+ * Google's own count of how often it showed this site for the query, and
+ * position is Google's own average. Dividing one by how many searchers ever
+ * reach that position gives the size of the audience behind it.
+ *
+ * At position 3 the estimate is nearly the impression count itself, because
+ * almost everyone who searched saw it. At position 45 it is a multiple, because
+ * most people never scrolled that far. The further down the ranking, the softer
+ * the number — which is why it is labelled estimated everywhere it appears and
+ * never sits in the same column as a measured one.
+ */
+export function estimateVolume(impressions: number, position: number, windowDays = 28): number {
+  if (impressions <= 0) return 0;
+  const perWindow = impressions / visibilityAt(position);
+  return Math.round((perWindow / windowDays) * 30);
+}
+
 export interface RankingKeyword {
   phrase: string;
   position: number;
@@ -28,6 +64,8 @@ export interface RankingKeyword {
   tracked: boolean;
   /** Week-by-week position, oldest first. Drives the trend and the detail row. */
   history: HistoryPoint[];
+  /** Estimated monthly searches, computed from measured impressions. */
+  estVolume: number;
 }
 
 export interface TrackedKeyword {
@@ -39,8 +77,8 @@ export interface TrackedKeyword {
   clicks: number;
   impressions: number;
   change: number | null;
-  /** Only present if somebody pasted research in. Never guessed here. */
-  volume: number | null;
+  /** Estimated monthly searches when Search Console has data for it. */
+  estVolume: number | null;
   intent: Intent;
 }
 

@@ -19,7 +19,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 export type { Intent, HistoryPoint, RankingKeyword, TrackedKeyword, KeywordsPanel } from "./keywords-shared";
 export { classifyIntent, relatedTo, isQuestion, keywordGroups, trendOf, STOP } from "./keywords-shared";
 import type { Intent, HistoryPoint, RankingKeyword, TrackedKeyword, KeywordsPanel } from "./keywords-shared";
-import { classifyIntent } from "./keywords-shared";
+import { classifyIntent, estimateVolume } from "./keywords-shared";
 
 
 
@@ -134,6 +134,7 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
         intent: classifyIntent(phrase),
         tracked: trackedPhrases.has(phrase.toLowerCase()),
         history: hist,
+        estVolume: estimateVolume(g.impr, position, days),
       };
     })
     .sort((a, b) => b.impressions - a.impressions);
@@ -158,7 +159,7 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
       clicks: m ? m.clicks : 0,
       impressions: m ? m.impressions : 0,
       change: m ? m.change : null,
-      volume: k.volume,
+      estVolume: m ? m.estVolume : null,
       intent: k.intent ?? classifyIntent(k.phrase),
     };
   });

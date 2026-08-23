@@ -36,11 +36,22 @@ function connectorHealth(c: ConnectorToken | undefined): Health {
   return ageDays > STALE_DAYS ? "stale" : "ok";
 }
 
-const HEALTH_STYLE: Record<Health, { dot: string; label: string; text: string }> = {
-  ok:      { dot: "bg-[var(--color-accent)]",  label: "OK",      text: "text-[var(--color-accent)]" },
-  stale:   { dot: "bg-amber-400",              label: "Stale",   text: "text-amber-400" },
-  failed:  { dot: "bg-red-500",                label: "Failed",  text: "text-red-400" },
-  missing: { dot: "bg-[var(--color-border-strong)]", label: "—",  text: "text-[var(--color-text-subtle)]" },
+// Status colours are fixed, deliberately — they are never taken from the brand
+// accent.
+//
+// "ok" used to paint from --color-accent, which an admin style override can
+// set to anything. Set it to red, as somebody had, and a synced feed and a
+// failed one become the same red dot: the panel still renders, the legend
+// still lists four states, and the one question it exists to answer can no
+// longer be answered. Green means working in every theme there will ever be.
+//
+// The shape carries the meaning too, not just the hue, so this survives being
+// printed in greyscale and read by someone who cannot separate red from green.
+const HEALTH_STYLE: Record<Health, { dot: string; label: string; text: string; glyph: string }> = {
+  ok:      { dot: "bg-emerald-500",                  label: "Synced",        text: "text-emerald-500",  glyph: "●" },
+  stale:   { dot: "bg-amber-400",                    label: "Stale",         text: "text-amber-400",    glyph: "◐" },
+  failed:  { dot: "bg-red-500",                      label: "Failed",        text: "text-red-400",      glyph: "✕" },
+  missing: { dot: "bg-[var(--color-border-strong)]", label: "Not connected", text: "text-[var(--color-text-subtle)]", glyph: "○" },
 };
 
 export default async function CommandCenter() {
@@ -227,7 +238,7 @@ export default async function CommandCenter() {
                 {(["ok", "stale", "failed", "missing"] as Health[]).map((h) => (
                   <span key={h} className="inline-flex items-center gap-1.5">
                     <span className={"h-2 w-2 rounded-full " + HEALTH_STYLE[h].dot} />
-                    {h === "ok" ? "Synced" : h === "missing" ? "Not connected" : HEALTH_STYLE[h].label}
+                    {HEALTH_STYLE[h].label}
                   </span>
                 ))}
               </div>

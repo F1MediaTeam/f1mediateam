@@ -6,6 +6,7 @@
 
 import type { Connector, SyncContext, SyncResult } from "./index";
 import { data } from "@/lib/data";
+import { semrushEnabled } from "./flags";
 
 const BASE = "https://api.semrush.com/";
 
@@ -387,6 +388,10 @@ export async function fetchOrganicKeywords(apikey: string, domain: string, limit
 
 /** Resolve a client's stored SEMrush key + domain and fetch their keywords. */
 export async function fetchClientOrganicKeywords(clientId: string, limit = 250): Promise<OrganicKeyword[]> {
+  // Guarded here rather than at each call site: this is the last remaining
+  // path that spends units, and a guard the callers have to remember is a
+  // guard that gets forgotten the next time somebody adds an export.
+  if (!semrushEnabled()) return [];
   const connectors = await data.listConnectors(clientId);
   const token = connectors.find((c) => c.provider === "semrush");
   if (!token) return [];
@@ -663,6 +668,10 @@ async function pool<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>)
  * success/failure is captured in its DeepPullReport.
  */
 export async function semrushDeepPull(apikey: string, rawDomain: string, database = "us"): Promise<DeepPullReport[]> {
+  // The most expensive call in the codebase — roughly 100k units. Gated at the
+  // bottom so the admin "Run deep pull" button, the per-client helper and
+  // anything added later are all covered by one check.
+  if (!semrushEnabled()) return [];
   const domain = normalizeDomain(rawDomain);
   const baseCtx: SpecCtx = { apikey, domain, database, seedPhrase: "" };
 

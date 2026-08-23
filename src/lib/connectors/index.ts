@@ -45,6 +45,7 @@ import { ga4Connector } from "./ga4";
 import { bingConnector } from "./bing";
 import { semrushConnector } from "./semrush";
 import { gbpConnector } from "./gbp";
+import { semrushEnabled } from "./flags";
 
 export const REGISTRY: Record<string, Connector> = {
   gsc: gscConnector,
@@ -54,6 +55,10 @@ export const REGISTRY: Record<string, Connector> = {
   gbp: gbpConnector,
 };
 
+export { semrushEnabled };
+
 export function getConnector(provider: string): Connector | null {
+  // The single chokepoint the scheduled sync goes through.
+  if (provider === "semrush" && !semrushEnabled()) return null;
   return REGISTRY[provider] ?? null;
 }

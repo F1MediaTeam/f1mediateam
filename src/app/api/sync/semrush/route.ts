@@ -9,6 +9,7 @@ import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { data } from "@/lib/data";
 import { syncSemrushDeepPull } from "@/lib/connectors/semrush";
+import { semrushEnabled } from "@/lib/connectors/flags";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -18,6 +19,13 @@ export async function POST(request: NextRequest) {
   const session = await getSession();
   if (!session || session.role !== "admin") {
     return new Response("Unauthorized", { status: 401 });
+  }
+
+  // This route reaches syncSemrushDeepPull directly rather than through the
+  // registry, so it needs the same switch or it would remain the one way to
+  // spend ~100k units after everything else was turned off.
+  if (!semrushEnabled()) {
+    return Response.json({ pulled: false, reason: "semrush-disabled" });
   }
 
   const clientId = new URL(request.url).searchParams.get("client_id");

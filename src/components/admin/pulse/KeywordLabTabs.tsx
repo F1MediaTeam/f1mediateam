@@ -101,6 +101,60 @@ function PageCell({
   );
 }
 
+
+/**
+ * The page Google actually ranks, as a link you can open.
+ *
+ * When it differs from the page somebody assigned, that mismatch is flagged —
+ * it usually means a dedicated page was written and Google kept ranking the
+ * homepage anyway, which is a fixable problem that is invisible until the two
+ * are shown side by side.
+ */
+function RankingPageCell({
+  page,
+  domain,
+  assigned,
+}: {
+  page: string | null;
+  domain: string;
+  assigned: string | null;
+}) {
+  if (!page) {
+    return (
+      <span className="text-xs text-[var(--color-text-subtle)]" title="Run a refresh to pull query and page pairs from Search Console">
+        —
+      </span>
+    );
+  }
+  const pretty = page.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(domain, "") || "/";
+  const norm = (u: string) => u.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
+  const mismatch = Boolean(assigned) && norm(assigned as string) !== norm(page);
+
+  return (
+    <span className="flex items-center gap-1">
+      <a
+        href={page}
+        target="_blank"
+        rel="noreferrer"
+        title={page}
+        className="block max-w-[13rem] truncate text-xs text-[var(--color-accent)] hover:underline"
+      >
+        {pretty}
+      </a>
+      <ExternalLink size={10} className="shrink-0 text-[var(--color-text-subtle)]" />
+      {mismatch ? (
+        <span
+          title={`Google ranks this page, but ${assigned} was assigned. Worth a look.`}
+          className="shrink-0 rounded px-1 text-[9px] font-semibold uppercase"
+          style={{ background: "rgba(217,164,65,.18)", color: "#d9a441" }}
+        >
+          differs
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 type View = "working" | "ranking" | "opportunities" | "potential";
 
 export default function KeywordLabTabs({
@@ -238,15 +292,18 @@ export default function KeywordLabTabs({
         <>
           <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
             {fmt(filtered.length)} of {fmt(data.totals.rankingCount)} searches Google already shows this
-            site for. Position, clicks and impressions are Google&rsquo;s own. Estimated searches is
-            computed from those two — how many people saw it, divided by how many ever look that far
-            down — so it is an estimate, and it softens the deeper the ranking.
+            site for. &ldquo;Page Google ranks&rdquo; is the URL Search Console reports as the one
+            actually appearing; &ldquo;page it should win&rdquo; is the one you assigned. When those
+            differ the row says so, and that gap is usually the thing worth fixing. Position, clicks
+            and impressions are Google&rsquo;s own; estimated searches is computed from impressions
+            and position, so it softens the deeper the ranking.
           </p>
           <div className="overflow-x-auto rounded-lg border border-[var(--color-border)]">
             <table className="w-full min-w-[50rem] text-sm">
               <thead>
                 <tr className="border-b border-[var(--color-border)]">
                   <th className={th}>Keyword</th>
+                  <th className={th}>Page Google ranks</th>
                   <th className={th}>Page it should win</th>
                   <th className={th}>Intent</th>
                   <th className={th}>Est. searches/mo</th>
@@ -268,6 +325,9 @@ export default function KeywordLabTabs({
                                 style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>tracked</span>
                         ) : null}
                       </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <RankingPageCell page={r.rankingPage} domain={domain} assigned={r.targetUrl} />
                     </td>
                     <td className="px-3 py-2">
                       <PageCell siteId={siteId} domain={domain} phrase={r.phrase} targetUrl={r.targetUrl} />

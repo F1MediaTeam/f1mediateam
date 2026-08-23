@@ -38,7 +38,7 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
   // row has a shape to show rather than two dots.
   const historyFrom = new Date(now - 84 * 86_400_000).toISOString().slice(0, 10);
 
-  const [{ data: terms }, { data: kws }, { data: site }] = await Promise.all([
+  const [{ data: terms }, { data: kws }, { data: site }, { data: pairs }] = await Promise.all([
     supabase
       .from("pulse_search_terms")
       .select("term, clicks, impressions, ctr, position, period_start")
@@ -52,7 +52,22 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
       .eq("site_id", siteId)
       .eq("is_active", true),
     supabase.from("pulse_sites").select("gsc_connected").eq("id", siteId).maybeSingle(),
+    // Which page Google actually ranks for each query, newest window first.
+    supabase
+      .from("pulse_search_terms")
+      .select("term, page, period_start")
+      .eq("site_id", siteId)
+      .eq("dimension", "query_page")
+      .order("period_start", { ascending: false })
+      .limit(30_000),
   ]);
+
+  const rankingPages = new Map<string, string>();
+  for (const r of (pairs as Array<{ term: string; page: string | null }>) ?? []) {
+    if (!r.page) continue;
+    // Newest window sorted first, so the first sighting of a term wins.
+    if (!rankingPages.has(r.term.toLowerCase())) rankingPages.set(r.term.toLowerCase(), r.page);
+  }
 
   interface Term {
     term: string;
@@ -139,6 +154,7 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
         intent: classifyIntent(phrase),
         tracked: trackedByPhrase.has(phrase.toLowerCase()),
         targetUrl: trackedByPhrase.get(phrase.toLowerCase())?.target_url ?? null,
+        rankingPage: rankingPages.get(phrase.toLowerCase()) ?? null,
         keywordId: trackedByPhrase.get(phrase.toLowerCase())?.id ?? null,
         history: hist,
         estVolume: estimateVolume(g.impr, position, days),

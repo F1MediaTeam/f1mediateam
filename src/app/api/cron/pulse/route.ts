@@ -30,6 +30,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { listSites, type PulseSite } from "@/lib/pulse/sites";
 import { runHeartbeat } from "@/lib/pulse/heartbeat";
 import { runSearch } from "@/lib/pulse/collectors/search";
+import { runQueryPages } from "@/lib/pulse/collectors/backfill";
 import { runOpportunities } from "@/lib/pulse/collectors/opportunities";
 import { runPsi } from "@/lib/pulse/collectors/psi";
 import { runLocal } from "@/lib/pulse/collectors/local";
@@ -142,7 +143,12 @@ export async function GET(request: NextRequest) {
         for (const s of targets) {
           if (budgetLeft() < 20_000) break;
           if (job === "heartbeat") await runHeartbeat(s);
-          else if (job === "search") await runSearch(s);
+          else if (job === "search") {
+            await runSearch(s);
+            // Query and page pairs ride along with the search pull: same
+            // connection, same window, and the Keyword Lab is wrong without it.
+            await runQueryPages(s);
+          }
           else if (job === "opportunities") await runOpportunities(s);
           else if (job === "local") await runLocal(s);
           else if (job === "index") await runIndexInspector(s);

@@ -68,6 +68,8 @@ export interface RankingKeyword {
   estVolume: number;
   /** The page this keyword is assigned to win, when somebody has assigned one. */
   targetUrl: string | null;
+  /** The page Google actually ranks for it. Often not the assigned one. */
+  rankingPage: string | null;
   /** Row id in pulse_keywords, present only when tracked. */
   keywordId: string | null;
 }

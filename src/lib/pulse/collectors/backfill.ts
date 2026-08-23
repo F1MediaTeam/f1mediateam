@@ -11,7 +11,7 @@
 // into the same table, which is why granularity is stored per row.
 
 import { createServiceClient } from "@/lib/supabase/server";
-import { fetchClientGscPages, fetchClientGscQueries } from "@/lib/connectors/gsc";
+import { fetchClientGscPages, fetchClientGscQueries, fetchClientGscQueryPagePairs } from "@/lib/connectors/gsc";
 import { data } from "@/lib/data";
 import type { PulseSite } from "@/lib/pulse/sites";
 
@@ -198,4 +198,79 @@ export async function runBackfill(site: PulseSite): Promise<BackfillResult> {
   }
 
   return { ...base, months: windows.length, queryRows, pageRows };
+}
+
+/**
+ * The page Google actually ranks for each query.
+ *
+ * The rest of this file asks Search Console for queries and for pages
+ * separately, which loses the join between them — and that join is the useful
+ * part. The Keyword Lab can say which page *should* win a keyword because
+ * somebody assigned it; without this it cannot say which page *is* winning,
+ * and the gap between those two is usually the real problem.
+ *
+ * One page per query, deliberately. A query that pulls in several of our pages
+ * is cannibalisation, which has its own panel and its own remedy; here the
+ * question is simply "what is Google showing", and the answer is the page with
+ * the most impressions behind it.
+ */
+export async function runQueryPages(site: PulseSite): Promise<{
+  siteId: string;
+  domain: string;
+  pairs: number;
+  skipped?: string;
+}> {
+  const supabase = await createServiceClient();
+  const base = { siteId: site.id, domain: site.domain, pairs: 0 };
+
+  const connectors = await data.listConnectors(site.client_id);
+  if (!connectors.some((c) => c.provider === "gsc")) {
+    return { ...base, skipped: "No Search Console connection for this client." };
+  }
+
+  // Google's data runs about two days behind, so asking for today returns a
+  // window that is still filling in.
+  const end = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
+  const start = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+
+  let rows;
+  try {
+    rows = await fetchClientGscQueryPagePairs(site.client_id, start, end, 25_000);
+  } catch (err) {
+    return { ...base, skipped: err instanceof Error ? err.message : "Search Console refused the request." };
+  }
+  if (rows.length === 0) return base;
+
+  // Keep the strongest page per query.
+  const best = new Map<string, (typeof rows)[number]>();
+  for (const r of rows) {
+    if (!r.query || !r.page) continue;
+    const prev = best.get(r.query);
+    if (!prev || r.impressions > prev.impressions) best.set(r.query, r);
+  }
+
+  const payload = [...best.values()].map((r) => ({
+    site_id: site.id,
+    period_start: start,
+    granularity: "month" as const,
+    dimension: "query_page" as const,
+    term: r.query.slice(0, 500),
+    page: r.page.slice(0, 1000),
+    clicks: Math.round(r.clicks),
+    impressions: Math.round(r.impressions),
+    ctr: r.ctr,
+    position: r.position,
+  }));
+
+  // Chunked because a long-tail site produces thousands of pairs and one
+  // oversized upsert is how a request gets rejected for body size.
+  for (let i = 0; i < payload.length; i += 500) {
+    await supabase
+      .from("pulse_search_terms")
+      .upsert(payload.slice(i, i + 500), {
+        onConflict: "site_id,period_start,granularity,dimension,term",
+      });
+  }
+
+  return { ...base, pairs: payload.length };
 }

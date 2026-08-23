@@ -292,11 +292,12 @@ export default function KeywordLabTabs({
         <>
           <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
             {fmt(filtered.length)} of {fmt(data.totals.rankingCount)} searches Google already shows this
-            site for. &ldquo;Page Google ranks&rdquo; is the URL Search Console reports as the one
-            actually appearing; &ldquo;page it should win&rdquo; is the one you assigned. When those
-            differ the row says so, and that gap is usually the thing worth fixing. Position, clicks
-            and impressions are Google&rsquo;s own; estimated searches is computed from impressions
-            and position, so it softens the deeper the ranking.
+            site for, with the URL Search Console reports as the one actually appearing. Everything
+            here is measured — nothing on this tab is a decision anybody made. Track a keyword to
+            start working on it and assign the page it should win; if Google is ranking a different
+            page than the one assigned, the row says <strong>differs</strong>. Position, clicks and
+            impressions are Google&rsquo;s own; estimated searches is computed from impressions and
+            position, so it softens the deeper the ranking.
           </p>
           <div className="overflow-x-auto rounded-lg border border-[var(--color-border)]">
             <table className="w-full min-w-[50rem] text-sm">
@@ -304,7 +305,6 @@ export default function KeywordLabTabs({
                 <tr className="border-b border-[var(--color-border)]">
                   <th className={th}>Keyword</th>
                   <th className={th}>Page Google ranks</th>
-                  <th className={th}>Page it should win</th>
                   <th className={th}>Intent</th>
                   <th className={th}>Est. searches/mo</th>
                   <th className={th}>Position</th>
@@ -323,14 +323,23 @@ export default function KeywordLabTabs({
                         {r.tracked ? (
                           <span className="rounded px-1 text-[9px] font-semibold uppercase"
                                 style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>tracked</span>
-                        ) : null}
+                        ) : (
+                          <form action={addTrackedAction} className="inline print:hidden">
+                            <input type="hidden" name="siteId" value={siteId} />
+                            <input type="hidden" name="phrase" value={r.phrase} />
+                            <button
+                              type="submit"
+                              title="Start working on this keyword — you can assign its page on the Working on tab"
+                              className="rounded border border-[var(--color-border)] px-1 text-[9px] font-semibold uppercase text-[var(--color-text-subtle)] hover:text-[var(--color-text)]"
+                            >
+                              track
+                            </button>
+                          </form>
+                        )}
                       </span>
                     </td>
                     <td className="px-3 py-2">
                       <RankingPageCell page={r.rankingPage} domain={domain} assigned={r.targetUrl} />
-                    </td>
-                    <td className="px-3 py-2">
-                      <PageCell siteId={siteId} domain={domain} phrase={r.phrase} targetUrl={r.targetUrl} />
                     </td>
                     <td className="px-3 py-2"><IntentChip code={r.intent} /></td>
                     <td className="px-3 py-2 tabular-nums" style={{ color: "var(--color-text-muted)" }}>

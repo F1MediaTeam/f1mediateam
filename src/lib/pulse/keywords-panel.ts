@@ -190,10 +190,34 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
 
   const { data: pageRows } = await supabase
     .from("pulse_search_terms")
-    .select("term")
+    .select("term, clicks, impressions, position, period_start")
     .eq("site_id", siteId)
     .eq("dimension", "page")
+    .gte("period_start", currentFrom)
     .limit(20_000);
+
+  // Page-level totals, impression-weighted like everything else here.
+  const pageAgg = new Map<string, { clicks: number; impr: number; pw: number }>();
+  for (const r of (pageRows as Array<{
+    term: string; clicks: number; impressions: number; position: number;
+  }>) ?? []) {
+    const key = r.term.replace(/\/$/, "").toLowerCase();
+    const g = pageAgg.get(key) ?? { clicks: 0, impr: 0, pw: 0 };
+    g.clicks += r.clicks ?? 0;
+    g.impr += r.impressions ?? 0;
+    g.pw += (r.position ?? 0) * (r.impressions ?? 0);
+    pageAgg.set(key, g);
+  }
+  const statsFor = (url: string | null) => {
+    if (!url) return null;
+    const g = pageAgg.get(url.replace(/\/$/, "").toLowerCase());
+    if (!g || g.impr === 0) return null;
+    return {
+      impressions: g.impr,
+      clicks: g.clicks,
+      position: Math.round((g.pw / g.impr) * 10) / 10,
+    };
+  };
 
   const sitePages = [
     ...new Set([
@@ -227,6 +251,13 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
       // Only worth computing when nothing better is already known.
       suggestedPage:
         k.target_url || m?.rankingPage ? null : suggestPageFor(k.phrase, sitePages),
+      // Only when the keyword itself has nothing — otherwise the query figures
+      // are the more precise answer and should not be crowded out.
+      pageStats: m
+        ? null
+        : statsFor(
+            k.target_url ?? suggestPageFor(k.phrase, sitePages),
+          ),
       position: m ? m.position : null,
       clicks: m ? m.clicks : 0,
       impressions: m ? m.impressions : 0,

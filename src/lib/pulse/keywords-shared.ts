@@ -146,6 +146,16 @@ export interface TrackedKeyword {
    * /page/screen-printing-tempe-az. Nobody should have to paste that in.
    */
   suggestedPage: string | null;
+  /**
+   * How the assigned page performs overall, when the keyword itself has none.
+   *
+   * Google anonymises rare searches — on this account 70% of impressions carry
+   * no query at all. So a page can earn sixty impressions and rank 26th while
+   * every individual search that produced it is withheld. Reporting the
+   * keyword as "no data, 0, 0" is true about the query and a lie about the
+   * page, and the page is the thing being worked on.
+   */
+  pageStats: { impressions: number; clicks: number; position: number } | null;
 }
 
 export interface KeywordsPanel {

@@ -108,3 +108,41 @@ export async function untrackAction(formData: FormData): Promise<void> {
   await supabase.from("pulse_keywords").update({ is_active: false }).eq("id", keywordId);
   revalidatePath(`/admin/pulse/${siteId}`);
 }
+
+/**
+ * Re-pull this client's Search Console data on demand.
+ *
+ * Both halves, deliberately: the query figures and the query/page pairs come
+ * from the same connection over the same window, and refreshing one without
+ * the other leaves the Keyword Lab half-updated in a way nobody can see.
+ *
+ * Google runs about two days behind regardless, so this is not a live feed —
+ * it is "fetch whatever Google has now" rather than a wait for a fresh crawl.
+ */
+export async function refreshKeywordsAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const siteId = String(formData.get("siteId") ?? "");
+  if (!siteId) return;
+
+  const { listSites } = await import("@/lib/pulse/sites");
+  const sites = await listSites(null);
+  const site = sites.find((s) => s.id === siteId);
+  if (!site) return;
+
+  const { runSearch } = await import("@/lib/pulse/collectors/search");
+  const { runQueryPages } = await import("@/lib/pulse/collectors/backfill");
+
+  // One failing must not stop the other — half-fresh beats not-refreshed.
+  try {
+    await runSearch(site);
+  } catch (err) {
+    console.error("[keywords refresh] search failed:", err);
+  }
+  try {
+    await runQueryPages(site);
+  } catch (err) {
+    console.error("[keywords refresh] query/page pairs failed:", err);
+  }
+
+  revalidatePath(`/admin/pulse/${siteId}`);
+}

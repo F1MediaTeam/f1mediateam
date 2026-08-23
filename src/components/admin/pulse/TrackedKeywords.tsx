@@ -201,6 +201,13 @@ export default function TrackedKeywords({
                 <tr key={k.id} className="border-b border-[var(--color-border)] last:border-0 align-top">
                   <td className="px-3 py-2 font-medium">
                     {k.phrase}
+                    {k.position === null && k.pageStats ? (
+                      <div className="mt-1 text-xs font-normal leading-relaxed text-[var(--color-text-muted)]">
+                        Figures are for the <strong>page</strong>, not this exact phrase — Google
+                        withholds rare searches, so it will not say which ones brought these{" "}
+                        {k.pageStats.impressions} impressions.
+                      </div>
+                    ) : null}
                     {k.nearMatch ? (
                       <div className="mt-1 text-xs font-normal leading-relaxed text-[var(--color-text-muted)]">
                         Nobody searches this exact phrase, but this site ranks{" "}
@@ -223,9 +230,29 @@ export default function TrackedKeywords({
                       suggested={k.suggestedPage}
                     />
                   </td>
-                  <td className="px-3 py-2"><PositionCell position={k.position} /></td>
-                  <td className="px-3 py-2 tabular-nums">{k.impressions.toLocaleString()}</td>
-                  <td className="px-3 py-2 tabular-nums text-[var(--color-text-muted)]">{k.clicks}</td>
+                  <td className="px-3 py-2">
+                    {k.position !== null ? (
+                      <PositionCell position={k.position} />
+                    ) : k.pageStats ? (
+                      <span className="font-semibold tabular-nums"
+                            style={{ color: k.pageStats.position <= 10 ? "var(--color-up)" : undefined }}
+                            title="Position of the page overall — Google withheld the individual searches">
+                        {k.pageStats.position.toFixed(1)}
+                      </span>
+                    ) : (
+                      <PositionCell position={null} />
+                    )}
+                  </td>
+                  <td className="px-3 py-2 tabular-nums">
+                    {k.position !== null
+                      ? k.impressions.toLocaleString()
+                      : k.pageStats
+                        ? k.pageStats.impressions.toLocaleString()
+                        : 0}
+                  </td>
+                  <td className="px-3 py-2 tabular-nums text-[var(--color-text-muted)]">
+                    {k.position !== null ? k.clicks : k.pageStats ? k.pageStats.clicks : 0}
+                  </td>
                   <td className="px-3 py-2">
                     <form action={untrackAction}>
                       <input type="hidden" name="siteId" value={siteId} />
@@ -244,7 +271,9 @@ export default function TrackedKeywords({
       )}
 
       <p className="text-xs text-[var(--color-text-subtle)]">
-        Position, impressions and clicks come from Search Console. A page marked{" "}
+        Where Google names the search, the figures are for that search. Where it does not — and on
+        this account it withholds about seventy percent of them — the figures are for the page, and
+        the row says so. A page marked{" "}
         <strong>ranking</strong> is the one Google currently shows for that search;{" "}
         <strong>found</strong> means we matched a page on this site by the words in its URL — worth a
         glance before you trust it. Click any page to open it, or edit to point the keyword somewhere

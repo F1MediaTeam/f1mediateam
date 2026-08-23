@@ -13,11 +13,11 @@
 // round trip to Google, so it stays behind a button.
 
 import { useMemo, useState } from "react";
-import { Search, Printer, Download, ExternalLink, Loader2, Check } from "lucide-react";
+import { Search, Printer, Download, ExternalLink, Loader2, Check, RefreshCw } from "lucide-react";
 import type { KeywordsPanel as PanelData, RankingKeyword } from "@/lib/pulse/keywords-shared";
 import type { Opportunity } from "@/lib/pulse/keyword-gaps";
 import { isQuestion } from "@/lib/pulse/keywords-shared";
-import { addTrackedAction } from "@/app/admin/pulse/[siteId]/gaps/actions";
+import { addTrackedAction, refreshKeywordsAction } from "@/app/admin/pulse/[siteId]/gaps/actions";
 import KeywordGaps from "./KeywordGaps";
 import TrackedKeywords from "./TrackedKeywords";
 
@@ -242,6 +242,16 @@ export default function KeywordLabTabs({
             ) : null}
           </button>
         ))}
+        <form action={refreshKeywordsAction} className="ml-auto pb-1">
+          <input type="hidden" name="siteId" value={siteId} />
+          <button
+            type="submit"
+            title="Re-pull this client's Search Console data — searches, positions and the page ranking for each"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+          >
+            <RefreshCw size={13} /> Refresh from Google
+          </button>
+        </form>
       </div>
 
       {/* shared filters — the measured views only */}

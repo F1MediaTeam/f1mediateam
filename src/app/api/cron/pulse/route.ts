@@ -31,6 +31,7 @@ import { listSites, type PulseSite } from "@/lib/pulse/sites";
 import { runHeartbeat } from "@/lib/pulse/heartbeat";
 import { runSearch } from "@/lib/pulse/collectors/search";
 import { runQueryPages } from "@/lib/pulse/collectors/backfill";
+import { runAuthorityDaily } from "@/lib/pulse/collectors/authority-daily";
 import { runOpportunities } from "@/lib/pulse/collectors/opportunities";
 import { runPsi } from "@/lib/pulse/collectors/psi";
 import { runLocal } from "@/lib/pulse/collectors/local";
@@ -57,11 +58,12 @@ const CADENCE_HOURS: Record<string, number> = {
   crawl: 168,
   index: 168,
   competitors: 168,
+  authority: 24,
   psi: 720,
 };
 
 /** Runs in the order a human would want them: uptime first, then the rest. */
-const PRIORITY = ["heartbeat", "search", "opportunities", "crawl", "index", "competitors", "local", "psi"];
+const PRIORITY = ["heartbeat", "search", "opportunities", "authority", "crawl", "index", "competitors", "local", "psi"];
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -154,6 +156,9 @@ export async function GET(request: NextRequest) {
           else if (job === "index") await runIndexInspector(s);
           else if (job === "competitors") await runCompetitorsForSite(s.id);
           else if (job === "psi") await runPsi(s);
+          // Authority scores every registered domain in one pass rather than
+          // per site, so it runs once and breaks out of the per-site loop.
+          else if (job === "authority") { await runAuthorityDaily(); count = 1; break; }
           else if (job === "crawl") continue; // handled below
           count += 1;
         }

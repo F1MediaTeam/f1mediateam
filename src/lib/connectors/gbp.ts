@@ -24,6 +24,9 @@ const SCOPE = "https://www.googleapis.com/auth/business.manage";
 const ACCOUNTS_API = "https://mybusinessaccountmanagement.googleapis.com/v1";
 const INFO_API = "https://mybusinessbusinessinformation.googleapis.com/v1";
 const REVIEWS_API = "https://mybusiness.googleapis.com/v4";
+// A fourth host, for performance data. Same scope, no extra approval — unlike
+// the v4 reviews API, this one works as soon as it is enabled.
+const PERFORMANCE_API = "https://businessprofileperformance.googleapis.com/v1";
 
 export interface GbpLocation {
   /** "locations/12345678901234567890" */
@@ -203,3 +206,81 @@ export const gbpConnector: Connector = {
     return { snapshots, effectiveAsOf: captured_at };
   },
 };
+
+export interface GbpSearchKeyword {
+  keyword: string;
+  /** Impressions in the window. When belowThreshold, read as "fewer than". */
+  impressions: number;
+  /**
+   * Google withholds exact counts for low-volume terms and returns a ceiling
+   * instead. Treating that ceiling as a count would overstate local demand,
+   * so which one arrived is carried alongside the number rather than lost.
+   */
+  belowThreshold: boolean;
+}
+
+/**
+ * The searches that actually surfaced this business on Google and Maps.
+ *
+ * This is the local half of demand, and Search Console never sees it: someone
+ * searching "sign shop near me" on their phone and tapping a map result leaves
+ * no trace in the web-search data at all. For a local service business that is
+ * not a rounding error, it is most of the intent.
+ *
+ * Monthly only — Google publishes no daily breakdown for search terms. Results
+ * page at 100, so a busy location needs several round trips.
+ */
+export async function fetchSearchKeywords(
+  locationName: string,
+  token: string,
+  months = 3,
+): Promise<GbpSearchKeyword[]> {
+  // Google's current month is always partial, so the window ends last month.
+  const now = new Date();
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() - (months - 1), 1));
+
+  const id = locationName.startsWith("locations/") ? locationName : `locations/${locationName}`;
+  const base = new URLSearchParams({
+    "monthlyRange.start_month.year": String(start.getUTCFullYear()),
+    "monthlyRange.start_month.month": String(start.getUTCMonth() + 1),
+    "monthlyRange.end_month.year": String(end.getUTCFullYear()),
+    "monthlyRange.end_month.month": String(end.getUTCMonth() + 1),
+    pageSize: "100",
+  });
+
+  const out: GbpSearchKeyword[] = [];
+  let pageToken: string | null = null;
+
+  // Bounded rather than while(true): a pagination bug on Google's side or ours
+  // should cost a wasted request, not an endless loop in a scheduled job.
+  for (let page = 0; page < 20; page++) {
+    const params = new URLSearchParams(base);
+    if (pageToken) params.set("pageToken", pageToken);
+
+    const body = await googleGet(`${PERFORMANCE_API}/${id}/searchkeywords/impressions/monthly?${params}`, token);
+    const rows = (body.searchKeywordsCounts as Array<Record<string, unknown>>) ?? [];
+
+    for (const row of rows) {
+      const keyword = String(row.searchKeyword ?? "").trim();
+      if (!keyword) continue;
+      const insights = (row.insightsValue ?? {}) as { value?: string; threshold?: string };
+      const exact = insights.value != null;
+      const raw = Number(exact ? insights.value : insights.threshold);
+      if (!Number.isFinite(raw)) continue;
+      out.push({ keyword, impressions: raw, belowThreshold: !exact });
+    }
+
+    pageToken = (body.nextPageToken as string) ?? null;
+    if (!pageToken) break;
+  }
+
+  // Exact counts first, then thresholds — a "fewer than 15" should never sort
+  // above a measured 12.
+  out.sort((a, b) =>
+    a.belowThreshold === b.belowThreshold
+      ? b.impressions - a.impressions
+      : a.belowThreshold ? 1 : -1,
+  );
+  return out;
+}

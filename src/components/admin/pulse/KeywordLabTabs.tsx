@@ -13,10 +13,11 @@
 // round trip to Google, so it stays behind a button.
 
 import { useMemo, useState } from "react";
-import { Search, Printer, Download } from "lucide-react";
+import { Search, Printer, Download, ExternalLink, Loader2, Check } from "lucide-react";
 import type { KeywordsPanel as PanelData, RankingKeyword } from "@/lib/pulse/keywords-shared";
 import type { Opportunity } from "@/lib/pulse/keyword-gaps";
 import { isQuestion } from "@/lib/pulse/keywords-shared";
+import { addTrackedAction } from "@/app/admin/pulse/[siteId]/gaps/actions";
 import KeywordGaps from "./KeywordGaps";
 import TrackedKeywords from "./TrackedKeywords";
 
@@ -40,6 +41,64 @@ function IntentChip({ code }: { code: string }) {
 function Pos({ position }: { position: number }) {
   const tone = position <= 3 ? "var(--color-up)" : position <= 10 ? "var(--color-accent)" : position <= 20 ? "#d9a441" : undefined;
   return <span className="font-semibold tabular-nums" style={{ color: tone }}>{position.toFixed(1)}</span>;
+}
+
+
+/**
+ * The page a keyword is meant to win, editable from wherever you are.
+ *
+ * A keyword with no page assigned is the common case on the ranking tab —
+ * Google decided that pairing, nobody here did. Assigning one from this cell
+ * starts tracking it, so the two lists stay one list rather than drifting.
+ */
+function PageCell({
+  siteId,
+  domain,
+  phrase,
+  targetUrl,
+}: {
+  siteId: string;
+  domain: string;
+  phrase: string;
+  targetUrl: string | null;
+}) {
+  const [v, setV] = useState(targetUrl ?? "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function save() {
+    if (v.trim() === (targetUrl ?? "")) return;
+    setSaving(true);
+    const fd = new FormData();
+    fd.set("siteId", siteId);
+    fd.set("phrase", phrase);
+    fd.set("targetUrl", v.trim());
+    await addTrackedAction(fd);
+    setSaving(false);
+    setSaved(true);
+  }
+
+  return (
+    <span className="flex items-center gap-1">
+      <input
+        value={v}
+        onChange={(e) => { setV(e.target.value); setSaved(false); }}
+        onBlur={save}
+        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        placeholder="link a page…"
+        title={v || `Assign the page that should rank for "${phrase}"`}
+        className="w-40 rounded border border-transparent bg-transparent px-1.5 py-1 text-xs text-[var(--color-text-muted)] outline-none hover:border-[var(--color-border)] focus:border-[var(--color-accent)] focus:text-[var(--color-text)]"
+      />
+      {saving ? <Loader2 size={11} className="animate-spin text-[var(--color-text-subtle)]" /> : null}
+      {saved && !saving ? <Check size={11} style={{ color: "var(--color-up)" }} /> : null}
+      {v && !saving && v.startsWith("http") ? (
+        <a href={v} target="_blank" rel="noreferrer" title={v}
+           className="text-[var(--color-text-subtle)] hover:text-[var(--color-accent)]">
+          <ExternalLink size={11} />
+        </a>
+      ) : null}
+    </span>
+  );
 }
 
 type View = "working" | "ranking" | "opportunities" | "potential";
@@ -68,6 +127,11 @@ export default function KeywordLabTabs({
     if (questionsOnly) r = r.filter((x) => isQuestion(x.phrase));
     return [...r].sort((a, b) => (sort === "position" ? a.position - b.position : b[sort] - a[sort]));
   }, [data.ranking, q, intent, questionsOnly, sort]);
+
+  const byPhrase = useMemo(
+    () => new Map(data.ranking.map((r) => [r.phrase, r])),
+    [data.ranking],
+  );
 
   const filteredOpps = useMemo(() => {
     let o = opportunities;
@@ -183,6 +247,7 @@ export default function KeywordLabTabs({
               <thead>
                 <tr className="border-b border-[var(--color-border)]">
                   <th className={th}>Keyword</th>
+                  <th className={th}>Page it should win</th>
                   <th className={th}>Intent</th>
                   <th className={th}>Est. searches/mo</th>
                   <th className={th}>Position</th>
@@ -203,6 +268,9 @@ export default function KeywordLabTabs({
                                 style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>tracked</span>
                         ) : null}
                       </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <PageCell siteId={siteId} domain={domain} phrase={r.phrase} targetUrl={r.targetUrl} />
                     </td>
                     <td className="px-3 py-2"><IntentChip code={r.intent} /></td>
                     <td className="px-3 py-2 tabular-nums" style={{ color: "var(--color-text-muted)" }}>
@@ -239,6 +307,7 @@ export default function KeywordLabTabs({
               <thead>
                 <tr className="border-b border-[var(--color-border)]">
                   <th className={th}>Keyword</th>
+                  <th className={th}>Page it should win</th>
                   <th className={th}>Position</th>
                   <th className={th}>Impressions</th>
                   <th className={th}>Clicks now</th>
@@ -250,6 +319,10 @@ export default function KeywordLabTabs({
                 {filteredOpps.map((o) => (
                   <tr key={o.phrase} className="border-b border-[var(--color-border)] last:border-0">
                     <td className="px-3 py-2 font-medium"><span className="block max-w-[15rem] truncate">{o.phrase}</span></td>
+                    <td className="px-3 py-2">
+                      <PageCell siteId={siteId} domain={domain} phrase={o.phrase}
+                                targetUrl={byPhrase.get(o.phrase)?.targetUrl ?? null} />
+                    </td>
                     <td className="px-3 py-2"><Pos position={o.position} /></td>
                     <td className="px-3 py-2 tabular-nums">{fmt(o.impressions)}</td>
                     <td className="px-3 py-2 tabular-nums text-[var(--color-text-muted)]">{o.clicks}</td>

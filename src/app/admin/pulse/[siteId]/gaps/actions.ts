@@ -2,7 +2,7 @@
 
 import { requireAdmin } from "@/lib/auth/session";
 import { keywordsPanel } from "@/lib/pulse/keywords-panel";
-import { findGaps, trackGap, type KeywordGap } from "@/lib/pulse/keyword-gaps";
+import { findGaps, type KeywordGap } from "@/lib/pulse/keyword-gaps";
 import { revalidatePath } from "next/cache";
 
 /**
@@ -31,12 +31,9 @@ export async function findGapsAction(
 }
 
 export async function trackGapAction(formData: FormData): Promise<void> {
-  await requireAdmin();
-  const siteId = String(formData.get("siteId") ?? "");
-  const phrase = String(formData.get("phrase") ?? "");
-  if (!siteId || !phrase) return;
-  await trackGap(siteId, phrase);
-  revalidatePath(`/admin/pulse/${siteId}`);
+  // Adopting a keyword and deciding which page should win it are the same
+  // decision, so they happen in one action rather than two screens apart.
+  await addTrackedAction(formData);
 }
 
 /** Add one keyword by hand, with the page it should rank. */

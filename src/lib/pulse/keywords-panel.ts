@@ -103,8 +103,13 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
     }
   }
 
-  const trackedPhrases = new Set(
-    ((kws as Array<{ phrase: string }>) ?? []).map((k) => k.phrase.toLowerCase()),
+  // Keyed by phrase so the ranking rows can carry the page they are assigned
+  // to win, not just whether somebody ticked them.
+  const trackedByPhrase = new Map(
+    ((kws as Array<{ id: string; phrase: string; target_url: string | null }>) ?? []).map((k) => [
+      k.phrase.toLowerCase(),
+      k,
+    ]),
   );
 
   const ranking: RankingKeyword[] = [...agg.entries()]
@@ -132,7 +137,9 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
         change: priorPos === null ? null : round1(position - priorPos),
         best: g.best === 999 ? position : round1(g.best),
         intent: classifyIntent(phrase),
-        tracked: trackedPhrases.has(phrase.toLowerCase()),
+        tracked: trackedByPhrase.has(phrase.toLowerCase()),
+        targetUrl: trackedByPhrase.get(phrase.toLowerCase())?.target_url ?? null,
+        keywordId: trackedByPhrase.get(phrase.toLowerCase())?.id ?? null,
         history: hist,
         estVolume: estimateVolume(g.impr, position, days),
       };

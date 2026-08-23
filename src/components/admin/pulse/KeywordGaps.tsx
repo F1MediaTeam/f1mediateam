@@ -59,6 +59,7 @@ export default function KeywordGaps({ siteId }: { siteId: string }) {
                     <th className="px-3 py-2 font-medium">Search we don&rsquo;t show up for</th>
                     <th className="px-3 py-2 font-medium">Suggested from</th>
                     <th className="px-3 py-2 font-medium">Google&rsquo;s order</th>
+                    <th className="px-3 py-2 font-medium">Page it should win</th>
                     <th className="px-3 py-2 font-medium">Track</th>
                   </tr>
                 </thead>
@@ -68,10 +69,16 @@ export default function KeywordGaps({ siteId }: { siteId: string }) {
                       <td className="px-3 py-2 font-medium">{g.phrase}</td>
                       <td className="px-3 py-2 text-xs text-[var(--color-text-muted)]">{g.seed}</td>
                       <td className="px-3 py-2 tabular-nums text-[var(--color-text-muted)]">#{g.rank}</td>
-                      <td className="px-3 py-2">
-                        <form action={trackGapAction}>
+                      <td className="px-3 py-2" colSpan={2}>
+                        <form action={trackGapAction} className="flex items-center gap-2">
                           <input type="hidden" name="siteId" value={siteId} />
                           <input type="hidden" name="phrase" value={g.phrase} />
+                          <input
+                            name="targetUrl"
+                            placeholder="/page-to-write"
+                            title="The page that should rank for this. Blank means the homepage."
+                            className="w-40 rounded border border-[var(--color-border)] bg-[var(--color-bg-elev)] px-2 py-1 text-xs outline-none"
+                          />
                           <button
                             type="submit"
                             className="inline-flex items-center gap-1 rounded border border-[var(--color-border)] px-2 py-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"

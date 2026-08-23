@@ -66,6 +66,10 @@ export interface RankingKeyword {
   history: HistoryPoint[];
   /** Estimated monthly searches, computed from measured impressions. */
   estVolume: number;
+  /** The page this keyword is assigned to win, when somebody has assigned one. */
+  targetUrl: string | null;
+  /** Row id in pulse_keywords, present only when tracked. */
+  keywordId: string | null;
 }
 
 export interface TrackedKeyword {

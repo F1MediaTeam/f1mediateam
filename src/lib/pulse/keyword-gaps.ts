@@ -12,7 +12,6 @@
 // is search volume, so none is shown. A ranked list of real searches with an
 // honest "no volume available" beats a table of invented numbers.
 
-import { createServiceClient } from "@/lib/supabase/server";
 import type { RankingKeyword } from "./keywords-shared";
 
 /**
@@ -178,20 +177,4 @@ export async function findGaps(
     if (a.alreadyRanks !== b.alreadyRanks) return a.alreadyRanks ? 1 : -1;
     return a.rank - b.rank;
   });
-}
-
-/** Record a gap as a tracked keyword so it shows up on the Rankings tab. */
-export async function trackGap(siteId: string, phrase: string): Promise<void> {
-  const supabase = await createServiceClient();
-  await supabase.from("pulse_keywords").upsert(
-    {
-      site_id: siteId,
-      phrase: phrase.trim().slice(0, 200),
-      location_code: 2840,
-      device: "desktop",
-      is_active: true,
-      metrics_source: "measured",
-    },
-    { onConflict: "site_id,phrase,location_code,device" },
-  );
 }

@@ -14,7 +14,14 @@ Everything on our side is built and deployed. Only the return path is missing.
 
 **1. Resend → Domains.** Add `tasks.f1mediateam.com` and enable receiving.
 Use the subdomain, not the bare domain: an MX record on `f1mediateam.com`
-itself would redirect mail for the whole domain. Resend then shows an MX
+itself would redirect mail for the whole domain.
+
+Do this in the team that already owns `f1mediateam.com`. The `RESEND_API_KEY`
+in Vercel belongs to that team, so receiving set up under a different one
+fires the webhook and then fails to fetch the body with a key from the wrong
+workspace — a 502 with no obvious cause. A subdomain is a separate domain
+entry within the same team; it does not appear as a setting on the existing
+domain, which is why the Domains list looks like it only has the one. Resend then shows an MX
 record to copy — the value is account-specific, so it has to come from there.
 
 **2. Network Solutions → Advanced DNS.** Add one MX record.

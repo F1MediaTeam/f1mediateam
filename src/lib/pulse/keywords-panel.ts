@@ -16,67 +16,16 @@
 
 import { createServiceClient } from "@/lib/supabase/server";
 
-export type Intent = "T" | "C" | "I" | "N";
+export type { Intent, HistoryPoint, RankingKeyword, TrackedKeyword, KeywordsPanel } from "./keywords-shared";
+export { classifyIntent, relatedTo, isQuestion, keywordGroups, trendOf, STOP } from "./keywords-shared";
+import type { Intent, HistoryPoint, RankingKeyword, TrackedKeyword, KeywordsPanel } from "./keywords-shared";
+import { classifyIntent } from "./keywords-shared";
 
-export interface RankingKeyword {
-  phrase: string;
-  position: number;
-  clicks: number;
-  impressions: number;
-  ctr: number;
-  /** Change in position against the previous period. Negative is an improvement. */
-  change: number | null;
-  best: number;
-  intent: Intent;
-  tracked: boolean;
-}
 
-export interface TrackedKeyword {
-  id: string;
-  phrase: string;
-  targetUrl: string | null;
-  /** Null when Search Console has never seen this site appear for it. */
-  position: number | null;
-  clicks: number;
-  impressions: number;
-  change: number | null;
-  /** Only present if somebody pasted research in. Never guessed here. */
-  volume: number | null;
-  intent: Intent;
-}
 
-export interface KeywordsPanel {
-  tracked: TrackedKeyword[];
-  ranking: RankingKeyword[];
-  totals: {
-    rankingCount: number;
-    trackedCount: number;
-    top3: number;
-    top10: number;
-    page2: number;
-    impressions: number;
-    clicks: number;
-  };
-  lastUpdated: string | null;
-  gscConnected: boolean;
-}
 
-/**
- * Search intent from the shape of the phrase.
- *
- * A heuristic, and labelled as one wherever it is shown. It exists because
- * sorting a thousand queries by what the person wanted is genuinely useful and
- * the alternative was paying for the same guess.
- */
-export function classifyIntent(phrase: string): Intent {
-  const p = phrase.toLowerCase();
-  if (/^(who|what|why|when|where|how|can|does|do|is|are|should)\b/.test(p)) return "I";
-  if (/\b(vs|versus|best|top|review|reviews|compare|cheapest|alternative)\b/.test(p)) return "C";
-  if (/\b(buy|order|price|pricing|cost|quote|near me|for sale|hire|shop|custom)\b/.test(p)) return "T";
-  // A brand or a domain-looking phrase is somebody trying to get to a place.
-  if (/\.(com|net|org)\b/.test(p) || p.split(/\s+/).length === 1) return "N";
-  return "C";
-}
+
+
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -85,6 +34,9 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
   const now = Date.now();
   const currentFrom = new Date(now - days * 86_400_000).toISOString().slice(0, 10);
   const priorFrom = new Date(now - days * 2 * 86_400_000).toISOString().slice(0, 10);
+  // Twelve weeks of history behind the two comparison windows, so the detail
+  // row has a shape to show rather than two dots.
+  const historyFrom = new Date(now - 84 * 86_400_000).toISOString().slice(0, 10);
 
   const [{ data: terms }, { data: kws }, { data: site }] = await Promise.all([
     supabase
@@ -92,8 +44,8 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
       .select("term, clicks, impressions, ctr, position, period_start")
       .eq("site_id", siteId)
       .eq("dimension", "query")
-      .gte("period_start", priorFrom)
-      .limit(50_000),
+      .gte("period_start", historyFrom)
+      .limit(120_000),
     supabase
       .from("pulse_keywords")
       .select("id, phrase, target_url, volume, intent")
@@ -116,10 +68,24 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
   // average its two positions as equals.
   const agg = new Map<string, { clicks: number; impr: number; posWeighted: number; best: number }>();
   const prior = new Map<string, { impr: number; posWeighted: number }>();
+  const history = new Map<string, Map<string, { pw: number; impr: number; clicks: number }>>();
   let lastUpdated: string | null = null;
 
   for (const r of rows) {
     if (!r.term) continue;
+
+    // Every row feeds the history, including the ones outside the two
+    // comparison windows — that is the point of pulling twelve weeks.
+    const week = r.period_start;
+    const perTerm = history.get(r.term) ?? new Map<string, { pw: number; impr: number; clicks: number }>();
+    const cell = perTerm.get(week) ?? { pw: 0, impr: 0, clicks: 0 };
+    cell.pw += (r.position ?? 0) * (r.impressions ?? 0);
+    cell.impr += r.impressions ?? 0;
+    cell.clicks += r.clicks ?? 0;
+    perTerm.set(week, cell);
+    history.set(r.term, perTerm);
+
+    if (r.period_start < priorFrom) continue;
     const isCurrent = r.period_start >= currentFrom;
     if (isCurrent) {
       if (!lastUpdated || r.period_start > lastUpdated) lastUpdated = r.period_start;
@@ -147,6 +113,16 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
       const position = round1(g.posWeighted / g.impr);
       const p = prior.get(phrase);
       const priorPos = p && p.impr > 0 ? p.posWeighted / p.impr : null;
+      const hist: HistoryPoint[] = [...(history.get(phrase) ?? new Map()).entries()]
+        .filter(([, c]) => c.impr > 0)
+        .map(([weekStart, c]) => ({
+          weekStart,
+          position: round1(c.pw / c.impr),
+          clicks: c.clicks,
+          impressions: c.impr,
+        }))
+        .sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+
       return {
         phrase,
         position,
@@ -157,6 +133,7 @@ export async function keywordsPanel(siteId: string, days = 28): Promise<Keywords
         best: g.best === 999 ? position : round1(g.best),
         intent: classifyIntent(phrase),
         tracked: trackedPhrases.has(phrase.toLowerCase()),
+        history: hist,
       };
     })
     .sort((a, b) => b.impressions - a.impressions);

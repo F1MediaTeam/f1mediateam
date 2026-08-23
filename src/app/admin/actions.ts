@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { randomUUID } from "node:crypto";
 import { data } from "@/lib/data";
 import { requireAdmin } from "@/lib/auth/session";
 import { createServiceClient, createClient } from "@/lib/supabase/server";
@@ -308,46 +307,7 @@ export async function reopenOnboardingAction(formData: FormData): Promise<void> 
 // ---------- messages (admin → client) ----------
 
 const MAX_ADMIN_MESSAGE_LEN = 4000;
-const ADMIN_MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
 const ADMIN_MAX_ATTACHMENTS = 10;
-
-export async function createAdminMessageUploadSlots(
-  input: { client_id: string; files: Array<{ name: string; size: number; mime_type: string }> },
-): Promise<{ error: string | null; slots?: Array<{ path: string; token: string; signedUrl: string; name: string; mime_type: string; size: number }> }> {
-  await requireAdmin();
-  const client_id = input.client_id;
-  if (!client_id) return { error: "Missing client id." };
-  if (!Array.isArray(input.files) || input.files.length === 0) return { error: "No files." };
-  if (input.files.length > ADMIN_MAX_ATTACHMENTS) {
-    return { error: `Too many attachments (max ${ADMIN_MAX_ATTACHMENTS} per message).` };
-  }
-  for (const f of input.files) {
-    if (!f || typeof f.size !== "number" || f.size <= 0) return { error: "Invalid file." };
-    if (f.size > ADMIN_MAX_ATTACHMENT_BYTES) {
-      return { error: `File "${f.name}" is too big (max 50 MB).` };
-    }
-  }
-
-  const supabase = await createServiceClient();
-  const slots: Array<{ path: string; token: string; signedUrl: string; name: string; mime_type: string; size: number }> = [];
-  for (const f of input.files) {
-    const safeName = f.name.replace(/[^\w.\-]/g, "_").slice(0, 120) || "file";
-    const path = `messages/${client_id}/${randomUUID()}-${safeName}`;
-    const { data: signed, error } = await supabase.storage
-      .from("client-attachments")
-      .createSignedUploadUrl(path);
-    if (error || !signed) return { error: `Failed to create upload URL: ${error?.message ?? "unknown"}` };
-    slots.push({
-      path,
-      token: signed.token,
-      signedUrl: signed.signedUrl,
-      name: f.name,
-      mime_type: f.mime_type || "application/octet-stream",
-      size: f.size,
-    });
-  }
-  return { error: null, slots };
-}
 
 export async function sendAdminMessageAction(
   formData: FormData,
@@ -403,15 +363,6 @@ export async function sendAdminMessageAction(
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Send failed." };
   }
-}
-
-export async function markAdminMessagesReadAction(formData: FormData): Promise<void> {
-  await requireAdmin();
-  const client_id = String(formData.get("client_id") ?? "");
-  if (!client_id) return;
-  await data.markMessagesRead(client_id, "admin");
-  revalidatePath(`/admin/messages`);
-  revalidatePath(`/admin/messages/${client_id}`);
 }
 
 export async function deleteClientAction(formData: FormData) {
@@ -630,41 +581,6 @@ export async function endImpersonateAction() {
 
 // --- connector sync ---
 
-// Agency-key flow: skip per-client API key. Uses BING_API_KEY env var,
-// stores just the site URL the client maps to.
-export async function connectBingSiteAction(formData: FormData) {
-  await requireAdmin();
-  const client_id = String(formData.get("client_id") ?? "");
-  const site_url = String(formData.get("site_url") ?? "").trim();
-  if (!client_id) return;
-  if (!site_url) {
-    redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent("Pick a verified Bing site to continue")}`);
-  }
-  if (!process.env.BING_API_KEY) {
-    redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent("BING_API_KEY env var is not set on the server")}`);
-  }
-  try {
-    await data.upsertConnectorToken({
-      client_id,
-      provider: "bing",
-      account_label: site_url,
-      access_token: null,
-      refresh_token: null,
-      expires_at: null,
-      scopes: [],
-      meta: {},
-    });
-  } catch (e) {
-    if (e && typeof e === "object" && "digest" in e && String((e as { digest: unknown }).digest).startsWith("NEXT_REDIRECT")) {
-      throw e;
-    }
-    const message = e instanceof Error ? e.message : String(e);
-    redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent(`Bing: ${message}`)}`);
-  }
-  revalidatePath(`/admin/clients/${client_id}`);
-  redirect(`/admin/clients/${client_id}?oauth_connected=bing`);
-}
-
 // Agency-key flow for Semrush. Uses SEMRUSH_API_KEY env var; per-client row
 // just records which domain to query against.
 export async function connectSemrushDomainAction(formData: FormData) {
@@ -696,41 +612,6 @@ export async function connectSemrushDomainAction(formData: FormData) {
       throw e;
     }
     const message = e instanceof Error ? e.message : String(e);
-    redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent(`Semrush: ${message}`)}`);
-  }
-  revalidatePath(`/admin/clients/${client_id}`);
-  redirect(`/admin/clients/${client_id}?oauth_connected=semrush`);
-}
-
-export async function connectSemrushAction(formData: FormData) {
-  await requireAdmin();
-  const client_id = String(formData.get("client_id") ?? "");
-  const apikey = String(formData.get("apikey") ?? "").trim();
-  const domain = String(formData.get("domain") ?? "").trim();
-  if (!client_id) return;
-  if (!apikey || !domain) {
-    redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent("API key and domain are required")}`);
-  }
-  try {
-    const { testSemrushKey, normalizeDomain } = await import("@/lib/connectors/semrush");
-    await testSemrushKey(apikey);
-    const normalized = normalizeDomain(domain);
-    await data.upsertConnectorToken({
-      client_id,
-      provider: "semrush",
-      account_label: normalized,
-      access_token: apikey,
-      refresh_token: null,
-      expires_at: null,
-      scopes: [],
-      meta: {},
-    });
-  } catch (e) {
-    if (e && typeof e === "object" && "digest" in e && String((e as { digest: unknown }).digest).startsWith("NEXT_REDIRECT")) {
-      throw e;
-    }
-    const message = e instanceof Error ? e.message : String(e);
-    console.error("Semrush connect failed", e);
     redirect(`/admin/clients/${client_id}?oauth_error=${encodeURIComponent(`Semrush: ${message}`)}`);
   }
   revalidatePath(`/admin/clients/${client_id}`);

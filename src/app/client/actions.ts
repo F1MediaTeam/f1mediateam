@@ -285,45 +285,6 @@ export async function createClientCalendarEventAction(formData: FormData) {
   revalidatePath("/client");
 }
 
-// Generate a short-lived signed URL the browser can use to download an
-// attachment. RLS on calendar_event_attachments ensures the requesting
-// session can read this row in the first place.
-export async function getAttachmentDownloadUrl(attachmentId: string): Promise<string | null> {
-  const session = await requireClient();
-  if (!session.client_id) return null;
-  const supabase = await createSupabase();
-  const { data: row } = await supabase
-    .from("calendar_event_attachments")
-    .select("storage_path")
-    .eq("id", attachmentId)
-    .maybeSingle();
-  const path = (row as { storage_path: string } | null)?.storage_path;
-  if (!path || path.startsWith("mock://")) return null;
-  const { data: signed } = await supabase.storage
-    .from(ATTACHMENT_BUCKET)
-    .createSignedUrl(path, 300);
-  return signed?.signedUrl ?? null;
-}
-
-// Signed URL to download a row from the `files` table (e.g. submitted
-// onboarding PDF). Verifies the file belongs to the requesting client.
-export async function getFileDownloadUrl(fileId: string): Promise<string | null> {
-  const session = await requireClient();
-  if (!session.client_id) return null;
-  const supabase = await createServiceClient();
-  const { data: row } = await supabase
-    .from("files")
-    .select("storage_path, client_id")
-    .eq("id", fileId)
-    .maybeSingle();
-  const r = row as { storage_path: string; client_id: string } | null;
-  if (!r || r.client_id !== session.client_id) return null;
-  const { data: signed } = await supabase.storage
-    .from("client-attachments")
-    .createSignedUrl(r.storage_path, 300);
-  return signed?.signedUrl ?? null;
-}
-
 // ---------- messages (client → admin) ----------
 
 const MAX_MESSAGE_LEN = 4000;

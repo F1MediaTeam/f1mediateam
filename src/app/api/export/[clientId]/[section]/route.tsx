@@ -24,7 +24,7 @@ import {
 } from "@/lib/pdf-report";
 import { DashboardCard, LineChart, BarChart, DonutChart, GaugeGrid, PALETTE } from "@/lib/chart-pdf";
 import { todayIso } from "@/lib/utils";
-import { fetchClientOrganicKeywords, type OrganicKeyword } from "@/lib/connectors/semrush";
+import { fetchClientOrganicKeywords, storedOrganicKeywords, type OrganicKeyword } from "@/lib/connectors/semrush";
 import { APP_TZ } from "@/lib/timezone";
 import type {
   Task,
@@ -400,9 +400,16 @@ export async function GET(
     }
 
     case "keywords": {
+      // Stored first, live only as a fallback — the same rule the keywords
+      // panel follows, and for the same reason. A live pull of 250 rows costs
+      // roughly 2,500 Semrush units, and this export can be run any number of
+      // times a day against data that was already paid for by the deep pull.
+      // The panel route documented this; the export was written separately and
+      // never got it, so every PDF quietly repurchased the same keywords.
       let keywords: OrganicKeyword[] = [];
       try {
-        keywords = await fetchClientOrganicKeywords(clientId, 250);
+        keywords = await storedOrganicKeywords(clientId, 250);
+        if (keywords.length === 0) keywords = await fetchClientOrganicKeywords(clientId, 250);
       } catch {
         // Leave empty — the PDF renders a "nothing to report" table.
       }

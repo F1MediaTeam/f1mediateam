@@ -36,17 +36,6 @@ export async function saveStyleOverrideAction(input: {
   return { error: null };
 }
 
-/** Clear one target's override, leaving everything else in place. */
-export async function clearStyleOverrideAction(
-  scope: string,
-  selector: string,
-): Promise<{ error: string | null }> {
-  await requireAdmin();
-  await data.deleteUiOverride(scope, selector);
-  revalidateAdmin();
-  return { error: null };
-}
-
 /** "Set as default" — snapshot everything currently applied so later edits
  *  can always be rolled back to this point. */
 export async function setStyleDefaultAction(): Promise<{ error: string | null }> {

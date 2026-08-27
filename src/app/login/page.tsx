@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { usingMock } from "@/lib/data";
 import LoginForm from "./LoginForm";
-import Logo from "@/components/shared/Logo";
 
 export default async function LoginPage() {
   const s = await getSession();
@@ -15,7 +14,6 @@ export default async function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-6 py-16">
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center text-center">
-          <Logo size={320} className="mb-4" />
           <h1 className="text-3xl font-semibold tracking-tight">Client portal</h1>
           <p className="mt-2 text-sm text-[var(--color-text-muted)]">
             {usingMock
